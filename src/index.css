@@ -1,0 +1,219 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    /* Pastel Sage Green Theme - Light Mode */
+    --background: 45 30% 97%;
+    --foreground: 150 10% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 10% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 10% 20%;
+
+    /* Sage Green Primary */
+    --primary: 150 30% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Soft Mint Secondary */
+    --secondary: 150 25% 92%;
+    --secondary-foreground: 150 30% 30%;
+
+    --muted: 45 20% 94%;
+    --muted-foreground: 150 10% 45%;
+
+    /* Pistachio Accent */
+    --accent: 140 35% 85%;
+    --accent-foreground: 150 30% 25%;
+
+    /* Soft Coral Destructive */
+    --destructive: 10 70% 70%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Butter Cream Warning */
+    --warning: 45 80% 75%;
+    --warning-foreground: 40 50% 25%;
+
+    /* Pistachio Success */
+    --success: 140 45% 65%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 150 15% 88%;
+    --input: 150 15% 88%;
+    --ring: 150 30% 45%;
+
+    --radius: 1rem;
+
+    /* Glass Effect */
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 0 0% 100% / 0.3;
+    --glass-shadow: 150 30% 45% / 0.08;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100% / 0.8;
+    --sidebar-foreground: 150 10% 30%;
+    --sidebar-primary: 150 30% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 25% 92%;
+    --sidebar-accent-foreground: 150 30% 30%;
+    --sidebar-border: 150 15% 90%;
+    --sidebar-ring: 150 30% 45%;
+
+    /* Gradient Tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(150 35% 92%) 0%, hsl(140 30% 88%) 50%, hsl(45 40% 94%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(150 20% 98%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(150 30% 50%) 0%, hsl(140 35% 45%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(150 35% 90%) 0%, hsl(140 40% 85%) 100%);
+  }
+
+  .dark {
+    /* Muted Forest Green Theme - Dark Mode */
+    --background: 200 15% 12%;
+    --foreground: 150 15% 92%;
+
+    --card: 200 12% 16%;
+    --card-foreground: 150 15% 92%;
+
+    --popover: 200 12% 16%;
+    --popover-foreground: 150 15% 92%;
+
+    /* Muted Forest Primary */
+    --primary: 150 25% 55%;
+    --primary-foreground: 200 15% 10%;
+
+    --secondary: 200 10% 22%;
+    --secondary-foreground: 150 20% 85%;
+
+    --muted: 200 10% 20%;
+    --muted-foreground: 150 10% 60%;
+
+    --accent: 150 20% 25%;
+    --accent-foreground: 150 25% 85%;
+
+    --destructive: 10 50% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 45 60% 55%;
+    --warning-foreground: 40 50% 15%;
+
+    --success: 140 35% 50%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 200 10% 25%;
+    --input: 200 10% 25%;
+    --ring: 150 25% 55%;
+
+    /* Glass Effect Dark */
+    --glass-bg: 200 15% 15% / 0.8;
+    --glass-border: 150 20% 30% / 0.3;
+    --glass-shadow: 0 0% 0% / 0.3;
+
+    /* Sidebar Dark */
+    --sidebar-background: 200 12% 14% / 0.9;
+    --sidebar-foreground: 150 15% 85%;
+    --sidebar-primary: 150 25% 55%;
+    --sidebar-primary-foreground: 200 15% 10%;
+    --sidebar-accent: 200 10% 22%;
+    --sidebar-accent-foreground: 150 20% 85%;
+    --sidebar-border: 200 10% 22%;
+    --sidebar-ring: 150 25% 55%;
+
+    /* Gradient Tokens Dark */
+    --gradient-hero: linear-gradient(135deg, hsl(200 15% 14%) 0%, hsl(150 15% 16%) 50%, hsl(200 12% 12%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(200 12% 18%) 0%, hsl(200 12% 14%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(150 25% 45%) 0%, hsl(140 30% 40%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(150 20% 22%) 0%, hsl(140 25% 20%) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+@layer components {
+  /* Glass Card */
+  .glass-card {
+    @apply bg-card/70 backdrop-blur-xl border border-white/20 shadow-lg;
+    box-shadow: 0 8px 32px hsl(var(--glass-shadow));
+  }
+
+  .dark .glass-card {
+    @apply bg-card/80 border-border/30;
+  }
+
+  /* Floating Sidebar */
+  .floating-sidebar {
+    @apply bg-sidebar/80 backdrop-blur-xl border-r border-sidebar-border;
+  }
+
+  /* Soft Glow Effect */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  /* Status Badges */
+  .badge-success {
+    @apply bg-success/20 text-success border border-success/30;
+  }
+
+  .badge-warning {
+    @apply bg-warning/30 text-warning-foreground border border-warning/40;
+  }
+
+  .badge-danger {
+    @apply bg-destructive/20 text-destructive border border-destructive/30;
+  }
+
+  /* Pill Button */
+  .btn-pill {
+    @apply rounded-full px-6 py-2.5 font-medium transition-all duration-300;
+  }
+
+  /* Matrix Grid Items */
+  .matrix-paid {
+    @apply bg-success/30 border-success/40;
+  }
+
+  .matrix-pending {
+    @apply bg-warning/30 border-warning/40;
+  }
+
+  .matrix-unpaid {
+    @apply bg-destructive/20 border-destructive/30;
+  }
+
+  /* Smooth Theme Transition */
+  * {
+    @apply transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent-foreground;
+  }
+
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+
+  .primary-gradient {
+    background: var(--gradient-primary);
+  }
+}
