@@ -28,11 +28,11 @@ type ChartDataPoint struct {
 
 // ClassFinanceSummary represents per-class financial summary
 type ClassFinanceSummary struct {
-	ClassID     uuid.UUID `json:"class_id"`
-	ClassName   string    `json:"class_name"`
-	TotalIncome float64   `json:"total_income"`
-	TotalExpense float64  `json:"total_expense"`
-	Balance     float64   `json:"balance"`
+	ClassID      uuid.UUID `json:"class_id"`
+	ClassName    string    `json:"class_name"`
+	TotalIncome  float64   `json:"total_income"`
+	TotalExpense float64   `json:"total_expense"`
+	Balance      float64   `json:"balance"`
 }
 
 // MonthlyData represents monthly breakdown
@@ -44,12 +44,19 @@ type MonthlyData struct {
 
 // FinanceSummaryResponse is the API response structure
 type FinanceSummaryResponse struct {
-	TotalIncome      float64             `json:"total_income"`
-	TotalExpense     float64             `json:"total_expense"`
-	Balance          float64             `json:"balance"`
+	TotalIncome      float64               `json:"total_income"`
+	TotalExpense     float64               `json:"total_expense"`
+	Balance          float64               `json:"balance"`
 	ClassBreakdown   []ClassFinanceSummary `json:"class_breakdown"`
-	ChartData        []ChartDataPoint    `json:"chart_data"`
-	MonthlyBreakdown []MonthlyData       `json:"monthly_breakdown"`
+	ChartData        []ChartDataPoint      `json:"chart_data"`
+	MonthlyBreakdown []MonthlyData         `json:"monthly_breakdown"`
+}
+
+// ✅ STRUKTUR BARU BUAT MATRIX
+type MatrixStudentData struct {
+	StudentName string   `json:"name"`
+	StudentID   string   `json:"student_id"`
+	Payments    []string `json:"payments"` // Array status: ["paid", "pending", "unpaid", "unpaid"]
 }
 
 // GetFinanceSummary returns financial summary with chart data
@@ -85,15 +92,15 @@ func (h *FinanceHandler) GetFinanceSummary(c *fiber.Ctx) error {
 	// Get per-class breakdown (for Recharts bar/candlestick chart)
 	var classBreakdown []ClassFinanceSummary
 	classQuery := `
-		SELECT 
-			c.id as class_id,
-			c.name as class_name,
-			COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as total_income,
-			COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_expense,
-			COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END), 0) as balance
-		FROM classes c
-		LEFT JOIN transactions t ON t.class_id = c.id
-	`
+        SELECT 
+            c.id as class_id,
+            c.name as class_name,
+            COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as total_income,
+            COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_expense,
+            COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE -t.amount END), 0) as balance
+        FROM classes c
+        LEFT JOIN transactions t ON t.class_id = c.id
+    `
 	if classFilter != "" {
 		classQuery += " WHERE c.id = ?"
 		h.DB.Raw(classQuery+" GROUP BY c.id, c.name ORDER BY c.name", args...).Scan(&classBreakdown)
@@ -116,13 +123,13 @@ func (h *FinanceHandler) GetFinanceSummary(c *fiber.Ctx) error {
 	currentYear := time.Now().Year()
 	var monthlyBreakdown []MonthlyData
 	monthlyQuery := `
-		SELECT 
-			TO_CHAR(transaction_date, 'Mon') as month,
-			COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-			COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-		FROM transactions
-		WHERE EXTRACT(YEAR FROM transaction_date) = ?
-	`
+        SELECT 
+            TO_CHAR(transaction_date, 'Mon') as month,
+            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+            COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+        FROM transactions
+        WHERE EXTRACT(YEAR FROM transaction_date) = ?
+    `
 	if classFilter != "" {
 		monthlyQuery += " AND " + classFilter
 		h.DB.Raw(monthlyQuery+" GROUP BY TO_CHAR(transaction_date, 'Mon'), EXTRACT(MONTH FROM transaction_date) ORDER BY EXTRACT(MONTH FROM transaction_date)", currentYear, args[0]).Scan(&monthlyBreakdown)
@@ -285,9 +292,9 @@ func (h *FinanceHandler) GetTransactions(c *fiber.Ctx) error {
 		"success": true,
 		"data":    transactions,
 		"meta": fiber.Map{
-			"page":       page,
-			"limit":      limit,
-			"total":      total,
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
 			"total_pages": (total + int64(limit) - 1) / int64(limit),
 		},
 	})
@@ -311,18 +318,18 @@ func (h *FinanceHandler) GetWeeklyDuesSummary(c *fiber.Ctx) error {
 	var summaries []DuesSummary
 
 	query := `
-		SELECT 
-			c.name as class_name,
-			COUNT(wd.id) as total_dues,
-			COUNT(CASE WHEN wd.status = 'paid' THEN 1 END) as paid_dues,
-			COUNT(CASE WHEN wd.status = 'pending' THEN 1 END) as pending_dues,
-			COUNT(CASE WHEN wd.status = 'unpaid' THEN 1 END) as unpaid_dues,
-			COALESCE(SUM(wd.amount), 0) as total_amount,
-			COALESCE(SUM(CASE WHEN wd.status = 'paid' THEN wd.amount ELSE 0 END), 0) as paid_amount
-		FROM classes c
-		LEFT JOIN profiles p ON p.class_id = c.id
-		LEFT JOIN weekly_dues wd ON wd.student_id = p.user_id
-	`
+        SELECT 
+            c.name as class_name,
+            COUNT(wd.id) as total_dues,
+            COUNT(CASE WHEN wd.status = 'paid' THEN 1 END) as paid_dues,
+            COUNT(CASE WHEN wd.status = 'pending' THEN 1 END) as pending_dues,
+            COUNT(CASE WHEN wd.status = 'unpaid' THEN 1 END) as unpaid_dues,
+            COALESCE(SUM(wd.amount), 0) as total_amount,
+            COALESCE(SUM(CASE WHEN wd.status = 'paid' THEN wd.amount ELSE 0 END), 0) as paid_amount
+        FROM classes c
+        LEFT JOIN profiles p ON p.class_id = c.id
+        LEFT JOIN weekly_dues wd ON wd.student_id = p.user_id
+    `
 
 	if user.Role != models.RoleAdminDev && user.ClassID != nil {
 		query += " WHERE c.id = ?"
@@ -334,5 +341,69 @@ func (h *FinanceHandler) GetWeeklyDuesSummary(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    summaries,
+	})
+}
+
+// ✅ FUNCTION BARU: GetDuesMatrix (Versi Raw SQL - Lebih Stabil & Debugging Ready)
+// GET /api/finance/dues/matrix?class_id=...
+func (h *FinanceHandler) GetDuesMatrix(c *fiber.Ctx) error {
+	classID := c.Query("class_id")
+	if classID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "class_id required"})
+	}
+
+	// 🔍 DEBUG: Cek di terminal apakah request masuk
+	println("DEBUG: Fetching students for Class ID:", classID)
+
+	// 1. Ambil data siswa pakai RAW SQL (Bypassing GORM mapping issues)
+	type StudentResult struct {
+		UserID   uuid.UUID `json:"user_id"`
+		FullName string    `json:"full_name"`
+	}
+
+	var students []StudentResult
+	// Query ini nembak tabel 'profiles' langsung. Pastikan ada data di table ini dengan class_id tersebut
+	if err := h.DB.Raw("SELECT user_id, full_name FROM profiles WHERE class_id = ? ORDER BY full_name ASC", classID).Scan(&students).Error; err != nil {
+		println("ERROR Query Students:", err.Error())
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch students"})
+	}
+
+	println("DEBUG: Found students count:", len(students))
+
+	// 2. Siapkan wadah respon
+	matrixData := make([]MatrixStudentData, 0)
+
+	// 3. Loop setiap siswa untuk cari status bayar
+	for _, s := range students {
+		// Struct sementara buat nampung status doang
+		type DueStatus struct {
+			Status string
+		}
+		var dues []DueStatus
+
+		// Ambil status bayar 4 minggu pertama dari tabel 'weekly_dues'
+		h.DB.Raw("SELECT status FROM weekly_dues WHERE student_id = ? ORDER BY week_number ASC LIMIT 4", s.UserID).Scan(&dues)
+
+		paymentStatuses := []string{"unpaid", "unpaid", "unpaid", "unpaid"}
+
+		for i, due := range dues {
+			if i < 4 {
+				// Pastikan status valid, kalau kosong anggap unpaid
+				if due.Status != "" {
+					paymentStatuses[i] = due.Status
+				}
+			}
+		}
+
+		matrixData = append(matrixData, MatrixStudentData{
+			StudentName: s.FullName,
+			StudentID:   s.UserID.String(),
+			Payments:    paymentStatuses,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    matrixData,
 	})
 }

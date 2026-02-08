@@ -1,238 +1,327 @@
-import { useState } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client'; 
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useAuth } from '@/contexts/AuthContext';
+// ✅ WAJIB: Pastikan sudah install 'npm install xlsx-js-style'
+import XLSX from 'xlsx-js-style';
 
-// Mock data for weekly payment matrix
-const weeks = ['W1', 'W2', 'W3', 'W4'];
-const students = [
-  { name: 'Ahmad Fauzan', payments: ['paid', 'paid', 'paid', 'pending'] },
-  { name: 'Budi Santoso', payments: ['paid', 'paid', 'unpaid', 'unpaid'] },
-  { name: 'Citra Dewi', payments: ['paid', 'paid', 'paid', 'paid'] },
-  { name: 'Dian Pratama', payments: ['paid', 'pending', 'unpaid', 'unpaid'] },
-  { name: 'Eka Putra', payments: ['paid', 'paid', 'paid', 'pending'] },
-];
+// --- INTERFACES ---
+interface StudentPayment {
+  name: string;
+  student_id: string;
+  payments: string[];
+}
 
-const transactions = [
-  { type: 'income', description: 'Iuran Minggu ke-3', amount: 500000, date: '15 Jan 2025' },
-  { type: 'expense', description: 'Cetak Banner Kegiatan', amount: -150000, date: '14 Jan 2025' },
-  { type: 'income', description: 'Iuran Minggu ke-2', amount: 480000, date: '08 Jan 2025' },
-  { type: 'expense', description: 'Konsumsi Rapat', amount: -200000, date: '07 Jan 2025' },
-];
+interface ClassData {
+  id: string;
+  name: string;
+}
+
+interface Transaction {
+  id: string; 
+  type: 'income' | 'expense';
+  description: string;
+  amount: number;
+  transaction_date: string;
+  category: string;
+}
+
+interface FinanceSummary {
+  total_income: number;
+  total_expense: number;
+  balance: number;
+}
+
+interface UserProfile {
+  user_id: string;
+  role: string;
+  class_id: string | null;
+}
 
 export default function Finance() {
-  const [selectedClass, setSelectedClass] = useState('A');
+  const { session } = useAuth();
+  
+  // --- STATE ---
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [matrixData, setMatrixData] = useState<StudentPayment[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [manualSummary, setManualSummary] = useState<FinanceSummary>({ total_income: 0, total_expense: 0, balance: 0 });
+  const [duesTotal, setDuesTotal] = useState<number>(0); 
+  const [isLoadingMatrix, setIsLoadingMatrix] = useState(false);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<{studentId: string, studentName: string, weekIndex: number} | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [weeks] = useState(['W1', 'W2', 'W3', 'W4']);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Check className="w-4 h-4 text-success" />;
-      case 'pending':
-        return <Clock className="w-4 h-4 text-warning-foreground" />;
-      case 'unpaid':
-        return <X className="w-4 h-4 text-destructive" />;
-      default:
-        return null;
+  // 1. INIT DATA
+  useEffect(() => {
+    const initData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('class_id').eq('user_id', user.id).single();
+        const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).single();
+        if (profile && roleData) {
+          setCurrentUser({ user_id: user.id, class_id: profile.class_id, role: roleData.role });
+        }
+      }
+      const { data: cls } = await supabase.from('classes').select('id, name').order('name');
+      if (cls && cls.length > 0) {
+        setClasses(cls);
+        setSelectedClassId(cls[0].id);
+      }
+    };
+    initData();
+  }, []);
+
+  // 2. FETCH STATS (Transactions)
+  const fetchTransactionStats = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('transactions').select('*');
+      if (error) throw error;
+
+      if (data) {
+        const income = data.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+        const expense = data.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0);
+        
+        setManualSummary({
+          total_income: income,
+          total_expense: expense,
+          balance: income - expense
+        });
+        setTransactions((data as any).sort((a: any, b: any) => 
+          new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+        ).slice(0, 5));
+      }
+    } catch (error) { 
+      console.error("Gagal ambil stats transaksi:", error); 
+    } finally { 
+      setIsLoadingStats(false); 
+    }
+  }, []);
+
+  // 3. HITUNG TOTAL IURAN (Supabase)
+  const fetchDuesTotal = useCallback(async () => {
+    try {
+      const { count, error } = await supabase.from('weekly_dues').select('*', { count: 'exact', head: true }).eq('status', 'paid');
+      if (!error) setDuesTotal((count || 0) * 5000);
+    } catch (err) { console.error(err); }
+  }, []);
+
+  useEffect(() => { if (session) { fetchTransactionStats(); fetchDuesTotal(); } }, [session, fetchTransactionStats, fetchDuesTotal]);
+
+  // 4. FETCH MATRIX
+  const fetchStudentMatrix = useCallback(async () => {
+    if (!selectedClassId) return;
+    try {
+      const { data: students } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).order('full_name');
+      if (!students || students.length === 0) { setMatrixData([]); return; }
+      const studentIds = students.map(s => s.user_id);
+      const { data: dues } = await supabase.from('weekly_dues').select('student_id, week_number, status').in('student_id', studentIds);
+      
+      const duesData = dues || [];
+      const mappedData = students.map(student => {
+        const statusList = ["unpaid", "unpaid", "unpaid", "unpaid"];
+        duesData.forEach(due => {
+          if (due.student_id === student.user_id && due.week_number <= 4) statusList[due.week_number - 1] = due.status;
+        });
+        return { name: student.full_name, student_id: student.user_id, payments: statusList };
+      });
+      setMatrixData(mappedData);
+    } catch (error) { console.error(error); }
+  }, [selectedClassId]);
+
+  // 5. REALTIME LISTENER
+  useEffect(() => {
+    setIsLoadingMatrix(true);
+    fetchStudentMatrix().then(() => setIsLoadingMatrix(false));
+
+    const channel = supabase.channel('db-finance-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_dues' }, () => {
+        setTimeout(() => {
+          fetchStudentMatrix();
+          fetchDuesTotal();
+          fetchTransactionStats();
+        }, 300); 
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        fetchTransactionStats();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchStudentMatrix, fetchDuesTotal, fetchTransactionStats]);
+
+  // --- CALCULATIONS ---
+  const formatRupiah = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
+  
+  const REALTIME_TOTAL_INCOME = manualSummary.total_income + duesTotal;
+  const REALTIME_BALANCE = REALTIME_TOTAL_INCOME - manualSummary.total_expense;
+
+  const classDuesTotal = useMemo(() => {
+    let countPaid = 0;
+    matrixData.forEach(student => {
+      countPaid += student.payments.filter(p => p === 'paid').length;
+    });
+    return countPaid * 5000;
+  }, [matrixData]);
+
+  const selectedClassName = classes.find(c => c.id === selectedClassId)?.name || '...';
+  const canEdit = () => currentUser?.role === 'admin_dev' || (currentUser?.role === 'admin_kelas' && currentUser?.class_id === selectedClassId);
+  
+  const handleCellClick = (studentId: string, studentName: string, weekIdx: number) => {
+    if (!canEdit()) return;
+    setSelectedCell({ studentId, studentName, weekIndex: weekIdx + 1 });
+    setIsDialogOpen(true);
+  };
+
+  // ✅ UPDATE: Dibuat Instan / Realtime di Layar (Optimistic Update)
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!selectedCell) return;
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase.from('weekly_dues').upsert({
+          student_id: selectedCell.studentId, 
+          week_number: selectedCell.weekIndex, 
+          status: newStatus, 
+          amount: 5000 
+        }, { onConflict: 'student_id, week_number' });
+      
+      if (error) throw error;
+
+      // 🔥 LOGIC INSTAN: Update state lokal tanpa nunggu refresh
+      setMatrixData(prevData => 
+        prevData.map(student => {
+          if (student.student_id === selectedCell.studentId) {
+            const newPayments = [...student.payments];
+            newPayments[selectedCell.weekIndex - 1] = newStatus;
+            return { ...student, payments: newPayments };
+          }
+          return student;
+        })
+      );
+
+      // Trigger update angka di StatCards
+      fetchDuesTotal(); 
+
+      toast.success(`Berhasil update jadi ${newStatus}`);
+      setIsDialogOpen(false);
+    } catch (error: any) { 
+      toast.error("Gagal: " + error.message); 
+    } finally { 
+      setIsUpdating(false); 
     }
   };
 
-  const getStatusClass = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return 'matrix-paid';
-      case 'pending':
-        return 'matrix-pending';
-      case 'unpaid':
-        return 'matrix-unpaid';
-      default:
-        return '';
+  const handleDownloadExcel = () => {
+    if (matrixData.length === 0) {
+      toast.error("Tidak ada data untuk didownload");
+      return;
     }
+    const data: any[][] = [
+      [`LAPORAN IURAN KAS KELAS ${selectedClassName.toUpperCase()}`],
+      [`Angkatan PTIK 2025 - Per Tanggal: ${new Date().toLocaleDateString('id-ID')}`],
+      [],
+      ["No", "Nama Mahasiswa", "Minggu 1", "Minggu 2", "Minggu 3", "Minggu 4", "Total (Rp)"]
+    ];
+    matrixData.forEach((s, i) => {
+      const total = s.payments.filter(p => p === 'paid').length * 5000;
+      data.push([ i + 1, s.name, s.payments[0]?.toUpperCase() || "BELUM", s.payments[1]?.toUpperCase() || "BELUM", s.payments[2]?.toUpperCase() || "BELUM", s.payments[3]?.toUpperCase() || "BELUM", total ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Kas");
+    XLSX.writeFile(wb, `Laporan_Kas_${selectedClassName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
+
+  const getStatusIcon = (status: string) => { switch (status) { case 'paid': return <Check className="w-4 h-4" />; case 'pending': return <Clock className="w-4 h-4" />; case 'unpaid': return <X className="w-4 h-4" />; default: return <span className="text-xs">-</span>; } };
 
   return (
     <div className="space-y-6 pt-12 md:pt-0">
-      {/* Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard Keuangan</h1>
         <p className="text-muted-foreground mt-1">Laporan kas angkatan PTIK 2025</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={Wallet}
-          label="Total Saldo"
-          value="Rp 12.500.000"
-          trend={{ value: '15%', positive: true }}
-          iconBg="bg-success/10 text-success"
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Pemasukan Bulan Ini"
-          value="Rp 2.100.000"
-          iconBg="bg-primary/10 text-primary"
-        />
-        <StatCard
-          icon={TrendingDown}
-          label="Pengeluaran Bulan Ini"
-          value="Rp 450.000"
-          iconBg="bg-destructive/10 text-destructive"
-        />
-        <StatCard
-          icon={Users}
-          label="Lunas Bulan Ini"
-          value="85%"
-          iconBg="bg-warning/20 text-warning-foreground"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <StatCard icon={Users} label={`Saldo Kas Kelas ${selectedClassName}`} value={isLoadingMatrix ? "..." : formatRupiah(classDuesTotal)} iconBg="bg-purple-500/10 text-purple-600" />
+        <StatCard icon={Wallet} label="Saldo Kas Angkatan" value={isLoadingStats ? "..." : formatRupiah(duesTotal)} trend={{ value: 'Realtime', positive: true }} iconBg="bg-blue-500/10 text-blue-600" />
+        <StatCard icon={Gift} label="Dana Hibah/Lainnya" value={isLoadingStats ? "..." : formatRupiah(manualSummary.total_income)} iconBg="bg-orange-500/10 text-orange-600" />
+        <StatCard icon={TrendingUp} label="Total Pemasukan" value={isLoadingStats ? "..." : formatRupiah(REALTIME_TOTAL_INCOME)} iconBg="bg-green-500/10 text-green-600" />
+        <StatCard icon={TrendingDown} label="Total Pengeluaran" value={isLoadingStats ? "..." : formatRupiah(manualSummary.total_expense)} iconBg="bg-red-500/10 text-red-600" />
       </div>
 
-      {/* Donut Chart Placeholder */}
-      <div className="glass-card rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Kontribusi per Kelas</h2>
-        <div className="flex flex-col md:flex-row items-center gap-8">
-          <div className="relative w-48 h-48">
-            {/* Simple donut chart visualization */}
-            <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-              <circle cx="18" cy="18" r="15.915" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.915" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" 
-                strokeDasharray="35 65" strokeDashoffset="0" />
-              <circle cx="18" cy="18" r="15.915" fill="none" stroke="hsl(var(--success))" strokeWidth="3" 
-                strokeDasharray="33 67" strokeDashoffset="-35" />
-              <circle cx="18" cy="18" r="15.915" fill="none" stroke="hsl(var(--warning))" strokeWidth="3" 
-                strokeDasharray="32 68" strokeDashoffset="-68" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center flex-col">
-              <span className="text-2xl font-bold text-foreground">100%</span>
-              <span className="text-xs text-muted-foreground">Total</span>
-            </div>
-          </div>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-full bg-primary" />
-              <span className="text-sm text-foreground">Kelas A - 35%</span>
-              <span className="text-sm text-muted-foreground">Rp 4.375.000</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-full bg-success" />
-              <span className="text-sm text-foreground">Kelas B - 33%</span>
-              <span className="text-sm text-muted-foreground">Rp 4.125.000</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-full bg-warning" />
-              <span className="text-sm text-foreground">Kelas C - 32%</span>
-              <span className="text-sm text-muted-foreground">Rp 4.000.000</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Payment Matrix */}
-      <div className="glass-card rounded-2xl p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <h2 className="text-lg font-semibold text-foreground">Matrix Iuran Mingguan</h2>
-          <div className="flex gap-2">
-            {['A', 'B', 'C'].map((cls) => (
-              <Button
-                key={cls}
-                variant={selectedClass === cls ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setSelectedClass(cls)}
-                className={selectedClass === cls ? 'primary-gradient' : ''}
-              >
-                Kelas {cls}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Nama</th>
-                {weeks.map((week) => (
-                  <th key={week} className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
-                    {week}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((student, idx) => (
-                <tr key={idx} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
-                  <td className="py-3 px-4 text-sm text-foreground">{student.name}</td>
-                  {student.payments.map((status, weekIdx) => (
-                    <td key={weekIdx} className="py-3 px-4 text-center">
-                      <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center mx-auto border",
-                        getStatusClass(status)
-                      )}>
-                        {getStatusIcon(status)}
-                      </div>
-                    </td>
-                  ))}
-                </tr>
+      <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">Matrix Iuran Mingguan</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadExcel}><Download className="w-4 h-4" /> Export Excel</Button>
+            <div className="flex gap-2 overflow-x-auto">
+              {classes.map((cls) => (
+                <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => setSelectedClassId(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground' : ''}> Kelas {cls.name} </Button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg matrix-paid flex items-center justify-center border">
-              <Check className="w-3 h-3 text-success" />
-            </div>
-            <span className="text-sm text-muted-foreground">Lunas</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg matrix-pending flex items-center justify-center border">
-              <Clock className="w-3 h-3 text-warning-foreground" />
-            </div>
-            <span className="text-sm text-muted-foreground">Pending</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg matrix-unpaid flex items-center justify-center border">
-              <X className="w-3 h-3 text-destructive" />
-            </div>
-            <span className="text-sm text-muted-foreground">Belum Bayar</span>
-          </div>
+        <div className="overflow-x-auto">
+          {isLoadingMatrix ? <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div> : (
+            <table className="w-full">
+              <thead><tr className="border-b border-border/50"><th className="text-left py-4 px-4 text-sm font-medium text-muted-foreground">Nama Mahasiswa</th>{weeks.map((week) => (<th key={week} className="text-center py-4 px-4 text-sm font-medium text-muted-foreground">{week}</th>))}</tr></thead>
+              <tbody>
+                {matrixData.map((student) => (
+                    <tr key={student.student_id} className="hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0">
+                      <td className="py-3 px-4 text-sm text-foreground font-medium">{student.name}</td>
+                      {student.payments.map((status, weekIdx) => (
+                        <td key={weekIdx} className="py-3 px-4 text-center">
+                          <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-green-500/10 text-green-600 border-green-200" : status === 'pending' ? "bg-yellow-500/10 text-yellow-600 border-yellow-200" : "bg-red-500/10 text-red-600 border-red-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Recent Transactions */}
-      <div className="glass-card rounded-2xl p-6">
+      <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm">
         <h2 className="text-lg font-semibold text-foreground mb-4">Transaksi Terakhir</h2>
         <div className="space-y-3">
-          {transactions.map((tx, idx) => (
-            <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+          {transactions.map((tx) => (
+            <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50">
               <div className="flex items-center gap-4">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center",
-                  tx.type === 'income' ? 'bg-success/20' : 'bg-destructive/20'
-                )}>
-                  {tx.type === 'income' ? (
-                    <TrendingUp className="w-5 h-5 text-success" />
-                  ) : (
-                    <TrendingDown className="w-5 h-5 text-destructive" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">{tx.description}</p>
-                  <p className="text-sm text-muted-foreground">{tx.date}</p>
-                </div>
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", tx.type === 'income' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
+                <div> <p className="font-medium text-foreground text-sm">{tx.description || tx.category}</p> <p className="text-xs text-muted-foreground">{new Date(tx.transaction_date).toLocaleDateString('id-ID')}</p> </div>
               </div>
-              <span className={cn(
-                "font-semibold",
-                tx.type === 'income' ? 'text-success' : 'text-destructive'
-              )}>
-                {tx.type === 'income' ? '+' : ''}Rp {Math.abs(tx.amount).toLocaleString()}
-              </span>
+              <span className={cn("font-semibold text-sm", tx.type === 'income' ? 'text-green-600' : 'text-red-600')}> {tx.type === 'income' ? '+' : '-'}{formatRupiah(tx.amount)} </span>
             </div>
           ))}
         </div>
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-3 gap-4 py-4">
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-green-500/10 border-green-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-green-600"/> Lunas</Button>
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600"/> Pending</Button>
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600"/> Belum</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

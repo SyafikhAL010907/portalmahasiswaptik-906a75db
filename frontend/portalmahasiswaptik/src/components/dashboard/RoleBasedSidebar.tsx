@@ -54,13 +54,7 @@ const getMenuItems = (): MenuItem[] => [
     ],
   },
   
-  // Dosen Only - QR Generator
-  {
-    icon: QrCode,
-    label: 'Generator QR',
-    path: '/dashboard/qr-generator',
-    roles: ['admin_dosen', 'admin_dev'],
-  },
+  // 🔄 Update: Menu Generator QR yang tadinya di luar, sekarang gue hapus dari sini karena dipindah ke Absensi
   
   // Academic
   {
@@ -73,13 +67,17 @@ const getMenuItems = (): MenuItem[] => [
     ],
   },
   
-  // Attendance
+  // Attendance - 🚀 SEKARANG JADI SATU DI SINI
   {
     icon: MapPin,
     label: 'Absensi',
     children: [
+      // 🔑 Generator QR sekarang masuk sini (Khusus Dosen & Super Admin)
+      { icon: QrCode, label: 'Generator QR', path: '/dashboard/qr-generator', roles: ['admin_dosen', 'admin_dev'] },
+      // Scan QR (Khusus Mahasiswa & Super Admin)
       { icon: QrCode, label: 'Scan QR', path: '/dashboard/scan-qr', roles: ['mahasiswa', 'admin_dev'] },
-      { icon: History, label: 'Riwayat Kehadiran', path: '/dashboard/attendance-history' },
+      // 🔑 Riwayat Kehadiran (Dosen 'admin_dosen' Dibuang dari daftar roles agar tidak muncul)
+      { icon: History, label: 'Riwayat Kehadiran', path: '/dashboard/attendance-history', roles: ['mahasiswa', 'admin_dev', 'admin_kelas'] },
     ],
   },
   
@@ -87,6 +85,7 @@ const getMenuItems = (): MenuItem[] => [
   {
     icon: Wallet,
     label: 'Keuangan',
+    roles: ['admin_dev', 'admin_kelas', 'mahasiswa'], 
     children: [
       { icon: BarChart3, label: 'Dashboard Kas', path: '/dashboard/finance' },
       { icon: CreditCard, label: 'Bayar Iuran', path: '/dashboard/payment' },
@@ -116,6 +115,8 @@ const getMenuItems = (): MenuItem[] => [
   },
 ];
 
+// ... (Sisa kode roleLabels, roleColors, dan komponen RoleBasedSidebar tetep utuh tanpa perubahan)
+
 const roleLabels: Record<AppRole, string> = {
   admin_dev: 'Super Admin',
   admin_kelas: 'Admin Kelas',
@@ -134,7 +135,7 @@ export function RoleBasedSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, roles, signOut } = useAuth();
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Akademik', 'Keuangan']);
+  const [expandedItems, setExpandedItems] = useState<string[]>(['Akademik', 'Keuangan', 'Absensi']); // Tambah Absensi biar auto-buka
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const menuItems = getMenuItems();
@@ -209,13 +210,10 @@ export function RoleBasedSidebar() {
       {/* Menu Section */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
-          // Check if user has access to this menu item
           if (!hasAccess(item.roles)) return null;
 
-          // Filter children based on roles
           const accessibleChildren = item.children?.filter(child => hasAccess(child.roles));
 
-          // If it's a parent with no accessible children, skip it
           if (item.children && (!accessibleChildren || accessibleChildren.length === 0)) {
             return null;
           }
