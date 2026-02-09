@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  QrCode, Camera, CheckCircle2, XCircle, 
+import {
+  QrCode, Camera, CheckCircle2, XCircle,
   MapPin, Wifi, WifiOff, Loader2, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { SwitchCamera, Zap, ZapOff } from 'lucide-react';
 
 interface ScanResult {
   success: boolean;
@@ -26,8 +27,11 @@ export default function ScanQR() {
   const [isOnlineMode, setIsOnlineMode] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const isProcessingRef = useRef(false);
+  const [showScannerUI, setShowScannerUI] = useState(false);
 
   // Campus location (example coordinates - UNJ)
   const CAMPUS_LAT = -6.1876;
@@ -53,10 +57,35 @@ export default function ScanQR() {
   }, [isOnlineMode]);
 
   useEffect(() => {
+    // 1. Fetch Cameras on Mount
+    Html5Qrcode.getCameras().then((devices) => {
+      if (devices && devices.length) {
+        setCameras(devices);
+        // Try to find back camera, else use first
+        const backCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
+        setActiveCameraId(backCamera ? backCamera.id : devices[0].id);
+      }
+    }).catch(err => {
+      console.error("Error fetching cameras", err);
+      toast.error("Gagal mendeteksi kamera. Pastikan izin diberikan.");
+    });
+
+    // Warn if non-secure context
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+      toast.warning("Koneksi tidak aman (HTTP). Kamera mungkin diblokir browser.", { duration: 5000 });
+    }
+
     return () => {
-      // Cleanup scanner on unmount
+      // Cleanup
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(console.error);
+        try {
+          if (scannerRef.current.isScanning) {
+            scannerRef.current.stop();
+          }
+          scannerRef.current.clear();
+        } catch (e) {
+          console.error("Cleanup error", e);
+        }
       }
     };
   }, []);
@@ -76,151 +105,238 @@ export default function ScanQR() {
     return R * c;
   };
 
-  const startScanner = () => {
+  const startScanner = async () => {
+    // Security Check for Camera Access
+    if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      toast.error("Kamera butuh koneksi HTTPS atau Localhost.", { duration: 5000 });
+      return;
+    }
+
+    if (!activeCameraId) {
+      toast.error("Kamera tidak ditemukan! Coba refresh atau periksa izin.");
+      return;
+    }
+
     setIsScanning(true);
+    setShowScannerUI(true);
     setScanResult(null);
     isProcessingRef.current = false;
 
-    setTimeout(() => {
-      const scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-        },
-        false
-      );
+    // Wait for UI to render div
+    setTimeout(async () => {
+      try {
+        // Clean up existing if any (safety)
+        if (scannerRef.current) {
+          try { await scannerRef.current.stop(); } catch (e) { /* ignore */ }
+          scannerRef.current.clear();
+        }
 
-      scanner.render(onScanSuccess, onScanFailure);
-      scannerRef.current = scanner;
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        scannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          activeCameraId,
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            videoConstraints: {
+              focusMode: "continuous"
+            } as MediaTrackConstraints & { focusMode: string }
+          },
+          (decodedText) => {
+            onScanSuccess(decodedText);
+          },
+          (errorMessage) => {
+            // ignore frame errors
+          }
+        );
+      } catch (err) {
+        console.error("Error starting scanner", err);
+        setIsScanning(false);
+        setShowScannerUI(false);
+        toast.error("Gagal memulai kamera. Pastikan izin diberikan.");
+      }
     }, 100);
   };
 
   const stopScanner = async () => {
     if (scannerRef.current) {
-      await scannerRef.current.clear();
-      scannerRef.current = null;
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch (e) { console.error("Stop error", e); }
     }
     setIsScanning(false);
+    setShowScannerUI(false);
+  };
+
+  const switchCamera = async () => {
+    if (!cameras || cameras.length < 2 || !activeCameraId) return;
+
+    const currentIndex = cameras.findIndex(c => c.id === activeCameraId);
+    const nextIndex = (currentIndex + 1) % cameras.length;
+    const nextCameraId = cameras[nextIndex].id;
+
+    setActiveCameraId(nextCameraId);
+
+    // Restart scanner with new camera
+    if (isScanning && scannerRef.current) {
+      await scannerRef.current.stop();
+      // Short delay to switch
+      setTimeout(() => {
+        startScanner(); // Will use new activeCameraId
+      }, 200);
+    }
+  };
+
+  // Constants
+  const UNJ_LAT = -6.1947;
+  const UNJ_LNG = 106.8794;
+  const MAX_DISTANCE_METERS = 150;
+
+  // Validate Class: Check if student belongs to the class in the QR
+  const validateClass = async (qrClassId: string) => {
+    if (!user) return false;
+
+    // Get user's profile to check class_id
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('class_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile || !profile.class_id) {
+      toast.error("Profil anda tidak memiliki data kelas!");
+      return false;
+    }
+
+    if (profile.class_id !== qrClassId) {
+      toast.error("QR Code ini bukan untuk kelas Anda!");
+      return false;
+    }
+    return true;
   };
 
   const onScanSuccess = useCallback(async (decodedText: string) => {
-    // Prevent multiple scans
     if (isProcessingRef.current) return;
+
+    // Stop scanning immediately provided by Html5Qrcode logic is different (we might want to keep scanning frame but just ignore results, or stop. Let's Pause.)
+    if (scannerRef.current) {
+      scannerRef.current.pause(true);
+    }
+
+    // Haptic Feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(200);
+    }
+
     isProcessingRef.current = true;
     setIsProcessing(true);
+    setScanResult(null);
 
     try {
-      // Validate location for offline mode
+      // 1. Parse Payload
+      let payload;
+      try {
+        payload = JSON.parse(decodedText);
+        // Format: { s: sessionId, c: classId, t: token }
+        if (!payload.s || !payload.c || !payload.t) throw new Error("Invalid Format");
+      } catch (e) {
+        throw new Error("QR Code tidak dikenali atau rusak.");
+      }
+
+      // 2. Validate GPS (If Toggle is Active)
       if (!isOnlineMode) {
-        if (!location) {
-          setScanResult({
-            success: false,
-            message: 'Lokasi tidak tersedia. Aktifkan GPS.',
-          });
-          setIsProcessing(false);
-          isProcessingRef.current = false;
-          return;
-        }
-
-        const distance = calculateDistance(
-          location.lat,
-          location.lng,
-          CAMPUS_LAT,
-          CAMPUS_LNG
-        );
-
-        if (distance > MAX_DISTANCE) {
-          setScanResult({
-            success: false,
-            message: `Anda terlalu jauh dari kampus (${Math.round(distance)}m). Maksimal ${MAX_DISTANCE}m.`,
-          });
-          await stopScanner();
-          setIsProcessing(false);
-          isProcessingRef.current = false;
-          return;
+        if (!location) throw new Error("Lokasi tidak ditemukan. Aktifkan GPS.");
+        const dist = calculateDistance(location.lat, location.lng, UNJ_LAT, UNJ_LNG);
+        if (dist > MAX_DISTANCE_METERS) {
+          throw new Error(`Jarak kejauhan! Anda ${Math.round(dist)}m dari UNJ. Max ${MAX_DISTANCE_METERS}m.`);
         }
       }
 
-      // Find the attendance session
+      // 3. Validate Class Match
+      const isClassValid = await validateClass(payload.c);
+      if (!isClassValid) throw new Error("QR Code ini bukan untuk kelas Anda.");
+
+      // 4. Validate Session & Token in DB
       const { data: session, error: sessionError } = await supabase
         .from('attendance_sessions')
-        .select(`
-          *,
-          meetings(meeting_number, subjects(name))
-        `)
-        .eq('qr_code', decodedText)
+        .select(`*, meetings(meeting_number, subjects(name))`)
+        .eq('id', payload.s)
         .eq('is_active', true)
         .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
+        .single();
 
-      if (sessionError || !session) {
-        setScanResult({
-          success: false,
-          message: 'QR Code tidak valid atau sudah kadaluarsa.',
-        });
-        await stopScanner();
-        setIsProcessing(false);
-        isProcessingRef.current = false;
-        return;
+      if (sessionError || !session) throw new Error("Sesi absensi tidak ditemukan atau sudah berakhir.");
+
+      // Verify Token (Anti-Cheat 2 Mins)
+      // Parse DB stored payload to compare tokens
+      const dbPayload = JSON.parse(session.qr_code);
+      if (dbPayload.t !== payload.t) {
+        throw new Error("QR Code sudah kadaluarsa (Token mismatch). Silakan scan ulang yang terbaru.");
       }
 
-      // Check if already attended
-      const { data: existingRecord } = await supabase
+      // 5. Check Duplicate Attendance
+      const { data: existing } = await supabase
         .from('attendance_records')
         .select('id')
-        .eq('session_id', session.id)
+        .eq('session_id', payload.s)
         .eq('student_id', user?.id)
         .maybeSingle();
 
-      if (existingRecord) {
+      if (existing) {
         setScanResult({
-          success: false,
-          message: 'Anda sudah tercatat hadir di sesi ini.',
+          success: true, // Treated as success but info
+          message: "Anda sudah absen sebelumnya.",
+          subject: (session.meetings as any)?.subjects?.name,
+          meeting: (session.meetings as any)?.meeting_number
         });
-        await stopScanner();
-        setIsProcessing(false);
-        isProcessingRef.current = false;
         return;
       }
 
-      // Record attendance
-      const { error: recordError } = await supabase
+      // 6. Insert Attendance
+      const { error: insertError } = await supabase
         .from('attendance_records')
         .insert({
-          session_id: session.id,
+          session_id: payload.s,
           student_id: user?.id,
           status: 'present',
+          scanned_at: new Date().toISOString()
         });
 
-      if (recordError) throw recordError;
+      if (insertError) throw insertError;
 
       setScanResult({
         success: true,
-        message: 'Absensi berhasil dicatat!',
+        message: "Kehadiran berhasil dicatat!",
         subject: (session.meetings as any)?.subjects?.name,
-        meeting: (session.meetings as any)?.meeting_number,
+        meeting: (session.meetings as any)?.meeting_number
       });
+      toast.success("Absensi Berhasil!");
 
-      toast.success('Absensi berhasil!');
-      await stopScanner();
-    } catch (error) {
-      console.error('Error processing scan:', error);
+    } catch (error: any) {
+      console.error("Scan Error:", error);
       setScanResult({
         success: false,
-        message: 'Terjadi kesalahan saat memproses absensi.',
+        message: error.message || "Gagal memproses absensi."
       });
+      toast.error(error.message);
     } finally {
-      setIsProcessing(false);
       isProcessingRef.current = false;
+      // Do NOT resume scanner automatically to show result
+      // But we can stop the camera stream to save battery
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(console.error);
+      }
+      setIsScanning(false);
+      setShowScannerUI(false);
     }
-  }, [isOnlineMode, location, user?.id]);
+  }, [isOnlineMode, location, user]);
 
-  const onScanFailure = (error: string) => {
-    // Ignore scan failures (no QR code detected)
-    console.debug('Scan error:', error);
-  };
+  // const onScanFailure... removed as inline lambda
 
   // If user is not logged in or doesn't have access
   if (!user) {
@@ -265,7 +381,7 @@ export default function ScanQR() {
                   Mode {isOnlineMode ? 'Online' : 'Offline (Lokasi)'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {isOnlineMode 
+                  {isOnlineMode
                     ? 'Scan dari mana saja'
                     : `Harus dalam radius ${MAX_DISTANCE}m dari kampus`
                   }
@@ -277,7 +393,15 @@ export default function ScanQR() {
               onCheckedChange={(checked) => setIsOnlineMode(!checked)}
             />
           </div>
-          
+
+          <div className="mt-2 text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+            {!window.isSecureContext && window.location.hostname !== 'localhost' && (
+              <span className="text-destructive font-bold">
+                PERINGATAN: Kamera mungkin tidak jalan di HTTP. Gunakan HTTPS atau Localhost.
+              </span>
+            )}
+          </div>
+
           {!isOnlineMode && location && (
             <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="w-4 h-4" />
@@ -298,7 +422,7 @@ export default function ScanQR() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!isScanning && !scanResult && (
+          {!showScannerUI && !scanResult && (
             <div className="text-center py-8">
               <div className="w-32 h-32 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                 <QrCode className="w-16 h-16 text-primary" />
@@ -313,14 +437,37 @@ export default function ScanQR() {
             </div>
           )}
 
-          {isScanning && !isProcessing && (
-            <div className="space-y-4">
-              <div 
-                id="qr-reader" 
-                className="w-full max-w-md mx-auto overflow-hidden rounded-xl"
+          {showScannerUI && (
+            <div className="relative overflow-hidden rounded-2xl bg-black">
+              {/* Camera View */}
+              <div
+                id="qr-reader"
+                className="w-full aspect-square md:aspect-[4/3] object-cover"
               />
-              <div className="text-center">
-                <Button variant="outline" onClick={stopScanner}>
+
+              {/* Overlay Controls */}
+              <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
+                {/* Camera Switcher */}
+                {cameras.length > 1 && (
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-full bg-white/20 backdrop-blur-md hover:bg-white/40 text-white border-none shadow-lg"
+                    onClick={switchCamera}
+                  >
+                    <SwitchCamera className="w-6 h-6" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Guide Frame (Optional visual) */}
+              <div className="absolute inset-0 border-2 border-white/30 pointer-events-none rounded-2xl">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-2 border-primary rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"></div>
+              </div>
+
+              {/* Cancel Button */}
+              <div className="absolute bottom-6 left-0 right-0 flex justify-center z-20">
+                <Button variant="destructive" onClick={stopScanner} className="rounded-full px-8 shadow-xl">
                   Batal Scan
                 </Button>
               </div>
@@ -335,21 +482,19 @@ export default function ScanQR() {
           )}
 
           {scanResult && (
-            <div className={`text-center py-8 rounded-2xl ${
-              scanResult.success ? 'bg-success/10' : 'bg-destructive/10'
-            }`}>
+            <div className={`text-center py-8 rounded-2xl ${scanResult.success ? 'bg-success/10' : 'bg-destructive/10'
+              }`}>
               {scanResult.success ? (
                 <CheckCircle2 className="w-16 h-16 text-success mx-auto mb-4" />
               ) : (
                 <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
               )}
-              
-              <h3 className={`text-xl font-semibold ${
-                scanResult.success ? 'text-success' : 'text-destructive'
-              }`}>
+
+              <h3 className={`text-xl font-semibold ${scanResult.success ? 'text-success' : 'text-destructive'
+                }`}>
                 {scanResult.success ? 'Berhasil!' : 'Gagal'}
               </h3>
-              
+
               <p className="text-muted-foreground mt-2">
                 {scanResult.message}
               </p>
@@ -361,8 +506,8 @@ export default function ScanQR() {
                 </div>
               )}
 
-              <Button 
-                className="mt-6" 
+              <Button
+                className="mt-6"
                 onClick={() => {
                   setScanResult(null);
                   startScanner();
@@ -371,6 +516,12 @@ export default function ScanQR() {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Scan Lagi
               </Button>
+            </div>
+          )}
+
+          {scanResult && scanResult.success && (
+            <div className="mt-4 p-4 bg-muted rounded-lg text-center">
+              <p className="text-sm">Silakan kembali ke tempat duduk.</p>
             </div>
           )}
         </CardContent>

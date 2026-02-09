@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  QrCode, Clock, CheckCircle2, RefreshCw, 
+import {
+  QrCode, Clock, CheckCircle2, RefreshCw,
   BookOpen, Calendar, Loader2, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import QRCode from 'qrcode';
+import { QRCodeCanvas } from 'qrcode.react';
 
 interface Subject {
   id: string;
@@ -50,11 +50,13 @@ export default function QRGenerator() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [classes, setClasses] = useState<ClassData[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedMeeting, setSelectedMeeting] = useState<string>('');
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  // Removed qrCodeDataUrl state as we use QRCodeCanvas
+  // const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -67,7 +69,19 @@ export default function QRGenerator() {
   useEffect(() => {
     if (selectedSubject) {
       fetchMeetings(selectedSubject);
+    } else {
+      setMeetings([]);
     }
+  }, [selectedSubject]);
+
+  // Reset dependent fields when parent changes
+  useEffect(() => {
+    setSelectedSubject('');
+    setSelectedMeeting('');
+  }, [selectedSemester]);
+
+  useEffect(() => {
+    setSelectedMeeting('');
   }, [selectedSubject]);
 
   useEffect(() => {
@@ -81,7 +95,7 @@ export default function QRGenerator() {
 
         if (diff === 0) {
           setActiveSession(null);
-          setQrCodeDataUrl('');
+          // setQrCodeDataUrl(''); // Removed
         }
       }, 1000);
     }
@@ -135,29 +149,42 @@ export default function QRGenerator() {
         meeting_number: (data.meetings as any)?.meeting_number || 0,
       };
       setActiveSession(session);
-      generateQRCodeImage(data.qr_code);
+      // Removed generateQRCodeImage call
     }
   };
 
-  const generateQRCodeImage = async (text: string) => {
-    try {
-      const url = await QRCode.toDataURL(text, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF',
-        },
-      });
-      setQrCodeDataUrl(url);
-    } catch (err) {
-      console.error('Error generating QR code:', err);
+  // Removed generateQRCodeImage function as it is no longer needed
+
+  // Auto-refresh QR Code every 2 minutes
+  useEffect(() => {
+    let refreshInterval: NodeJS.Timeout;
+
+    if (activeSession && activeSession.expires_at) {
+      // Check if session is still valid
+      const checkValidity = () => {
+        const now = new Date();
+        const expires = new Date(activeSession.expires_at);
+        if (now >= expires) {
+          setActiveSession(null);
+          return false;
+        }
+        return true;
+      };
+
+      if (!checkValidity()) return;
+
+      refreshInterval = setInterval(async () => {
+        if (!checkValidity()) return;
+        await handleRefreshQR(true); // true = silent refresh
+      }, 2 * 60 * 1000); // 2 minutes
     }
-  };
+
+    return () => clearInterval(refreshInterval);
+  }, [activeSession]);
 
   const handleGenerateQR = async () => {
-    if (!selectedSubject || !selectedMeeting || !selectedClass) {
-      toast.error('Pilih mata kuliah, pertemuan, dan kelas');
+    if (!selectedSemester || !selectedSubject || !selectedMeeting || !selectedClass) {
+      toast.error('Mohon lengkapi semua data sesi (Semester, Matkul, Pertemuan, Kelas)');
       return;
     }
 
@@ -169,90 +196,106 @@ export default function QRGenerator() {
     setIsLoading(true);
 
     try {
-      // Generate unique QR code
-      const qrCode = `PTIK-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      
-      // Set expiry to 5 minutes from now
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-
-      // Deactivate any existing sessions for this lecturer
+      // 1. Deactivate existing sessions
       await supabase
         .from('attendance_sessions')
         .update({ is_active: false })
         .eq('lecturer_id', user.id);
 
-      // Create new session
+      // 2. Generate Initial Token
+      const token = Math.random().toString(36).substring(7);
+
+      // 3. Create Session DB Record FIRST to get the ID
+      // We use a temporary placeholder for qr_code initially or generate ID first?
+      // Supabase insert returns data.
+
+      const expiresAt = new Date(Date.now() + 100 * 60 * 1000).toISOString(); // Session valid for 100 mins (class duration)
+
       const { data, error } = await supabase
         .from('attendance_sessions')
         .insert({
           meeting_id: selectedMeeting,
           class_id: selectedClass,
           lecturer_id: user.id,
-          qr_code: qrCode,
+          qr_code: 'init', // Placeholder, will update immediately with ID
           expires_at: expiresAt,
           is_active: true,
         })
-        .select(`
-          *,
-          meetings(meeting_number, subjects(name)),
-          classes(name)
-        `)
+        .select(`*, meetings(meeting_number, subjects(name)), classes(name)`)
         .single();
 
       if (error) throw error;
 
-      const session: ActiveSession = {
+      // 4. Update with actual Payload: { sessionId, classId, token }
+      const payload = JSON.stringify({
+        s: data.id,
+        c: selectedClass,
+        t: token
+      });
+
+      await supabase
+        .from('attendance_sessions')
+        .update({ qr_code: payload })
+        .eq('id', data.id);
+
+      // 5. Set State
+      setActiveSession({
         id: data.id,
-        qr_code: data.qr_code,
-        expires_at: data.expires_at,
+        qr_code: payload,
+        expires_at: expiresAt,
         class_name: (data.classes as any)?.name || '-',
         subject_name: (data.meetings as any)?.subjects?.name || '-',
         meeting_number: (data.meetings as any)?.meeting_number || 0,
-      };
+      });
 
-      setActiveSession(session);
-      await generateQRCodeImage(qrCode);
-      toast.success('QR Code berhasil dibuat!');
-    } catch (error) {
-      console.error('Error generating QR:', error);
-      toast.error('Gagal membuat QR Code');
+      toast.success('Sesi Absensi Dimulai!');
+
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast.error('Gagal membuat sesi: ' + error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRefreshQR = async () => {
+  const handleRefreshQR = async (silent = false) => {
     if (!activeSession) return;
-
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
 
     try {
-      const newQrCode = `PTIK-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      // Generate new token
+      const token = Math.random().toString(36).substring(7);
+      // Payload structure must match scanner expectation
+      const payload = JSON.stringify({
+        s: activeSession.id,
+        c: selectedClass || parseClassIdFromPayload(activeSession.qr_code),
+        t: token
+      });
 
       const { error } = await supabase
         .from('attendance_sessions')
-        .update({
-          qr_code: newQrCode,
-          expires_at: newExpiresAt,
-        })
+        .update({ qr_code: payload })
         .eq('id', activeSession.id);
 
       if (error) throw error;
 
-      setActiveSession({
-        ...activeSession,
-        qr_code: newQrCode,
-        expires_at: newExpiresAt,
-      });
+      setActiveSession(prev => prev ? { ...prev, qr_code: payload } : null);
+      if (!silent) toast.success('QR Code diperbarui manual');
 
-      await generateQRCodeImage(newQrCode);
-      toast.success('QR Code berhasil diperbarui!');
     } catch (error) {
-      console.error('Error refreshing QR:', error);
-      toast.error('Gagal memperbarui QR Code');
+      console.error('Error refreshing:', error);
+      if (!silent) toast.error('Gagal refresh QR');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
+    }
+  };
+
+  // Helper to extract class ID if state is lost (refresh)
+  const parseClassIdFromPayload = (payload: string) => {
+    try {
+      return JSON.parse(payload).c;
+    } catch {
+      return '';
     }
   };
 
@@ -300,15 +343,15 @@ export default function QRGenerator() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Mata Kuliah</label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <label className="text-sm font-medium">Semester</label>
+              <Select value={selectedSemester} onValueChange={setSelectedSemester}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih mata kuliah" />
+                  <SelectValue placeholder="Pilih Semester" />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map((subj) => (
-                    <SelectItem key={subj.id} value={subj.id}>
-                      {subj.name} (Semester {subj.semester})
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                    <SelectItem key={sem} value={sem.toString()}>
+                      Semester {sem}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -316,14 +359,43 @@ export default function QRGenerator() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium">Mata Kuliah</label>
+              <Select
+                value={selectedSubject}
+                onValueChange={setSelectedSubject}
+                disabled={!selectedSemester}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={!selectedSemester ? "Pilih semester dulu" : "Pilih mata kuliah"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects
+                    .filter(s => !selectedSemester || s.semester === parseInt(selectedSemester))
+                    .length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">Tidak ada matkul di semester ini</div>
+                  ) : (
+                    subjects
+                      .filter(s => !selectedSemester || s.semester === parseInt(selectedSemester))
+                      .map((subj) => (
+                        <SelectItem key={subj.id} value={subj.id}>
+                          {subj.name} ({subj.code})
+                        </SelectItem>
+                      ))
+                  )
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium">Pertemuan</label>
-              <Select 
-                value={selectedMeeting} 
+              <Select
+                value={selectedMeeting}
                 onValueChange={setSelectedMeeting}
                 disabled={!selectedSubject}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih pertemuan" />
+                  <SelectValue placeholder={!selectedSubject ? "Pilih matkul dulu" : "Pilih pertemuan"} />
                 </SelectTrigger>
                 <SelectContent>
                   {meetings.map((meet) => (
@@ -351,10 +423,10 @@ export default function QRGenerator() {
               </Select>
             </div>
 
-            <Button 
-              className="w-full gap-2" 
+            <Button
+              className="w-full gap-2"
               onClick={handleGenerateQR}
-              disabled={isLoading}
+              disabled={isLoading || !selectedSemester || !selectedSubject || !selectedMeeting || !selectedClass}
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -375,7 +447,7 @@ export default function QRGenerator() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {activeSession && qrCodeDataUrl ? (
+            {activeSession ? (
               <div className="text-center space-y-4">
                 {/* Session Info */}
                 <div className="flex flex-wrap justify-center gap-2">
@@ -386,27 +458,27 @@ export default function QRGenerator() {
 
                 {/* QR Code */}
                 <div className="bg-white p-4 rounded-2xl inline-block shadow-lg">
-                  <img 
-                    src={qrCodeDataUrl} 
-                    alt="QR Code Absensi"
-                    className="w-64 h-64 mx-auto"
+                  <QRCodeCanvas
+                    value={activeSession.qr_code}
+                    size={256}
+                    level={"H"}
+                    includeMargin={true}
                   />
                 </div>
 
                 {/* Timer */}
-                <div className={`flex items-center justify-center gap-2 text-lg font-mono ${
-                  timeLeft < 60 ? 'text-destructive' : 'text-foreground'
-                }`}>
+                <div className={`flex items-center justify-center gap-2 text-lg font-mono ${timeLeft < 60 ? 'text-destructive' : 'text-foreground'
+                  }`}>
                   <Clock className="w-5 h-5" />
                   <span>Berlaku: {formatTime(timeLeft)}</span>
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-3 justify-center">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="gap-2"
-                    onClick={handleRefreshQR}
+                    onClick={() => handleRefreshQR()}
                     disabled={isLoading}
                   >
                     <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -418,7 +490,8 @@ export default function QRGenerator() {
                 <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground">
                   <p className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 mt-0.5 text-success" />
-                    QR Code akan berubah otomatis setiap 5 menit
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 text-success" />
+                    QR Code akan berubah otomatis setiap 2 menit (Anti-Cheat)
                   </p>
                   <p className="flex items-start gap-2 mt-2">
                     <CheckCircle2 className="w-4 h-4 mt-0.5 text-success" />
@@ -432,7 +505,7 @@ export default function QRGenerator() {
                   <QrCode className="w-16 h-16 text-muted-foreground" />
                 </div>
                 <p className="text-muted-foreground">
-                  Pilih mata kuliah dan pertemuan, lalu klik Generate untuk membuat QR Code
+                  Lengkapi form di samping untuk membuat QR Code
                 </p>
               </div>
             )}

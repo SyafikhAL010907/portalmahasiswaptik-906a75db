@@ -23,6 +23,7 @@ interface Student {
   name: string;
   nim: string;
   status: 'hadir' | 'izin' | 'alpha';
+  scannedAt?: string | null;
 }
 
 type ViewState = 'semesters' | 'courses' | 'meetings' | 'classes' | 'students';
@@ -184,19 +185,19 @@ export default function AttendanceHistory() {
         .eq('class_id', classId)
         .limit(1);
 
-      let recordMap = new Map<string, string>();
+      let recordMap = new Map<string, { status: string, scannedAt: string }>();
 
       if (sessions && sessions.length > 0) {
         const sessionId = sessions[0].id;
         const { data: records, error: recordsError } = await supabase
           .from('attendance_records')
-          .select('student_id, status')
+          .select('student_id, status, scanned_at')
           .eq('session_id', sessionId);
 
         if (recordsError) throw recordsError;
 
         if (records) {
-          records.forEach(r => recordMap.set(r.student_id, r.status));
+          records.forEach(r => recordMap.set(r.student_id, { status: r.status, scannedAt: r.scanned_at }));
         }
       }
 
@@ -204,12 +205,14 @@ export default function AttendanceHistory() {
         id: p.user_id,
         name: p.full_name,
         nim: p.nim,
-        status: (recordMap.get(p.user_id) as any) || 'alpha'
+        status: (recordMap.get(p.user_id)?.status as any) || 'alpha',
+        scannedAt: recordMap.get(p.user_id)?.scannedAt
       }));
 
       const finalStudents = mappedStudents.map(s => ({
         ...s,
-        status: (recordMap.has(s.id) ? recordMap.get(s.id) : 'hadir') as 'hadir' | 'izin' | 'alpha'
+        status: (recordMap.has(s.id) ? recordMap.get(s.id)?.status : 'hadir') as 'hadir' | 'izin' | 'alpha',
+        scannedAt: recordMap.has(s.id) ? recordMap.get(s.id)?.scannedAt : null
       }));
 
       setStudents(finalStudents);
@@ -411,7 +414,7 @@ export default function AttendanceHistory() {
         session_id: sessionId!,
         student_id: s.id,
         status: s.status,
-        scanned_at: new Date().toISOString()
+        scanned_at: s.scannedAt || (s.status === 'hadir' ? new Date().toISOString() : null)
       }));
 
       const { error: upsertError } = await supabase
@@ -583,6 +586,12 @@ export default function AttendanceHistory() {
                           >
                             {getStatusIcon(s.status)}
                             <span className="capitalize">{s.status}</span>
+                            {s.status === 'hadir' && s.scannedAt && (
+                              <div className="ml-2 px-1.5 py-0.5 bg-success rounded text-[10px] text-white flex items-center gap-1" title={`Scanned at: ${new Date(s.scannedAt).toLocaleTimeString()}`}>
+                                <CheckCircle className="w-3 h-3" />
+                                QR
+                              </div>
+                            )}
                           </button>
                         </td>
                       </tr>
