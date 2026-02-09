@@ -137,7 +137,7 @@ export default function Finance() {
         setMatrixData([]);
         return;
       }
-      
+
       const validUserIds = validRoles.map(r => r.user_id);
 
       // 2. Tarik profile yang class_id-nya cocok DAN ID-nya ada di daftar valid
@@ -149,7 +149,7 @@ export default function Finance() {
         .order('full_name');
 
       if (!students || students.length === 0) { setMatrixData([]); return; }
-      
+
       const studentIds = students.map(s => s.user_id);
       const { data: dues } = await supabase.from('weekly_dues').select('student_id, week_number, status').in('student_id', studentIds);
 
@@ -284,13 +284,13 @@ export default function Finance() {
       <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">Matrix Iuran Mingguan</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadExcel}><Download className="w-4 h-4" /> Export Excel</Button>
-            <div className="flex gap-2 overflow-x-auto">
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full lg:w-auto">
+            <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
               {classes.map((cls) => (
-                <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => setSelectedClassId(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground' : ''}> Kelas {cls.name} </Button>
+                <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => setSelectedClassId(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground whitespace-nowrap' : 'whitespace-nowrap'}> Kelas {cls.name} </Button>
               ))}
             </div>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto gap-2" onClick={handleDownloadExcel}><Download className="w-4 h-4" /> Export Excel</Button>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -319,11 +319,17 @@ export default function Finance() {
         <div className="space-y-3">
           {transactions.map((tx) => (
             <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50">
-              <div className="flex items-center gap-4">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", tx.type === 'income' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
-                <div> <p className="font-medium text-foreground text-sm">{tx.description || tx.category}</p> <p className="text-xs text-muted-foreground">{new Date(tx.transaction_date).toLocaleDateString('id-ID')}</p> </div>
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tx.type === 'income' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground text-sm truncate">{tx.description || tx.category}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground uppercase font-bold whitespace-nowrap">{tx.transaction_date}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground font-medium uppercase whitespace-nowrap">{tx.category}</span>
+                  </div>
+                </div>
               </div>
-              <span className={cn("font-semibold text-sm", tx.type === 'income' ? 'text-green-600' : 'text-red-600')}> {tx.type === 'income' ? '+' : '-'}{formatRupiah(tx.amount)} </span>
+              <span className={cn("font-semibold text-sm whitespace-nowrap ml-2 mr-1", tx.type === 'income' ? 'text-green-600' : 'text-red-600')}> {tx.type === 'income' ? '+' : '-'}{formatRupiah(tx.amount)} </span>
             </div>
           ))}
         </div>

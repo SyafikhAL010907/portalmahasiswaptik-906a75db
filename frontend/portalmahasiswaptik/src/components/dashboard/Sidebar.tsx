@@ -103,7 +103,7 @@ export function Sidebar() {
   const SidebarContent = () => (
     <>
       {/* Logo Section - FIX LOGO UNJ */}
-      <div className="p-4 border-b border-sidebar-border">
+      <div className="p-4 border-b border-sidebar-border relative z-20">
         <Link
           to="/dashboard"
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"

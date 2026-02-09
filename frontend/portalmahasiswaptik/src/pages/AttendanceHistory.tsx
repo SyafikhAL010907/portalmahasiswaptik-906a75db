@@ -447,10 +447,10 @@ export default function AttendanceHistory() {
   return (
     <div className="space-y-6 pt-12 md:pt-0 pb-10">
       {/* HEADER */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {view !== 'semesters' && (
-            <Button variant="ghost" size="icon" onClick={handleBack} className="rounded-full bg-muted/50">
+            <Button variant="ghost" size="icon" onClick={handleBack} className="rounded-full bg-muted/50 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           )}
@@ -468,7 +468,7 @@ export default function AttendanceHistory() {
           </div>
         </div>
         {view !== 'students' && view !== 'semesters' && canEdit && (
-          <Button onClick={openAddDialog} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform">
+          <Button onClick={openAddDialog} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform w-full md:w-auto">
             <Plus className="w-4 h-4" /> Tambah {view.slice(0, -1)}
           </Button>
         )}

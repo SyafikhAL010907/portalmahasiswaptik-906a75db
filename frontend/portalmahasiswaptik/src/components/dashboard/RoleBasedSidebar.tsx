@@ -190,7 +190,12 @@ const SidebarContent = ({
           <p className="font-medium text-sm truncate">
             {profile?.full_name || 'User'}
           </p>
-          <p className="text-xs text-muted-foreground">{profile?.user_class ? `Kelas ${profile.user_class}` : profile?.nim}</p>
+          <p className="text-xs text-muted-foreground">
+            {primaryRole === 'admin_dosen'
+              ? profile?.nim
+              : (profile?.user_class ? `Kelas ${profile.user_class}` : profile?.nim)
+            }
+          </p>
         </div>
       </div>
       {primaryRole && (

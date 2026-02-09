@@ -377,14 +377,14 @@ export default function Leaderboard() {
               </h3>
 
               {/* Class Filters */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
                 {['Semua', ...classesList.map(c => c.name)].map((filter) => (
                   <Button
                     key={filter}
                     variant={selectedClassFilter === filter ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSelectedClassFilter(filter)}
-                    className={selectedClassFilter === filter ? 'primary-gradient border-none' : 'bg-transparent border-white/10 hover:bg-white/5'}
+                    className={selectedClassFilter === filter ? 'primary-gradient border-none whitespace-nowrap' : 'bg-transparent border-white/10 hover:bg-white/5 whitespace-nowrap'}
                   >
                     {filter === 'Semua' ? 'Semua' : `Kelas ${filter}`}
                   </Button>

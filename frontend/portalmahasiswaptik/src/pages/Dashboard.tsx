@@ -302,8 +302,13 @@ export default function Dashboard() {
 
         if (roleData) {
           const roles: Record<string, string> = { admin_dev: "Super Admin", admin_kelas: "Admin Kelas", admin_dosen: "Dosen" };
-          setUserRole(roles[roleData.role] || "Mahasiswa");
+          const roleName = roles[roleData.role] || "Mahasiswa";
+          setUserRole(roleName);
           isLecturer = roleData.role === 'admin_dosen';
+
+          if (roleName === "Dosen") {
+            setUserClass('');
+          }
         }
 
         // 4. Fetch Schedules
@@ -571,7 +576,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 glass-card rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-3 glass-card rounded-2xl px-4 py-3 w-full md:w-auto mt-2 md:mt-0">
           {weather?.condition === 'Hujan' || weather?.condition === 'Badai' ? (
             <Cloud className="w-6 h-6 text-gray-400" />
           ) : weather?.condition === 'Berawan' || weather?.condition === 'Berkabut' ? (
@@ -590,7 +595,7 @@ export default function Dashboard() {
       </div>
 
       {/* 2. Stats Grid */}
-      <div className={`grid grid-cols-2 ${userRole === 'Dosen' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${userRole === 'Dosen' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
         {userRole !== 'Dosen' && (
           <StatCard
             icon={Wallet}
@@ -777,7 +782,7 @@ export default function Dashboard() {
         <div className="space-y-6 order-1 lg:order-2">
 
           {/* Digital Card */}
-          <div className="glass-card rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-500">
+          <div className="glass-card rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-500 w-full">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
             <div className="relative z-10">
@@ -861,7 +866,7 @@ export default function Dashboard() {
                     <div className="px-2 py-1 rounded bg-emerald-500/20 border border-emerald-500/30 text-[10px] text-emerald-400 font-medium uppercase">
                       {getRoleDisplay()}
                     </div>
-                    <p className="text-[10px] text-white/40">PTIK {userClass}-2025</p>
+                    <p className="text-[10px] text-white/40">{userClass ? `PTIK ${userClass}-2025` : 'PTIK 2025'}</p>
                   </div>
                 </div>
               </div>

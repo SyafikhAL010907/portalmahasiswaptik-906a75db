@@ -310,14 +310,14 @@ export default function Announcements() {
       </div>
 
       {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap pb-2 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto pb-2 w-full">
         {categories.map((cat) => (
           <Button
             key={cat}
             variant={selectedCategory === cat ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setSelectedCategory(cat)}
-            className={selectedCategory === cat ? 'primary-gradient transition-all' : 'text-muted-foreground'}
+            className={selectedCategory === cat ? 'primary-gradient transition-all whitespace-nowrap' : 'text-muted-foreground whitespace-nowrap'}
           >
             {cat}
           </Button>

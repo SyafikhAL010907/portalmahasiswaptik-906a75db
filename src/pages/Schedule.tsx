@@ -1,60 +1,85 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Clock, MapPin, User, Plus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScheduleCard } from '@/components/dashboard/ScheduleCard';
-
-const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
-
-interface ScheduleItem {
-  subject: string;
-  time: string;
-  room: string;
-  lecturer: string;
-  isActive?: boolean;
-  isNext?: boolean;
-}
-
-const scheduleData: Record<string, ScheduleItem[]> = {
-  Senin: [
-    { subject: 'Pemrograman Web Lanjut', time: '08:00 - 10:30', room: 'Lab Komputer 3', lecturer: 'Dr. Bambang Susilo, M.Kom' },
-    { subject: 'Algoritma & Struktur Data', time: '13:00 - 15:30', room: 'Ruang 301', lecturer: 'Prof. Dewi Anggraini, Ph.D' },
-  ],
-  Selasa: [
-    { subject: 'Basis Data', time: '08:00 - 10:30', room: 'Ruang 405', lecturer: 'Prof. Sri Wahyuni, M.Sc' },
-    { subject: 'Sistem Operasi', time: '13:00 - 15:30', room: 'Lab Komputer 2', lecturer: 'Agus Pratama, M.T' },
-  ],
-  Rabu: [
-    { subject: 'Pemrograman Web Lanjut', time: '08:00 - 10:30', room: 'Lab Komputer 3', lecturer: 'Dr. Bambang Susilo, M.Kom', isActive: true },
-    { subject: 'Basis Data', time: '13:00 - 15:30', room: 'Ruang 405', lecturer: 'Prof. Sri Wahyuni, M.Sc', isNext: true },
-    { subject: 'Jaringan Komputer', time: '16:00 - 18:00', room: 'Lab Jarkom', lecturer: 'Agus Setiawan, M.T' },
-  ],
-  Kamis: [
-    { subject: 'Kecerdasan Buatan', time: '08:00 - 10:30', room: 'Ruang 502', lecturer: 'Dr. Rini Wulandari, M.Kom' },
-    { subject: 'Mobile Development', time: '13:00 - 15:30', room: 'Lab Komputer 1', lecturer: 'Budi Santoso, M.T' },
-  ],
-  Jumat: [
-    { subject: 'Keamanan Sistem', time: '08:00 - 10:30', room: 'Lab Jarkom', lecturer: 'Andi Wijaya, M.Cs' },
-    { subject: 'Manajemen Proyek TI', time: '13:00 - 15:30', room: 'Ruang 403', lecturer: 'Dr. Siti Rahayu, MBA' },
-  ],
-};
-
-
+import { useScheduleData } from '@/hooks/useScheduleData';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function Schedule() {
-  const [selectedDay, setSelectedDay] = useState('Rabu');
-  const currentDayIndex = days.indexOf(selectedDay);
+  const {
+    loading,
+    schedules,
+    classes,
+    selectedClassId,
+    setSelectedClassId,
+    selectedDay,
+    setSelectedDay,
+    dayNames,
+    canEdit
+  } = useScheduleData();
+
+  const currentDayIndex = selectedDay - 1; // Convert to 0-indexed
 
   const goToPrevDay = () => {
-    if (currentDayIndex > 0) {
-      setSelectedDay(days[currentDayIndex - 1]);
+    if (selectedDay > 1) {
+      setSelectedDay(selectedDay - 1);
     }
   };
 
   const goToNextDay = () => {
-    if (currentDayIndex < days.length - 1) {
-      setSelectedDay(days[currentDayIndex + 1]);
+    if (selectedDay < 5) {
+      setSelectedDay(selectedDay + 1);
     }
   };
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'ongoing':
+        return 'border-l-4 border-l-primary bg-primary/5';
+      case 'next':
+        return 'border-l-4 border-l-warning bg-warning/5';
+      case 'finished':
+        return 'opacity-60';
+      case 'upcoming':
+      default:
+        return '';
+    }
+  };
+
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'ongoing':
+        return 'bg-primary/20 text-primary';
+      case 'next':
+        return 'bg-warning/30 text-warning-foreground';
+      case 'finished':
+        return 'bg-muted text-muted-foreground';
+      case 'upcoming':
+      default:
+        return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6 pt-12 md:pt-0">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-16" />
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pt-12 md:pt-0">
@@ -62,12 +87,31 @@ export default function Schedule() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Jadwal Kuliah</h1>
-          <p className="text-muted-foreground mt-1">Semester 5 • Kelas A</p>
+          <p className="text-muted-foreground mt-1">
+            Semester 5 • {classes.find(c => c.id === selectedClassId)?.name ? `Kelas ${classes.find(c => c.id === selectedClassId)?.name}` : 'Pilih Kelas'}
+          </p>
         </div>
-        <Button variant="glass" className="gap-2">
-          <Filter className="w-4 h-4" />
-          Filter Kelas
-        </Button>
+        <div className="flex gap-2">
+          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+            <SelectTrigger className="w-[140px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Filter Kelas" />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map(cls => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  Kelas {cls.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {canEdit && (
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              Tambah Jadwal
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Day Selector */}
@@ -77,18 +121,21 @@ export default function Schedule() {
             variant="ghost" 
             size="icon" 
             onClick={goToPrevDay}
-            disabled={currentDayIndex === 0}
+            disabled={selectedDay === 1}
           >
             <ChevronLeft className="w-5 h-5" />
           </Button>
           
           <div className="flex gap-2 overflow-x-auto px-4 scrollbar-hide">
-            {days.map((day) => (
+            {dayNames.map((day, index) => (
               <Button
                 key={day}
-                variant={selectedDay === day ? 'default' : 'ghost'}
-                onClick={() => setSelectedDay(day)}
-                className={`min-w-[80px] ${selectedDay === day ? 'primary-gradient' : ''}`}
+                variant={selectedDay === index + 1 ? 'default' : 'ghost'}
+                onClick={() => setSelectedDay(index + 1)}
+                className={cn(
+                  "min-w-[80px]",
+                  selectedDay === index + 1 && 'primary-gradient'
+                )}
               >
                 {day}
               </Button>
@@ -99,7 +146,7 @@ export default function Schedule() {
             variant="ghost" 
             size="icon" 
             onClick={goToNextDay}
-            disabled={currentDayIndex === days.length - 1}
+            disabled={selectedDay === 5}
           >
             <ChevronRight className="w-5 h-5" />
           </Button>
@@ -108,12 +155,57 @@ export default function Schedule() {
 
       {/* Schedule List */}
       <div className="space-y-4">
-        {scheduleData[selectedDay]?.length > 0 ? (
-          scheduleData[selectedDay].map((schedule, index) => (
-            <ScheduleCard key={index} {...schedule} />
+        {schedules.length > 0 ? (
+          schedules.map((schedule) => (
+            <div
+              key={schedule.id}
+              className={cn(
+                "glass-card rounded-2xl p-5 transition-all hover:shadow-soft",
+                getStatusStyle(schedule.timeStatus.status)
+              )}
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="font-semibold text-lg text-foreground">
+                      {schedule.subject_name}
+                    </h3>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-xs font-medium",
+                      getStatusBadgeStyle(schedule.timeStatus.status)
+                    )}>
+                      {schedule.timeStatus.label}
+                    </span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span>{schedule.start_time} - {schedule.end_time}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      <span>{schedule.room}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      <span>{schedule.lecturer_name}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {schedule.timeStatus.status === 'ongoing' && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-primary animate-pulse glow-primary" />
+                    <span className="text-sm font-medium text-primary">Live</span>
+                  </div>
+                )}
+              </div>
+            </div>
           ))
         ) : (
           <div className="glass-card rounded-2xl p-12 text-center">
+            <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Tidak ada jadwal untuk hari ini</p>
           </div>
         )}
