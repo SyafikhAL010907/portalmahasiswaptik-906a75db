@@ -105,14 +105,16 @@ export default function ScanQR() {
     return R * c;
   };
 
-  const startScanner = async () => {
+  const startScanner = async (cameraId?: string) => {
     // Security Check for Camera Access
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       toast.error("Kamera butuh koneksi HTTPS atau Localhost.", { duration: 5000 });
       return;
     }
 
-    if (!activeCameraId) {
+    const targetCameraId = cameraId || activeCameraId;
+
+    if (!targetCameraId) {
       toast.error("Kamera tidak ditemukan! Coba refresh atau periksa izin.");
       return;
     }
@@ -135,7 +137,7 @@ export default function ScanQR() {
         scannerRef.current = html5QrCode;
 
         await html5QrCode.start(
-          activeCameraId,
+          targetCameraId,
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
@@ -183,7 +185,6 @@ export default function ScanQR() {
     setActiveCameraId(nextCameraId);
 
     // Restart scanner with new camera
-    // Restart scanner with new camera
     if (isScanning && scannerRef.current) {
       setIsProcessing(true); // Temporary visual feedback
       try {
@@ -194,7 +195,7 @@ export default function ScanQR() {
       // Short delay to ensure camera is released
       setTimeout(() => {
         setIsProcessing(false);
-        startScanner(); // Will use new activeCameraId
+        startScanner(nextCameraId); // Pass the new ID directly!
       }, 500);
     } else {
       // If not scanning but UI is open, just switch the ID
@@ -336,6 +337,7 @@ export default function ScanQR() {
       toast.error(error.message);
     } finally {
       isProcessingRef.current = false;
+      setIsProcessing(false); // Fix: Remove spinner
       // Do NOT resume scanner automatically to show result
       // But we can stop the camera stream to save battery
       if (scannerRef.current && scannerRef.current.isScanning) {
@@ -437,7 +439,7 @@ export default function ScanQR() {
               <div className="w-32 h-32 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                 <QrCode className="w-16 h-16 text-primary" />
               </div>
-              <Button onClick={startScanner} size="lg" className="gap-2">
+              <Button onClick={() => startScanner()} size="lg" className="gap-2">
                 <Camera className="w-5 h-5" />
                 Mulai Scan
               </Button>
