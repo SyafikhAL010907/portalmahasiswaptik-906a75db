@@ -53,24 +53,30 @@ export type Database = {
       attendance_records: {
         Row: {
           id: string
-          scanned_at: string
-          session_id: string
-          status: string
-          student_id: string
+          latitude: number | null
+          longitude: number | null
+          scanned_at: string | null
+          session_id: string | null
+          status: string | null
+          student_id: string | null
         }
         Insert: {
           id?: string
-          scanned_at?: string
-          session_id: string
-          status?: string
-          student_id: string
+          latitude?: number | null
+          longitude?: number | null
+          scanned_at?: string | null
+          session_id?: string | null
+          status?: string | null
+          student_id?: string | null
         }
         Update: {
           id?: string
-          scanned_at?: string
-          session_id?: string
-          status?: string
-          student_id?: string
+          latitude?: number | null
+          longitude?: number | null
+          scanned_at?: string | null
+          session_id?: string | null
+          status?: string | null
+          student_id?: string | null
         }
         Relationships: [
           {
@@ -84,33 +90,33 @@ export type Database = {
       }
       attendance_sessions: {
         Row: {
-          class_id: string
-          created_at: string
+          class_id: string | null
+          created_at: string | null
           expires_at: string
           id: string
           is_active: boolean | null
-          lecturer_id: string
-          meeting_id: string
+          lecturer_id: string | null
+          meeting_id: string | null
           qr_code: string
         }
         Insert: {
-          class_id: string
-          created_at?: string
+          class_id?: string | null
+          created_at?: string | null
           expires_at: string
           id?: string
           is_active?: boolean | null
-          lecturer_id: string
-          meeting_id: string
+          lecturer_id?: string | null
+          meeting_id?: string | null
           qr_code: string
         }
         Update: {
-          class_id?: string
-          created_at?: string
+          class_id?: string | null
+          created_at?: string | null
           expires_at?: string
           id?: string
           is_active?: boolean | null
-          lecturer_id?: string
-          meeting_id?: string
+          lecturer_id?: string | null
+          meeting_id?: string | null
           qr_code?: string
         }
         Relationships: [
@@ -132,17 +138,17 @@ export type Database = {
       }
       classes: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           name: string
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           name: string
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           name?: string
         }
@@ -188,36 +194,28 @@ export type Database = {
           updated_at?: string
           uploaded_by?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "materials_subject_id_fkey"
-            columns: ["subject_id"]
-            isOneToOne: false
-            referencedRelation: "subjects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       meetings: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           meeting_number: number
-          subject_id: string
+          subject_id: string | null
           topic: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           meeting_number: number
-          subject_id: string
+          subject_id?: string | null
           topic?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           meeting_number?: number
-          subject_id?: string
+          subject_id?: string | null
           topic?: string | null
         }
         Relationships: [
@@ -261,40 +259,29 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       subjects: {
         Row: {
           code: string
-          created_at: string
+          created_at: string | null
           id: string
           name: string
           semester: number
-          sks: number
         }
         Insert: {
           code: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           name: string
           semester: number
-          sks?: number
         }
         Update: {
           code?: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           name?: string
           semester?: number
-          sks?: number
         }
         Relationships: []
       }
@@ -335,15 +322,7 @@ export type Database = {
           transaction_date?: string
           type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
