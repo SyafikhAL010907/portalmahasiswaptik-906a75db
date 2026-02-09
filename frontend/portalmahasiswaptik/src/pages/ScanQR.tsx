@@ -183,12 +183,22 @@ export default function ScanQR() {
     setActiveCameraId(nextCameraId);
 
     // Restart scanner with new camera
+    // Restart scanner with new camera
     if (isScanning && scannerRef.current) {
-      await scannerRef.current.stop();
-      // Short delay to switch
+      setIsProcessing(true); // Temporary visual feedback
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch (e) { console.error("Error stopping for switch", e); }
+
+      // Short delay to ensure camera is released
       setTimeout(() => {
+        setIsProcessing(false);
         startScanner(); // Will use new activeCameraId
-      }, 200);
+      }, 500);
+    } else {
+      // If not scanning but UI is open, just switch the ID
+      // Next time startScanner is called it uses new ID
     }
   };
 
@@ -303,7 +313,7 @@ export default function ScanQR() {
         .insert({
           session_id: payload.s,
           student_id: user?.id,
-          status: 'present',
+          status: 'hadir',
           scanned_at: new Date().toISOString()
         });
 

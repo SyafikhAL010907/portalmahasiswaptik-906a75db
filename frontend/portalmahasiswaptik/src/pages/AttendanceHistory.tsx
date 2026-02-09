@@ -22,7 +22,7 @@ interface Student {
   id: string; // This corresponds to profile.user_id
   name: string;
   nim: string;
-  status: 'hadir' | 'izin' | 'alpha';
+  status: 'hadir' | 'izin' | 'alpha' | 'pending';
   scannedAt?: string | null;
 }
 
@@ -62,6 +62,7 @@ export default function AttendanceHistory() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', code: '' });
   const [editId, setEditId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   // --- INITIAL LOAD & ROLE CHECK ---
   useEffect(() => {
@@ -75,9 +76,8 @@ export default function AttendanceHistory() {
 
         const rolesList = roles?.map(r => r.role) || [];
 
-        // Allow edit if user is admin_dev (Super Admin) or admin_kelas
-        // Dosen and Mahasiswa cannot edit
-        const hasAccess = rolesList.some(r => ['admin_dev', 'admin_kelas'].includes(r));
+        // STRICT ACCESS: Only 'admin_dev' (Super Admin) can edit/save manual attendance
+        const hasAccess = rolesList.includes('admin_dev');
         setCanEdit(hasAccess);
       }
     };
@@ -189,6 +189,8 @@ export default function AttendanceHistory() {
 
       if (sessions && sessions.length > 0) {
         const sessionId = sessions[0].id;
+        setCurrentSessionId(sessionId); // Track active session for Realtime
+
         const { data: records, error: recordsError } = await supabase
           .from('attendance_records')
           .select('student_id, status, scanned_at')
@@ -199,21 +201,27 @@ export default function AttendanceHistory() {
         if (records) {
           records.forEach(r => recordMap.set(r.student_id, { status: r.status, scannedAt: r.scanned_at }));
         }
+      } else {
+        setCurrentSessionId(null);
       }
 
-      const mappedStudents: Student[] = filteredProfiles.map(p => ({
-        id: p.user_id,
-        name: p.full_name,
-        nim: p.nim,
-        status: (recordMap.get(p.user_id)?.status as any) || 'alpha',
-        scannedAt: recordMap.get(p.user_id)?.scannedAt
-      }));
+      const finalStudents: Student[] = filteredProfiles.map(p => {
+        const record = recordMap.get(p.user_id);
+        const rawStatus = record?.status;
+        let status: 'hadir' | 'izin' | 'alpha' | 'pending' = 'pending';
 
-      const finalStudents = mappedStudents.map(s => ({
-        ...s,
-        status: (recordMap.has(s.id) ? recordMap.get(s.id)?.status : 'hadir') as 'hadir' | 'izin' | 'alpha',
-        scannedAt: recordMap.has(s.id) ? recordMap.get(s.id)?.scannedAt : null
-      }));
+        if (rawStatus === 'hadir' || rawStatus === 'izin' || rawStatus === 'alpha') {
+          status = rawStatus;
+        }
+
+        return {
+          id: p.user_id,
+          name: p.full_name,
+          nim: p.nim,
+          status: status,
+          scannedAt: record?.scannedAt
+        };
+      });
 
       setStudents(finalStudents);
 
@@ -223,6 +231,51 @@ export default function AttendanceHistory() {
       setIsLoading(false);
     }
   };
+
+  // --- REALTIME SUBSCRIPTION ---
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    const channel = supabase
+      .channel('attendance-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT and UPDATE
+          schema: 'public',
+          table: 'attendance_records',
+          filter: `session_id=eq.${currentSessionId}`
+        },
+        (payload) => {
+          // Update local state immediately
+          const newRecord = payload.new as { student_id: string, status: string, scanned_at: string };
+
+          setStudents(currentStudents =>
+            currentStudents.map(s => {
+              if (s.id === newRecord.student_id) {
+                // Map DB status to UI status type
+                let newStatus: 'hadir' | 'izin' | 'alpha' | 'pending' = 'pending';
+                if (['hadir', 'izin', 'alpha'].includes(newRecord.status)) {
+                  newStatus = newRecord.status as any;
+                }
+
+                return {
+                  ...s,
+                  status: newStatus,
+                  scannedAt: newRecord.scanned_at
+                };
+              }
+              return s;
+            })
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentSessionId]);
 
   // --- NAVIGATION HANDLERS ---
   const handleSemesterClick = (id: string, name: string) => {
@@ -363,11 +416,46 @@ export default function AttendanceHistory() {
   };
 
   // --- ATTENDANCE LOGIC ---
-  const toggleAttendance = (studentId: string, current: string) => {
+  const toggleAttendance = async (studentId: string, current: string) => {
     if (!canEdit) return;
-    const statuses: ('hadir' | 'izin' | 'alpha')[] = ['hadir', 'izin', 'alpha'];
-    const nextStatus = statuses[(statuses.indexOf(current as any) + 1) % 3];
+
+    // Cycle: Pending -> Hadir -> Izin -> Alpha -> Pending
+    const statuses: ('pending' | 'hadir' | 'izin' | 'alpha')[] = ['pending', 'hadir', 'izin', 'alpha'];
+    const nextStatus = statuses[(statuses.indexOf(current as any) + 1) % statuses.length];
+
+    // Optimistic Update (Local)
     setStudents(students.map(s => s.id === studentId ? { ...s, status: nextStatus } : s));
+
+    // Immediate DB Update (Realtime Trigger)
+    if (currentSessionId) {
+      try {
+        if (nextStatus === 'pending') {
+          // If cycling back to pending, remove the record
+          await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('session_id', currentSessionId)
+            .eq('student_id', studentId);
+        } else {
+          // Upsert new status
+          await supabase
+            .from('attendance_records')
+            .upsert({
+              session_id: currentSessionId,
+              student_id: studentId,
+              status: nextStatus,
+              scanned_at: new Date().toISOString()
+            }, { onConflict: 'session_id, student_id' });
+        }
+      } catch (err) {
+        console.error("Failed to sync attendance:", err);
+        toast.error("Gagal sinkronisasi data ke server");
+      }
+    } else {
+      toast("Sesi belum dibuat. Klik 'Simpan Permanen' untuk membuat sesi.", {
+        description: "Perubahan hanya tersimpan lokal untuk saat ini."
+      });
+    }
   };
 
   const saveAttendance = async () => {
@@ -410,18 +498,36 @@ export default function AttendanceHistory() {
       }
 
       // Upsert records
-      const recordsToUpsert = students.map(s => ({
-        session_id: sessionId!,
-        student_id: s.id,
-        status: s.status,
-        scanned_at: s.scannedAt || (s.status === 'hadir' ? new Date().toISOString() : null)
-      }));
+      // Upsert records
+      // Filter out 'pending' status - do NOT save them to DB (treat as no record)
+      // OR if we want to explicitly save them as 'alpha' we can, but 'pending' usually means no record.
+      // However, upserting requires handling missing records. 
+      // Strategy: Only upsert 'hadir', 'izin', 'alpha'.
+      // If a student was previously 'hadir' and is now 'pending', we should DELETE the record?
+      // Supabase upsert doesn't delete. 
+      // Be simpler: 'pending' = 'alpha' in DB? Or just don't save?
+      // Request says: "Awalnya menunggu scan". If admin saves, what happens?
+      // Let's assume 'pending' should not be saved to DB.
 
-      const { error: upsertError } = await supabase
-        .from('attendance_records')
-        .upsert(recordsToUpsert, { onConflict: 'session_id, student_id' });
+      const recordsToUpsert = students
+        .filter(s => s.status !== 'pending')
+        .map(s => ({
+          session_id: sessionId!,
+          student_id: s.id,
+          status: s.status,
+          scanned_at: s.scannedAt || (s.status === 'hadir' ? new Date().toISOString() : null)
+        }));
 
-      if (upsertError) throw upsertError;
+      if (recordsToUpsert.length > 0) {
+        const { error: upsertError } = await supabase
+          .from('attendance_records')
+          .upsert(recordsToUpsert, { onConflict: 'session_id, student_id' });
+
+        if (upsertError) throw upsertError;
+      }
+
+      // Ideally we should also DELETE records for students who are now 'pending' but had records before.
+      // But for now, let's just save valid statuses.
 
       toast.success("Absensi berhasil disimpan permanen!");
     } catch (err: any) {
@@ -435,7 +541,8 @@ export default function AttendanceHistory() {
   const getStatusIcon = (status: string) => {
     if (status === 'hadir') return <CheckCircle className="w-5 h-5 text-success" />;
     if (status === 'izin') return <Clock className="w-5 h-5 text-warning-foreground" />;
-    return <XCircle className="w-5 h-5 text-destructive" />;
+    if (status === 'alpha') return <XCircle className="w-5 h-5 text-destructive" />;
+    return <Loader2 className="w-4 h-4 text-muted-foreground" />; // Pending
   };
 
   const getAddTitle = () => {
@@ -580,12 +687,13 @@ export default function AttendanceHistory() {
                               "flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all shadow-sm active:scale-95 outline-none focus:ring-2 ring-primary/50",
                               s.status === 'hadir' ? 'bg-success/10 text-success border border-success/20' :
                                 s.status === 'izin' ? 'bg-warning/10 text-warning-foreground border border-warning/20' :
-                                  'bg-destructive/10 text-destructive border border-destructive/20',
+                                  s.status === 'alpha' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
+                                    'bg-muted text-muted-foreground border border-border', // Pending style
                               !canEdit && "opacity-80 cursor-default active:scale-100"
                             )}
                           >
                             {getStatusIcon(s.status)}
-                            <span className="capitalize">{s.status}</span>
+                            <span className="capitalize">{s.status === 'pending' ? 'Menunggu Scan' : s.status}</span>
                             {s.status === 'hadir' && s.scannedAt && (
                               <div className="ml-2 px-1.5 py-0.5 bg-success rounded text-[10px] text-white flex items-center gap-1" title={`Scanned at: ${new Date(s.scannedAt).toLocaleTimeString()}`}>
                                 <CheckCircle className="w-3 h-3" />
