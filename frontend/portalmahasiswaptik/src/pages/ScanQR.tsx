@@ -27,8 +27,7 @@ export default function ScanQR() {
   const [isOnlineMode, setIsOnlineMode] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
-  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const [isBackCamera, setIsBackCamera] = useState(true); // Track camera facing: true = back, false = front
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isProcessingRef = useRef(false);
   const [showScannerUI, setShowScannerUI] = useState(false);
@@ -57,19 +56,6 @@ export default function ScanQR() {
   }, [isOnlineMode]);
 
   useEffect(() => {
-    // 1. Fetch Cameras on Mount
-    Html5Qrcode.getCameras().then((devices) => {
-      if (devices && devices.length) {
-        setCameras(devices);
-        // Try to find back camera, else use first
-        const backCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment'));
-        setActiveCameraId(backCamera ? backCamera.id : devices[0].id);
-      }
-    }).catch(err => {
-      console.error("Error fetching cameras", err);
-      toast.error("Gagal mendeteksi kamera. Pastikan izin diberikan.");
-    });
-
     // Warn if non-secure context
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
       toast.warning("Koneksi tidak aman (HTTP). Kamera mungkin diblokir browser.", { duration: 5000 });
@@ -105,17 +91,10 @@ export default function ScanQR() {
     return R * c;
   };
 
-  const startScanner = async (cameraId?: string) => {
+  const startScanner = async (useBackCamera: boolean = isBackCamera) => {
     // Security Check for Camera Access
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       toast.error("Kamera butuh koneksi HTTPS atau Localhost.", { duration: 5000 });
-      return;
-    }
-
-    const targetCameraId = cameraId || activeCameraId;
-
-    if (!targetCameraId) {
-      toast.error("Kamera tidak ditemukan! Coba refresh atau periksa izin.");
       return;
     }
 
@@ -136,15 +115,15 @@ export default function ScanQR() {
         const html5QrCode = new Html5Qrcode("qr-reader");
         scannerRef.current = html5QrCode;
 
+        // Use facingMode constraint for mobile reliability
+        const facingMode = useBackCamera ? 'environment' : 'user';
+
         await html5QrCode.start(
-          targetCameraId,
+          { facingMode: facingMode },
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
-            videoConstraints: {
-              focusMode: "continuous"
-            } as MediaTrackConstraints & { focusMode: string }
           },
           (decodedText) => {
             onScanSuccess(decodedText);
@@ -157,7 +136,16 @@ export default function ScanQR() {
         console.error("Error starting scanner", err);
         setIsScanning(false);
         setShowScannerUI(false);
-        toast.error("Gagal memulai kamera. Pastikan izin diberikan.");
+
+        // Fallback error handling
+        if (useBackCamera) {
+          toast.error("Kamera belakang tidak tersedia. Coba kamera depan.");
+          // Try front camera as fallback
+          setIsBackCamera(false);
+          setTimeout(() => startScanner(false), 500);
+        } else {
+          toast.error("Gagal memulai kamera. Pastikan izin diberikan.");
+        }
       }
     }, 100);
   };
@@ -176,30 +164,31 @@ export default function ScanQR() {
   };
 
   const switchCamera = async () => {
-    if (!cameras || cameras.length < 2 || !activeCameraId) return;
+    if (!isScanning || !scannerRef.current) return;
 
-    const currentIndex = cameras.findIndex(c => c.id === activeCameraId);
-    const nextIndex = (currentIndex + 1) % cameras.length;
-    const nextCameraId = cameras[nextIndex].id;
+    setIsProcessing(true); // Show loading during switch
 
-    setActiveCameraId(nextCameraId);
+    try {
+      // Step 1: Stop current camera completely
+      await scannerRef.current.stop();
+      scannerRef.current.clear();
 
-    // Restart scanner with new camera
-    if (isScanning && scannerRef.current) {
-      setIsProcessing(true); // Temporary visual feedback
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch (e) { console.error("Error stopping for switch", e); }
+      // Step 2: Toggle camera state
+      const newIsBackCamera = !isBackCamera;
+      setIsBackCamera(newIsBackCamera);
 
-      // Short delay to ensure camera is released
-      setTimeout(() => {
-        setIsProcessing(false);
-        startScanner(nextCameraId); // Pass the new ID directly!
-      }, 500);
-    } else {
-      // If not scanning but UI is open, just switch the ID
-      // Next time startScanner is called it uses new ID
+      // Step 3: Wait for hardware to reset (critical for mobile)
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 4: Start with new facing mode
+      await startScanner(newIsBackCamera);
+
+      toast.success(`Beralih ke kamera ${newIsBackCamera ? 'belakang' : 'depan'}`);
+    } catch (e) {
+      console.error("Error switching camera", e);
+      toast.error("Gagal mengganti kamera");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -459,17 +448,17 @@ export default function ScanQR() {
 
               {/* Overlay Controls */}
               <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
-                {/* Camera Switcher */}
-                {cameras.length > 1 && (
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="rounded-full bg-white/20 backdrop-blur-md hover:bg-white/40 text-white border-none shadow-lg"
-                    onClick={switchCamera}
-                  >
-                    <SwitchCamera className="w-6 h-6" />
-                  </Button>
-                )}
+                {/* Camera Switcher - Always show */}
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="rounded-full bg-white/20 backdrop-blur-md hover:bg-white/40 text-white border-none shadow-lg"
+                  onClick={switchCamera}
+                  disabled={isProcessing}
+                  title={isBackCamera ? 'Ganti ke Kamera Depan' : 'Ganti ke Kamera Belakang'}
+                >
+                  <SwitchCamera className="w-6 h-6" />
+                </Button>
               </div>
 
               {/* Guide Frame (Optional visual) */}
