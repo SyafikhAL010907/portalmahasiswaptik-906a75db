@@ -1,87 +1,393 @@
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Filter, Plus, Trash2, Edit2, Loader2, Clock, MapPin, User, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScheduleCard } from '@/components/dashboard/ScheduleCard';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
-
-interface ScheduleItem {
-  subject: string;
-  time: string;
+// --- INTERFACES ---
+interface Schedule {
+  id: string;
+  subject_id: string;
+  class_id: string;
+  day: string;
+  start_time: string;
+  end_time: string;
   room: string;
-  lecturer: string;
-  isActive?: boolean;
-  isNext?: boolean;
+  lecturer_id?: string;
+  // Joins
+  subjects?: { name: string; semester: number };
+  classes?: { name: string };
+  profiles?: { full_name: string };
 }
 
-const scheduleData: Record<string, ScheduleItem[]> = {
-  Senin: [
-    { subject: 'Pemrograman Web Lanjut', time: '08:00 - 10:30', room: 'Lab Komputer 3', lecturer: 'Dr. Bambang Susilo, M.Kom' },
-    { subject: 'Algoritma & Struktur Data', time: '13:00 - 15:30', room: 'Ruang 301', lecturer: 'Prof. Dewi Anggraini, Ph.D' },
-  ],
-  Selasa: [
-    { subject: 'Basis Data', time: '08:00 - 10:30', room: 'Ruang 405', lecturer: 'Prof. Sri Wahyuni, M.Sc' },
-    { subject: 'Sistem Operasi', time: '13:00 - 15:30', room: 'Lab Komputer 2', lecturer: 'Agus Pratama, M.T' },
-  ],
-  Rabu: [
-    { subject: 'Pemrograman Web Lanjut', time: '08:00 - 10:30', room: 'Lab Komputer 3', lecturer: 'Dr. Bambang Susilo, M.Kom', isActive: true },
-    { subject: 'Basis Data', time: '13:00 - 15:30', room: 'Ruang 405', lecturer: 'Prof. Sri Wahyuni, M.Sc', isNext: true },
-    { subject: 'Jaringan Komputer', time: '16:00 - 18:00', room: 'Lab Jarkom', lecturer: 'Agus Setiawan, M.T' },
-  ],
-  Kamis: [
-    { subject: 'Kecerdasan Buatan', time: '08:00 - 10:30', room: 'Ruang 502', lecturer: 'Dr. Rini Wulandari, M.Kom' },
-    { subject: 'Mobile Development', time: '13:00 - 15:30', room: 'Lab Komputer 1', lecturer: 'Budi Santoso, M.T' },
-  ],
-  Jumat: [
-    { subject: 'Keamanan Sistem', time: '08:00 - 10:30', room: 'Lab Jarkom', lecturer: 'Andi Wijaya, M.Cs' },
-    { subject: 'Manajemen Proyek TI', time: '13:00 - 15:30', room: 'Ruang 403', lecturer: 'Dr. Siti Rahayu, MBA' },
-  ],
-};
+interface Subject {
+  id: string;
+  name: string;
+  semester: number;
+}
 
+interface ClassItem {
+  id: string;
+  name: string;
+}
 
+interface Profile {
+  user_id: string;
+  full_name: string;
+}
+
+const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
 export default function Schedule() {
-  const [selectedDay, setSelectedDay] = useState('Rabu');
+  // --- STATE ---
+  const [selectedDay, setSelectedDay] = useState<string>('Senin');
+  const [selectedClass, setSelectedClass] = useState<string | null>(null); // Filter by Class ID
+  const [classList, setClassList] = useState<ClassItem[]>([]);
+
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [lecturers, setLecturers] = useState<Profile[]>([]); // State for lecturers
+  const [isLoading, setIsLoading] = useState(false);
+
+  // RBAC
+  const [canManage, setCanManage] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userClassId, setUserClassId] = useState<string | null>(null);
+
+  // Dialogs
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    subject_id: '',
+    class_id: '',
+    day: 'Senin',
+    start_time: '',
+    end_time: '',
+    room: '',
+    semester: '1',
+    lecturer_id: ''
+  });
+
   const currentDayIndex = days.indexOf(selectedDay);
 
-  const goToPrevDay = () => {
-    if (currentDayIndex > 0) {
-      setSelectedDay(days[currentDayIndex - 1]);
+  // --- INITIAL LOAD ---
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
+    if (days.includes(today)) setSelectedDay(today);
+
+    checkRole();
+    fetchClasses();
+    fetchSubjects();
+    fetchLecturers();
+  }, []);
+
+  useEffect(() => {
+    if (selectedClass) {
+      fetchSchedules();
     }
+    // Re-evaluate permissions when selectedClass changes
+    evaluatePermissions();
+  }, [selectedDay, selectedClass, userRole, userClassId]);
+
+  const checkRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      // 1. Get Roles
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+      const role = roles && roles.length > 0 ? roles[0].role : null;
+      setUserRole(role);
+
+      // 2. Get Profile for Class ID
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('class_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profile) {
+        setUserClassId(profile.class_id);
+      }
+    }
+  };
+
+  const evaluatePermissions = () => {
+    if (userRole === 'admin_dev') {
+      setCanManage(true);
+    } else if (userRole === 'admin_kelas') {
+      // Admin Kelas can only manage their own class
+      setCanManage(userClassId === selectedClass);
+    } else {
+      setCanManage(false);
+    }
+  };
+
+  const fetchClasses = async () => {
+    const { data } = await supabase.from('classes').select('id, name').order('name');
+    if (data) {
+      setClassList(data);
+      if (!selectedClass && data.length > 0) setSelectedClass(data[0].id);
+    }
+  };
+
+  const fetchSubjects = async () => {
+    const { data } = await supabase.from('subjects').select('id, name, semester').order('name');
+    if (data) setSubjects(data);
+  };
+
+  const fetchLecturers = async () => {
+    // Fetch profiles that have the role 'admin_dosen'
+    const { data: rolesData } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'admin_dosen');
+
+    if (rolesData && rolesData.length > 0) {
+      const lecturerIds = rolesData.map(r => r.user_id);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', lecturerIds)
+        .order('full_name');
+
+      if (profiles) setLecturers(profiles);
+    } else {
+      setLecturers([]);
+    }
+  };
+
+  const fetchSchedules = async () => {
+    if (!selectedClass) return;
+    setIsLoading(true);
+    try {
+      // 1. Fetch Schedules
+      const { data: schedulesData, error } = await supabase
+        .from('schedules')
+        .select(`
+          *,
+          subjects ( name, semester ),
+          classes ( name )
+        `)
+        .eq('class_id', selectedClass)
+        .eq('day', selectedDay)
+        .order('start_time');
+
+      if (error) throw error;
+
+      // 2. Extract Lecturer IDs
+      const lecturerIds = [...new Set(schedulesData?.map(s => s.lecturer_id).filter(Boolean) as string[])];
+
+      // 3. Fetch Profiles for Lecturers
+      let profilesMap: Record<string, { full_name: string }> = {};
+      if (lecturerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', lecturerIds);
+
+        if (profiles) {
+          profiles.forEach(p => {
+            profilesMap[p.user_id] = { full_name: p.full_name };
+          });
+        }
+      }
+
+      // 4. Merge Data
+      const enrichedSchedules = schedulesData?.map(s => ({
+        ...s,
+        profiles: s.lecturer_id ? profilesMap[s.lecturer_id] : undefined
+      })) || [];
+
+      setSchedules(enrichedSchedules);
+    } catch (err: any) {
+      toast.error("Gagal memuat jadwal: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- HELPER: TIME STATUS VALIDATION ---
+  const getStatus = (day: string, start: string, end: string) => {
+    const now = new Date();
+    const currentDayName = now.toLocaleDateString('id-ID', { weekday: 'long' });
+
+    // Check Day
+    if (day !== currentDayName) {
+      const dayIdx = days.indexOf(day);
+      const currIdx = days.indexOf(currentDayName);
+      if (dayIdx < currIdx) return 'finished'; // Past days are finished
+      if (dayIdx > currIdx) return 'upcoming'; // Next days are upcoming
+    }
+
+    // Check Time (HH:mm:ss)
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+    const [startH, startM] = start.split(':').map(Number);
+    const startTime = startH * 60 + startM;
+
+    const [endH, endM] = end.split(':').map(Number);
+    const endTime = endH * 60 + endM;
+
+    if (currentTime > endTime) return 'finished';
+    if (currentTime >= startTime && currentTime <= endTime) return 'ongoing';
+    return 'next'; // Or upcoming
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ongoing': return 'border-l-4 border-l-primary bg-primary/5'; // Greenish
+      case 'next': return 'border-l-4 border-l-warning bg-warning/5'; // Yellowish
+      case 'finished': return 'border-l-4 border-l-muted bg-muted/5 opacity-60 grayscale'; // Gray & Grayscale
+      default: return 'border-l-4 border-l-muted';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ongoing': return <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary animate-pulse">Sedang Berlangsung</span>;
+      case 'next': return <span className="text-xs px-2 py-1 rounded-full bg-warning/20 text-warning">Selanjutnya</span>;
+      case 'finished': return <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Mata Kuliah Selesai</span>;
+      default: return null;
+    }
+  };
+
+  // --- CRUD HANDLERS ---
+  const handleOpenAdd = () => {
+    setIsEditing(false);
+    setFormData({
+      subject_id: '',
+      class_id: selectedClass || '',
+      day: selectedDay,
+      start_time: '',
+      end_time: '',
+      room: '',
+      semester: '1',
+      lecturer_id: ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (schedule: Schedule) => {
+    setIsEditing(true);
+    setCurrentId(schedule.id);
+    setFormData({
+      subject_id: schedule.subject_id,
+      class_id: schedule.class_id,
+      day: schedule.day,
+      start_time: schedule.start_time,
+      end_time: schedule.end_time,
+      room: schedule.room,
+      semester: schedule.subjects?.semester?.toString() || '1',
+      lecturer_id: schedule.lecturer_id || ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus jadwal ini?")) return;
+    try {
+      const { error } = await supabase.from('schedules').delete().eq('id', id);
+      if (error) throw error;
+      toast.success("Jadwal dihapus");
+      fetchSchedules();
+    } catch (err: any) {
+      toast.error("Gagal menghapus: " + err.message);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.subject_id || !formData.class_id || !formData.start_time || !formData.end_time || !formData.lecturer_id) {
+      toast.error("Mohon lengkapi data, termasuk dosen");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { semester, ...payload } = formData;
+
+      if (isEditing && currentId) {
+        const { error } = await supabase.from('schedules').update(payload).eq('id', currentId);
+        if (error) throw error;
+        toast.success("Jadwal diperbarui");
+      } else {
+        const { error } = await supabase.from('schedules').insert([payload]);
+        if (error) throw error;
+        toast.success("Jadwal ditambahkan");
+      }
+
+      setIsDialogOpen(false);
+      fetchSchedules();
+    } catch (err: any) {
+      toast.error("Gagal menyimpan: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- NAVIGATION ---
+  const goToPrevDay = () => {
+    if (currentDayIndex > 0) setSelectedDay(days[currentDayIndex - 1]);
   };
 
   const goToNextDay = () => {
-    if (currentDayIndex < days.length - 1) {
-      setSelectedDay(days[currentDayIndex + 1]);
-    }
+    if (currentDayIndex < days.length - 1) setSelectedDay(days[currentDayIndex + 1]);
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0">
+    <div className="space-y-6 pt-12 md:pt-0 pb-24">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Jadwal Kuliah</h1>
-          <p className="text-muted-foreground mt-1">Semester 5 • Kelas A</p>
+          <p className="text-muted-foreground mt-1">
+            {selectedClass ? `Kelas ${classList.find(c => c.id === selectedClass)?.name}` : 'Pilih Kelas'}
+          </p>
         </div>
-        <Button variant="glass" className="gap-2">
-          <Filter className="w-4 h-4" />
-          Filter Kelas
-        </Button>
+
+        <div className="flex items-center gap-2">
+          <Select value={selectedClass || ''} onValueChange={setSelectedClass}>
+            <SelectTrigger className="w-[140px] glass-card">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Pilih Kelas" />
+            </SelectTrigger>
+            <SelectContent>
+              {classList.map(c => (
+                <SelectItem key={c.id} value={c.id}>Kelas {c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {canManage && (
+            <Button onClick={handleOpenAdd} className="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20">
+              <Plus className="w-4 h-4 mr-2" />
+              Tambah
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Day Selector */}
       <div className="glass-card rounded-2xl p-4">
         <div className="flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={goToPrevDay}
-            disabled={currentDayIndex === 0}
-          >
+          <Button variant="ghost" size="icon" onClick={goToPrevDay} disabled={currentDayIndex === 0}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
-          
+
           <div className="flex gap-2 overflow-x-auto px-4 scrollbar-hide">
             {days.map((day) => (
               <Button
@@ -95,12 +401,7 @@ export default function Schedule() {
             ))}
           </div>
 
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={goToNextDay}
-            disabled={currentDayIndex === days.length - 1}
-          >
+          <Button variant="ghost" size="icon" onClick={goToNextDay} disabled={currentDayIndex === days.length - 1}>
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
@@ -108,13 +409,62 @@ export default function Schedule() {
 
       {/* Schedule List */}
       <div className="space-y-4">
-        {scheduleData[selectedDay]?.length > 0 ? (
-          scheduleData[selectedDay].map((schedule, index) => (
-            <ScheduleCard key={index} {...schedule} />
-          ))
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="animate-spin w-8 h-8 text-primary" /></div>
+        ) : schedules.length > 0 ? (
+          schedules.map((schedule) => {
+            const status = getStatus(schedule.day, schedule.start_time, schedule.end_time);
+            return (
+              <div
+                key={schedule.id}
+                className={cn(
+                  "glass-card rounded-2xl p-6 transition-all duration-300 hover:shadow-soft group relative",
+                  getStatusColor(status)
+                )}
+              >
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-start justify-between">
+                      <h3 className="text-lg font-semibold text-foreground tracking-tight">
+                        {schedule.subjects?.name || 'Unknown Subject'}
+                      </h3>
+                      {getStatusBadge(status)}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        <span>{schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)} WIB</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-secondary" />
+                        <span>{schedule.room}</span>
+                      </div>
+                      <div className="flex items-center gap-2 sm:col-span-2">
+                        <User className="w-4 h-4 text-accent" />
+                        <span>{schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {canManage && (
+                    <div className="flex gap-2 self-end md:self-start">
+                      <Button size="icon" variant="ghost" onClick={() => handleOpenEdit(schedule)}>
+                        <Edit2 className="w-4 h-4 text-warning" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => handleDelete(schedule.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
         ) : (
-          <div className="glass-card rounded-2xl p-12 text-center">
-            <p className="text-muted-foreground">Tidak ada jadwal untuk hari ini</p>
+          <div className="glass-card rounded-2xl p-12 text-center flex flex-col items-center">
+            <Calendar className="w-12 h-12 text-muted-foreground/30 mb-4" />
+            <p className="text-muted-foreground">Tidak ada jadwal kuliah untuk hari {selectedDay}</p>
           </div>
         )}
       </div>
@@ -123,19 +473,113 @@ export default function Schedule() {
       <div className="glass-card rounded-2xl p-4">
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-primary glow-primary" />
+            <div className="w-3 h-3 rounded-full bg-primary/20" />
             <span className="text-muted-foreground">Sedang Berlangsung</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-warning" />
+            <div className="w-3 h-3 rounded-full bg-warning/20" />
             <span className="text-muted-foreground">Selanjutnya</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-muted" />
-            <span className="text-muted-foreground">Selesai / Akan Datang</span>
+            <div className="w-3 h-3 rounded-full bg-muted/20" />
+            <span className="text-muted-foreground">Selesai</span>
           </div>
         </div>
       </div>
+
+      {/* --- ADD/EDIT DIALOG --- */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isEditing ? 'Edit Jadwal' : 'Tambah Jadwal'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Semester</Label>
+              <Select
+                value={formData.semester}
+                onValueChange={(val) => {
+                  setFormData({ ...formData, semester: val, subject_id: '' });
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Pilih Semester" /></SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
+                    <SelectItem key={s} value={s.toString()}>Semester {s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Mata Kuliah</Label>
+              <Select
+                value={formData.subject_id}
+                onValueChange={(val) => setFormData({ ...formData, subject_id: val })}
+                disabled={!formData.semester}
+              >
+                <SelectTrigger><SelectValue placeholder="Pilih Matkul" /></SelectTrigger>
+                <SelectContent>
+                  {subjects
+                    .filter(s => s.semester.toString() === formData.semester)
+                    .map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Dosen Pengampu</Label>
+              <Select
+                value={formData.lecturer_id}
+                onValueChange={(val) => setFormData({ ...formData, lecturer_id: val })}
+              >
+                <SelectTrigger><SelectValue placeholder="Pilih Dosen" /></SelectTrigger>
+                <SelectContent>
+                  {lecturers.map(l => (
+                    <SelectItem key={l.user_id} value={l.user_id}>{l.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Hari</Label>
+              <Select
+                value={formData.day}
+                onValueChange={(val) => setFormData({ ...formData, day: val })}
+              >
+                <SelectTrigger><SelectValue placeholder="Pilih Hari" /></SelectTrigger>
+                <SelectContent>
+                  {days.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Jam Mulai</Label>
+                <Input type="time" value={formData.start_time} onChange={(e) => setFormData({ ...formData, start_time: e.target.value })} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Jam Selesai</Label>
+                <Input type="time" value={formData.end_time} onChange={(e) => setFormData({ ...formData, end_time: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Ruangan</Label>
+              <Input value={formData.room} onChange={(e) => setFormData({ ...formData, room: e.target.value })} placeholder="Contoh: Lab Komputer 1" />
+            </div>
+
+
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleSubmit}>{isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Simpan'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

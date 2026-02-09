@@ -25,6 +25,9 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
+	// Ensure Storage Bucket exists
+	config.InitStorageBucket(db)
+
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      "Portal Mahasiswa PTIK API v1.0",

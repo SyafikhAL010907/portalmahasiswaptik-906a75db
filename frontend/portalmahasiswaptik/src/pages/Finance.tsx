@@ -3,7 +3,7 @@ import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, Aler
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client'; 
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -29,7 +29,7 @@ interface ClassData {
 }
 
 interface Transaction {
-  id: string; 
+  id: string;
   type: 'income' | 'expense';
   description: string;
   amount: number;
@@ -51,19 +51,19 @@ interface UserProfile {
 
 export default function Finance() {
   const { session } = useAuth();
-  
+
   // --- STATE ---
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [matrixData, setMatrixData] = useState<StudentPayment[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualSummary, setManualSummary] = useState<FinanceSummary>({ total_income: 0, total_expense: 0, balance: 0 });
-  const [duesTotal, setDuesTotal] = useState<number>(0); 
+  const [duesTotal, setDuesTotal] = useState<number>(0);
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedCell, setSelectedCell] = useState<{studentId: string, studentName: string, weekIndex: number} | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ studentId: string, studentName: string, weekIndex: number } | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [weeks] = useState(['W1', 'W2', 'W3', 'W4']);
 
@@ -72,8 +72,8 @@ export default function Finance() {
     const initData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase.from('profiles').select('class_id').eq('user_id', user.id).single();
-        const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('class_id').eq('user_id', user.id).maybeSingle();
+        const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle();
         if (profile && roleData) {
           setCurrentUser({ user_id: user.id, class_id: profile.class_id, role: roleData.role });
         }
@@ -96,20 +96,20 @@ export default function Finance() {
       if (data) {
         const income = data.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
         const expense = data.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0);
-        
+
         setManualSummary({
           total_income: income,
           total_expense: expense,
           balance: income - expense
         });
-        setTransactions((data as any).sort((a: any, b: any) => 
+        setTransactions((data as any).sort((a: any, b: any) =>
           new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
         ).slice(0, 5));
       }
-    } catch (error) { 
-      console.error("Gagal ambil stats transaksi:", error); 
-    } finally { 
-      setIsLoadingStats(false); 
+    } catch (error) {
+      console.error("Gagal ambil stats transaksi:", error);
+    } finally {
+      setIsLoadingStats(false);
     }
   }, []);
 
@@ -123,15 +123,36 @@ export default function Finance() {
 
   useEffect(() => { if (session) { fetchTransactionStats(); fetchDuesTotal(); } }, [session, fetchTransactionStats, fetchDuesTotal]);
 
-  // 4. FETCH MATRIX
+  // 🔥 4. FETCH MATRIX (MODIFIED: FILTER DOSEN & ADMIN DEV)
   const fetchStudentMatrix = useCallback(async () => {
     if (!selectedClassId) return;
     try {
-      const { data: students } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).order('full_name');
+      // 1. Ambil user yang hanya berperan sebagai mahasiswa atau admin_kelas
+      const { data: validRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['mahasiswa', 'admin_kelas']); // ❌ admin_dev & admin_dosen dilarang masuk
+
+      if (!validRoles || validRoles.length === 0) {
+        setMatrixData([]);
+        return;
+      }
+      
+      const validUserIds = validRoles.map(r => r.user_id);
+
+      // 2. Tarik profile yang class_id-nya cocok DAN ID-nya ada di daftar valid
+      const { data: students } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .eq('class_id', selectedClassId)
+        .in('user_id', validUserIds) // 🔥 INI KUNCI FILTERNYA BRO
+        .order('full_name');
+
       if (!students || students.length === 0) { setMatrixData([]); return; }
+      
       const studentIds = students.map(s => s.user_id);
       const { data: dues } = await supabase.from('weekly_dues').select('student_id, week_number, status').in('student_id', studentIds);
-      
+
       const duesData = dues || [];
       const mappedData = students.map(student => {
         const statusList = ["unpaid", "unpaid", "unpaid", "unpaid"];
@@ -155,7 +176,7 @@ export default function Finance() {
           fetchStudentMatrix();
           fetchDuesTotal();
           fetchTransactionStats();
-        }, 300); 
+        }, 300);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
         fetchTransactionStats();
@@ -167,7 +188,7 @@ export default function Finance() {
 
   // --- CALCULATIONS ---
   const formatRupiah = (amount: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
-  
+
   const REALTIME_TOTAL_INCOME = manualSummary.total_income + duesTotal;
   const REALTIME_BALANCE = REALTIME_TOTAL_INCOME - manualSummary.total_expense;
 
@@ -181,29 +202,27 @@ export default function Finance() {
 
   const selectedClassName = classes.find(c => c.id === selectedClassId)?.name || '...';
   const canEdit = () => currentUser?.role === 'admin_dev' || (currentUser?.role === 'admin_kelas' && currentUser?.class_id === selectedClassId);
-  
+
   const handleCellClick = (studentId: string, studentName: string, weekIdx: number) => {
     if (!canEdit()) return;
     setSelectedCell({ studentId, studentName, weekIndex: weekIdx + 1 });
     setIsDialogOpen(true);
   };
 
-  // ✅ UPDATE: Dibuat Instan / Realtime di Layar (Optimistic Update)
   const handleUpdateStatus = async (newStatus: string) => {
     if (!selectedCell) return;
     setIsUpdating(true);
     try {
       const { error } = await supabase.from('weekly_dues').upsert({
-          student_id: selectedCell.studentId, 
-          week_number: selectedCell.weekIndex, 
-          status: newStatus, 
-          amount: 5000 
-        }, { onConflict: 'student_id, week_number' });
-      
+        student_id: selectedCell.studentId,
+        week_number: selectedCell.weekIndex,
+        status: newStatus,
+        amount: 5000
+      }, { onConflict: 'student_id, week_number' });
+
       if (error) throw error;
 
-      // 🔥 LOGIC INSTAN: Update state lokal tanpa nunggu refresh
-      setMatrixData(prevData => 
+      setMatrixData(prevData =>
         prevData.map(student => {
           if (student.student_id === selectedCell.studentId) {
             const newPayments = [...student.payments];
@@ -214,15 +233,13 @@ export default function Finance() {
         })
       );
 
-      // Trigger update angka di StatCards
-      fetchDuesTotal(); 
-
+      fetchDuesTotal();
       toast.success(`Berhasil update jadi ${newStatus}`);
       setIsDialogOpen(false);
-    } catch (error: any) { 
-      toast.error("Gagal: " + error.message); 
-    } finally { 
-      setIsUpdating(false); 
+    } catch (error: any) {
+      toast.error("Gagal: " + error.message);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -239,7 +256,7 @@ export default function Finance() {
     ];
     matrixData.forEach((s, i) => {
       const total = s.payments.filter(p => p === 'paid').length * 5000;
-      data.push([ i + 1, s.name, s.payments[0]?.toUpperCase() || "BELUM", s.payments[1]?.toUpperCase() || "BELUM", s.payments[2]?.toUpperCase() || "BELUM", s.payments[3]?.toUpperCase() || "BELUM", total ]);
+      data.push([i + 1, s.name, s.payments[0]?.toUpperCase() || "BELUM", s.payments[1]?.toUpperCase() || "BELUM", s.payments[2]?.toUpperCase() || "BELUM", s.payments[3]?.toUpperCase() || "BELUM", total]);
     });
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -282,15 +299,15 @@ export default function Finance() {
               <thead><tr className="border-b border-border/50"><th className="text-left py-4 px-4 text-sm font-medium text-muted-foreground">Nama Mahasiswa</th>{weeks.map((week) => (<th key={week} className="text-center py-4 px-4 text-sm font-medium text-muted-foreground">{week}</th>))}</tr></thead>
               <tbody>
                 {matrixData.map((student) => (
-                    <tr key={student.student_id} className="hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0">
-                      <td className="py-3 px-4 text-sm text-foreground font-medium">{student.name}</td>
-                      {student.payments.map((status, weekIdx) => (
-                        <td key={weekIdx} className="py-3 px-4 text-center">
-                          <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-green-500/10 text-green-600 border-green-200" : status === 'pending' ? "bg-yellow-500/10 text-yellow-600 border-yellow-200" : "bg-red-500/10 text-red-600 border-red-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  <tr key={student.student_id} className="hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0">
+                    <td className="py-3 px-4 text-sm text-foreground font-medium">{student.name}</td>
+                    {student.payments.map((status, weekIdx) => (
+                      <td key={weekIdx} className="py-3 px-4 text-center">
+                        <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-green-500/10 text-green-600 border-green-200" : status === 'pending' ? "bg-yellow-500/10 text-yellow-600 border-yellow-200" : "bg-red-500/10 text-red-600 border-red-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
@@ -316,9 +333,9 @@ export default function Finance() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-4 py-4">
-            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-green-500/10 border-green-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-green-600"/> Lunas</Button>
-            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600"/> Pending</Button>
-            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600"/> Belum</Button>
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-green-500/10 border-green-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-green-600" /> Lunas</Button>
+            <Button variant="outline" className="flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600" /> Pending</Button>
+            <Button variant="outline" className="flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600" /> Belum</Button>
           </div>
         </DialogContent>
       </Dialog>

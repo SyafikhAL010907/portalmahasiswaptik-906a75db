@@ -12,6 +12,7 @@ interface Profile {
   full_name: string;
   class_id: string | null;
   avatar_url: string | null;
+  user_class?: string;
 }
 
 interface AuthContextType {
@@ -22,6 +23,7 @@ interface AuthContextType {
   isLoading: boolean;
   signIn: (nim: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   isAdmin: () => boolean;
   isAdminDev: () => boolean;
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
+      // 1. Fetch Profile first (safe)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -51,7 +54,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Error fetching profile:', error);
         return null;
       }
-      return data as Profile | null;
+
+      if (data) {
+        let className = undefined;
+
+        // 2. Fetch Class Name locally if class_id exists (safe fallback)
+        if (data.class_id) {
+          const { data: classData } = await supabase
+            .from('classes')
+            .select('name')
+            .eq('id', data.class_id)
+            .single();
+
+          if (classData) {
+            className = classData.name;
+          }
+        }
+
+        return {
+          ...data,
+          user_class: className
+        } as Profile;
+      }
+
+      return null;
     } catch (err) {
       console.error('Error in fetchProfile:', err);
       return null;
@@ -127,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // NIM is used as email format: nim@ptik.local
       const email = `${nim}@ptik.local`;
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -158,6 +184,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdminDosen = () => hasRole('admin_dosen');
   const isMahasiswa = () => hasRole('mahasiswa');
 
+  const refreshProfile = async () => {
+    if (user) {
+      const [profileData, rolesData] = await Promise.all([
+        fetchProfile(user.id),
+        fetchRoles(user.id)
+      ]);
+      setProfile(profileData);
+      setRoles(rolesData);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -168,6 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         signIn,
         signOut,
+        refreshProfile,
         hasRole,
         isAdmin,
         isAdminDev,

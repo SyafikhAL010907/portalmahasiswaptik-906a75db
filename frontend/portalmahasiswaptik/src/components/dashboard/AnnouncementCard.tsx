@@ -1,4 +1,4 @@
-import { Megaphone, ChevronRight } from 'lucide-react';
+import { Megaphone, ChevronRight, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AnnouncementCardProps {
@@ -7,9 +7,10 @@ interface AnnouncementCardProps {
   excerpt: string;
   isNew?: boolean;
   priority?: 'normal' | 'important' | 'urgent';
+  icon?: LucideIcon;
 }
 
-export function AnnouncementCard({ title, date, excerpt, isNew, priority = 'normal' }: AnnouncementCardProps) {
+export function AnnouncementCard({ title, date, excerpt, isNew, priority = 'normal', icon: Icon = Megaphone }: AnnouncementCardProps) {
   const priorityStyles = {
     normal: 'bg-card',
     important: 'bg-warning/10 border-warning/30',
@@ -24,7 +25,7 @@ export function AnnouncementCard({ title, date, excerpt, isNew, priority = 'norm
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <Megaphone className={cn(
+            <Icon className={cn(
               "w-4 h-4",
               priority === 'urgent' ? 'text-destructive' : priority === 'important' ? 'text-warning-foreground' : 'text-primary'
             )} />

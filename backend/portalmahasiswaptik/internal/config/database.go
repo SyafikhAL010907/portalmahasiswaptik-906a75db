@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -60,18 +59,18 @@ func InitDatabase() (*gorm.DB, error) {
 }
 
 // autoMigrate runs GORM auto-migration for all models
-func autoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&models.Class{},
-		&models.Profile{},
-		&models.UserRole{},
-		&models.Subject{},
-		&models.Meeting{},
-		&models.AttendanceSession{},
-		&models.AttendanceRecord{},
-		&models.Transaction{},
-		&models.WeeklyDue{},
-		&models.Announcement{},
-		&models.Material{},
-	)
-}
+// func autoMigrate(db *gorm.DB) error {
+// 	return db.AutoMigrate(
+// 		&models.Class{},
+// 		&models.Profile{},
+// 		&models.UserRole{},
+// 		&models.Subject{},
+// 		&models.Meeting{},
+// 		&models.AttendanceSession{},
+// 		&models.AttendanceRecord{},
+// 		&models.Transaction{},
+// 		&models.WeeklyDue{},
+// 		&models.Announcement{},
+// 		&models.Material{},
+// 	)
+// }

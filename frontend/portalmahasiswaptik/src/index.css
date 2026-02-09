@@ -8,13 +8,13 @@
   :root {
     /* Pastel Sage Green Theme - Light Mode */
     --background: 45 30% 97%;
-    --foreground: 150 10% 20%;
+    --foreground: 150 8% 35%; /* Softened from 150 10% 20% */
 
     --card: 0 0% 100%;
-    --card-foreground: 150 10% 20%;
+    --card-foreground: 150 8% 35%; /* Softened from 150 10% 20% */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 150 10% 20%;
+    --popover-foreground: 150 8% 35%; /* Softened */
 
     /* Sage Green Primary */
     --primary: 150 30% 45%;
@@ -25,7 +25,7 @@
     --secondary-foreground: 150 30% 30%;
 
     --muted: 45 20% 94%;
-    --muted-foreground: 150 10% 45%;
+    --muted-foreground: 150 8% 50%; /* Softened from 150 10% 45% */
 
     /* Pistachio Accent */
     --accent: 140 35% 85%;
@@ -140,6 +140,39 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
+
+  /* Custom Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.5);
+    border-radius: 10px;
+    transition: background 0.3s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.8);
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.4);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
+  }
 }
 
 @layer components {
@@ -196,7 +229,7 @@
 
   /* Smooth Theme Transition */
   * {
-    @apply transition-colors duration-300;
+    @apply transition-colors duration-500 ease-in-out;
   }
 }
 

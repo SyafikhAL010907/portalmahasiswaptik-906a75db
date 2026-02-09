@@ -70,7 +70,7 @@ const menuItems: MenuItem[] = [
     children: [
       { icon: Megaphone, label: 'Pengumuman', path: '/dashboard/announcements' },
       { icon: Award, label: 'Info Lomba', path: '/dashboard/competitions' },
-      { icon: Trophy, label: 'Leaderboard', path: '/dashboard/leaderboard' },
+      { icon: Trophy, label: 'Leaderboard Angkatan', path: '/dashboard/leaderboard' },
     ],
   },
   {

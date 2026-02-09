@@ -43,7 +43,7 @@ interface MenuItem {
 
 const getMenuItems = (): MenuItem[] => [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
-  
+
   // Admin Dev Only
   {
     icon: Shield,
@@ -53,9 +53,9 @@ const getMenuItems = (): MenuItem[] => [
       { icon: Users, label: 'Manajemen User', path: '/dashboard/users', roles: ['admin_dev'] },
     ],
   },
-  
+
   // 🔄 Update: Menu Generator QR yang tadinya di luar, sekarang gue hapus dari sini karena dipindah ke Absensi
-  
+
   // Academic
   {
     icon: GraduationCap,
@@ -66,7 +66,7 @@ const getMenuItems = (): MenuItem[] => [
       { icon: Calculator, label: 'Simulator IPK', path: '/dashboard/ipk-simulator' },
     ],
   },
-  
+
   // Attendance - 🚀 SEKARANG JADI SATU DI SINI
   {
     icon: MapPin,
@@ -80,19 +80,19 @@ const getMenuItems = (): MenuItem[] => [
       { icon: History, label: 'Riwayat Kehadiran', path: '/dashboard/attendance-history', roles: ['mahasiswa', 'admin_dev', 'admin_kelas'] },
     ],
   },
-  
+
   // Finance
   {
     icon: Wallet,
     label: 'Keuangan',
-    roles: ['admin_dev', 'admin_kelas', 'mahasiswa'], 
+    roles: ['admin_dev', 'admin_kelas', 'mahasiswa'],
     children: [
       { icon: BarChart3, label: 'Dashboard Kas', path: '/dashboard/finance' },
       { icon: CreditCard, label: 'Bayar Iuran', path: '/dashboard/payment' },
       { icon: FileText, label: 'Laporan Transparansi', path: '/dashboard/finance-report' },
     ],
   },
-  
+
   // Information
   {
     icon: Megaphone,
@@ -100,10 +100,10 @@ const getMenuItems = (): MenuItem[] => [
     children: [
       { icon: Megaphone, label: 'Pengumuman', path: '/dashboard/announcements' },
       { icon: Award, label: 'Info Lomba', path: '/dashboard/competitions' },
-      { icon: Trophy, label: 'Leaderboard', path: '/dashboard/leaderboard' },
+      { icon: Trophy, label: 'Leaderboard Angkatan', path: '/dashboard/leaderboard' },
     ],
   },
-  
+
   // Settings
   {
     icon: Settings,
@@ -131,11 +131,173 @@ const roleColors: Record<AppRole, string> = {
   mahasiswa: 'bg-success text-success-foreground',
 };
 
+// ... imports ...
+
+// ... getMenuItems and other constants ...
+
+// Extracted SidebarContent component
+const SidebarContent = ({
+  profile,
+  primaryRole,
+  menuItems,
+  expandedItems,
+  toggleExpand,
+  isMobileOpen,
+  setIsMobileOpen,
+  isActive,
+  isParentActive,
+  hasAccess,
+  handleLogout,
+  roleLabels
+}: any) => (
+  <>
+    {/* Logo Section */}
+    <div className="p-4 border-b border-sidebar-border">
+      <Link
+        to="/dashboard"
+        className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+      >
+        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-soft overflow-hidden p-0.5 border border-gray-100">
+          <img
+            src="https://ft.unj.ac.id/ptik/wp-content/uploads/2021/07/LOGO-BEMP-PTIK-150x150.png"
+            alt="Logo BEMP PTIK"
+            className="w-full h-full object-contain"
+          />
+        </div>
+
+        <div>
+          <div className="font-bold text-sidebar-foreground">PTIK 2025</div>
+          <div className="text-xs text-muted-foreground">Portal Angkatan</div>
+        </div>
+      </Link>
+    </div>
+
+    {/* User Info */}
+    <div className="p-4 border-b border-sidebar-border">
+      <div className="flex items-center gap-3">
+        <div className="relative w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+          {profile?.avatar_url ? (
+            <img
+              src={`${profile.avatar_url}?t=${new Date().getTime()}`}
+              alt="Avatar"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User className="w-5 h-5 text-primary" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm truncate">
+            {profile?.full_name || 'User'}
+          </p>
+          <p className="text-xs text-muted-foreground">{profile?.user_class ? `Kelas ${profile.user_class}` : profile?.nim}</p>
+        </div>
+      </div>
+      {primaryRole && (
+        <Badge variant="secondary" className="mt-2">
+          {roleLabels[primaryRole]}
+        </Badge>
+      )}
+    </div>
+
+    {/* Menu Section */}
+    <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      {menuItems.map((item: any) => {
+        if (!hasAccess(item.roles)) return null;
+
+        const accessibleChildren = item.children?.filter((child: any) => hasAccess(child.roles));
+
+        if (item.children && (!accessibleChildren || accessibleChildren.length === 0)) {
+          return null;
+        }
+
+        return (
+          <div key={item.label}>
+            {item.path ? (
+              <Link
+                to={item.path}
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  isActive(item.path)
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </Link>
+            ) : (
+              <>
+                <button
+                  onClick={() => toggleExpand(item.label)}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                    isParentActive(accessibleChildren)
+                      ? "bg-sidebar-accent text-sidebar-primary"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className="w-5 h-5" />
+                    {item.label}
+                  </div>
+                  {expandedItems.includes(item.label) ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                </button>
+                {expandedItems.includes(item.label) && accessibleChildren && (
+                  <div className="ml-4 mt-1 space-y-1 animate-fade-in">
+                    {accessibleChildren.map((child: any) => (
+                      <Link
+                        key={child.path}
+                        to={child.path}
+                        onClick={() => setIsMobileOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200",
+                          isActive(child.path)
+                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        )}
+                      >
+                        <child.icon className="w-4 h-4" />
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+
+    {/* Bottom Section */}
+    <div className="p-4 border-t border-sidebar-border space-y-3">
+      <div className="flex items-center justify-between px-4">
+        <span className="text-sm text-muted-foreground">Dark Mode</span>
+        <ThemeToggle />
+      </div>
+      <Button
+        variant="ghost"
+        className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+        onClick={handleLogout}
+      >
+        <LogOut className="w-5 h-5" />
+        Log Out
+      </Button>
+    </div>
+  </>
+);
+
 export function RoleBasedSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, roles, signOut } = useAuth();
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Akademik', 'Keuangan', 'Absensi']); // Tambah Absensi biar auto-buka
+  const [expandedItems, setExpandedItems] = useState<string[]>(['Akademik', 'Keuangan', 'Absensi']);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const menuItems = getMenuItems();
@@ -164,142 +326,6 @@ export function RoleBasedSidebar() {
 
   const primaryRole = roles[0];
 
-  const SidebarContent = () => (
-    <>
-      {/* Logo Section */}
-      <div className="p-4 border-b border-sidebar-border">
-        <Link
-          to="/dashboard"
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-        >
-          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-soft overflow-hidden p-0.5 border border-gray-100">
-            <img
-              src="https://ft.unj.ac.id/ptik/wp-content/uploads/2021/07/LOGO-BEMP-PTIK-150x150.png"
-              alt="Logo BEMP PTIK"
-              className="w-full h-full object-contain"
-            />
-          </div>
-
-          <div>
-            <div className="font-bold text-sidebar-foreground">PTIK 2025</div>
-            <div className="text-xs text-muted-foreground">Portal Angkatan</div>
-          </div>
-        </Link>
-      </div>
-
-      {/* User Info */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <User className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm truncate">
-              {profile?.full_name || 'User'}
-            </p>
-            <p className="text-xs text-muted-foreground">{profile?.nim}</p>
-          </div>
-        </div>
-        {primaryRole && (
-          <Badge variant="secondary" className="mt-2">
-            {roleLabels[primaryRole]}
-          </Badge>
-        )}
-      </div>
-
-      {/* Menu Section */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
-          if (!hasAccess(item.roles)) return null;
-
-          const accessibleChildren = item.children?.filter(child => hasAccess(child.roles));
-
-          if (item.children && (!accessibleChildren || accessibleChildren.length === 0)) {
-            return null;
-          }
-
-          return (
-            <div key={item.label}>
-              {item.path ? (
-                <Link
-                  to={item.path}
-                  onClick={() => setIsMobileOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                    isActive(item.path)
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent"
-                  )}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.label}
-                </Link>
-              ) : (
-                <>
-                  <button
-                    onClick={() => toggleExpand(item.label)}
-                    className={cn(
-                      "w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                      isParentActive(accessibleChildren)
-                        ? "bg-sidebar-accent text-sidebar-primary"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon className="w-5 h-5" />
-                      {item.label}
-                    </div>
-                    {expandedItems.includes(item.label) ? (
-                      <ChevronDown className="w-4 h-4" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4" />
-                    )}
-                  </button>
-                  {expandedItems.includes(item.label) && accessibleChildren && (
-                    <div className="ml-4 mt-1 space-y-1 animate-fade-in">
-                      {accessibleChildren.map((child) => (
-                        <Link
-                          key={child.path}
-                          to={child.path}
-                          onClick={() => setIsMobileOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200",
-                            isActive(child.path)
-                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
-                              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                          )}
-                        >
-                          <child.icon className="w-4 h-4" />
-                          {child.label}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })}
-      </nav>
-
-      {/* Bottom Section */}
-      <div className="p-4 border-t border-sidebar-border space-y-3">
-        <div className="flex items-center justify-between px-4">
-          <span className="text-sm text-muted-foreground">Dark Mode</span>
-          <ThemeToggle />
-        </div>
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
-          onClick={handleLogout}
-        >
-          <LogOut className="w-5 h-5" />
-          Log Out
-        </Button>
-      </div>
-    </>
-  );
-
   return (
     <>
       {/* Mobile Toggle Button */}
@@ -326,7 +352,20 @@ export function RoleBasedSidebar() {
         "md:translate-x-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
-        <SidebarContent />
+        <SidebarContent
+          profile={profile}
+          primaryRole={primaryRole}
+          menuItems={menuItems}
+          expandedItems={expandedItems}
+          toggleExpand={toggleExpand}
+          isMobileOpen={isMobileOpen}
+          setIsMobileOpen={setIsMobileOpen}
+          isActive={isActive}
+          isParentActive={isParentActive}
+          hasAccess={hasAccess}
+          handleLogout={handleLogout}
+          roleLabels={roleLabels}
+        />
       </aside>
     </>
   );
