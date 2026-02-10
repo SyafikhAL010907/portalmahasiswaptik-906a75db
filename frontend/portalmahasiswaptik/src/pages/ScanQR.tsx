@@ -252,10 +252,9 @@ export default function ScanQR() {
       if (!isOnlineMode) {
         if (!location) throw new Error("Lokasi tidak ditemukan. Aktifkan GPS.");
         const dist = calculateDistance(location.lat, location.lng, UNJ_LAT, UNJ_LNG);
-        const dynamicMaxDist = payload.r || MAX_DISTANCE_METERS;
 
-        if (dist > dynamicMaxDist) {
-          throw new Error(`Jarak kejauhan! Anda ${Math.round(dist)}m dari kampus. Maksimum yang diizinkan dosen adalah ${dynamicMaxDist}m.`);
+        if (dist > MAX_DISTANCE_METERS) {
+          throw new Error(`Jarak kejauhan! Anda ${Math.round(dist)}m dari kampus. Maksimum yang diizinkan adalah ${MAX_DISTANCE_METERS}m.`);
         }
       }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   QrCode, Clock, CheckCircle2, RefreshCw,
-  BookOpen, Calendar, Loader2, AlertCircle, MapPin, Users
+  BookOpen, Calendar, Loader2, AlertCircle, Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,8 +63,6 @@ export default function QRGenerator() {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [isExpired, setIsExpired] = useState(false);
-  const [radiusLimit, setRadiusLimit] = useState<string>('150'); // Default 150m
-  const [sessionDuration, setSessionDuration] = useState<string>('90'); // Default 90 mins
   const [scannedStudents, setScannedStudents] = useState<any[]>([]);
 
   // cleanup and fresh start
@@ -241,9 +239,8 @@ export default function QRGenerator() {
       const token = Math.random().toString(36).substring(7);
 
       // 3. Create Session Record
-      // Duration is in minutes, convert to ISO
-      const mins = parseInt(sessionDuration) || 90;
-      const expiresAt = new Date(Date.now() + mins * 60 * 1000).toISOString();
+      // Use default duration for session (e.g. 100 minutes)
+      const expiresAt = new Date(Date.now() + 100 * 60 * 1000).toISOString();
 
       const { data, error } = await supabase
         .from('attendance_sessions')
@@ -260,12 +257,11 @@ export default function QRGenerator() {
 
       if (error) throw error;
 
-      // 4. Actual Payload: Include Radius Limit 'r'
+      // 4. Actual Payload: Removed Radius Limit
       const payload = JSON.stringify({
         s: data.id,
         c: selectedClass,
-        t: token,
-        r: parseInt(radiusLimit) || 150
+        t: token
       });
 
       await supabase
@@ -471,35 +467,6 @@ export default function QRGenerator() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  Batas Jarak (Meter)
-                </label>
-                <Input
-                  type="number"
-                  value={radiusLimit}
-                  onChange={(e) => setRadiusLimit(e.target.value)}
-                  placeholder="Contoh: 150"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-primary" />
-                  Durasi Sesi (Menit)
-                </label>
-                <Input
-                  type="number"
-                  value={sessionDuration}
-                  onChange={(e) => setSessionDuration(e.target.value)}
-                  placeholder="Contoh: 90"
-                  className="rounded-xl"
-                />
-              </div>
             </div>
 
             <Button
