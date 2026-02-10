@@ -84,8 +84,8 @@ export default function Schedule() {
 
   // --- INITIAL LOAD ---
   useEffect(() => {
-    const today = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
-    if (days.includes(today)) setSelectedDay(today);
+    // Always default to 'Senin' (Monday) - no auto-detection
+    // setSelectedDay already defaults to 'Senin' in state (line 54)
 
     checkRole();
     fetchClasses();
@@ -425,24 +425,39 @@ export default function Schedule() {
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-start justify-between">
-                      <h3 className="text-lg font-semibold text-foreground tracking-tight">
+                      {/* PRIMARY: Course Name - ULTRA FORCE BLACK */}
+                      <h3
+                        className="!text-black dark:!text-white !font-extrabold !text-2xl tracking-tight"
+                        style={{ color: '#000000', fontWeight: 900, filter: 'drop-shadow(0 0 0.5px rgba(0,0,0,0.3))' }}
+                      >
                         {schedule.subjects?.name || 'Unknown Subject'}
                       </h3>
                       {getStatusBadge(status)}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-muted-foreground">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      {/* PRIMARY: Time - FORCE BLACK BOLD */}
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-primary" />
-                        <span>{schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)} WIB</span>
+                        <Clock className="w-4 h-4 text-blue-500" />
+                        <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                          {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)} WIB
+                        </span>
                       </div>
+
+                      {/* SECONDARY: Room - FORCE BLACK */}
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-secondary" />
-                        <span>{schedule.room}</span>
+                        <MapPin className="w-4 h-4 text-rose-500" />
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">Ruang:</span>
+                        <span className="!text-gray-900 dark:!text-gray-100 !font-bold">{schedule.room}</span>
                       </div>
+
+                      {/* SECONDARY: Lecturer - FORCE BLACK */}
                       <div className="flex items-center gap-2 sm:col-span-2">
-                        <User className="w-4 h-4 text-accent" />
-                        <span>{schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}</span>
+                        <User className="w-4 h-4 text-blue-500" />
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">Dosen:</span>
+                        <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                          {schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}
+                        </span>
                       </div>
                     </div>
                   </div>

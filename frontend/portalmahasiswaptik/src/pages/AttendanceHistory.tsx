@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
-  Folder, FolderOpen, Users, ChevronRight, ArrowLeft,
-  CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2, UserCheck
+  Folder, FolderOpen, Users, ChevronRight, ArrowLeft, Calendar,
+  CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2, UserCheck, FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PremiumCard } from '@/components/ui/PremiumCard';
 
 // --- INTERFACES ---
 interface Student {
@@ -30,15 +31,16 @@ type ViewState = 'semesters' | 'courses' | 'meetings' | 'classes' | 'students';
 
 export default function AttendanceHistory() {
   // --- STATE DATA (DYNAMIC) ---
-  const [semesters, setSemesters] = useState([
-    { id: '1', name: 'Semester 1' },
-    { id: '2', name: 'Semester 2' },
-    { id: '3', name: 'Semester 3' },
-    { id: '4', name: 'Semester 4' },
-    { id: '5', name: 'Semester 5' },
-    { id: '6', name: 'Semester 6' },
-    { id: '7', name: 'Semester 7' },
-    { id: '8', name: 'Semester 8' },
+  // SOFT PASTEL MODE: Finance Dashboard Style
+  const [semesters] = useState([
+    { id: '1', name: 'Semester 1', gradient: 'from-purple-50 to-white dark:from-purple-950/20 dark:to-background', iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600 dark:text-purple-400', shadowColor: 'hover:shadow-purple-200/50 dark:hover:shadow-purple-900/50' },
+    { id: '2', name: 'Semester 2', gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
+    { id: '3', name: 'Semester 3', gradient: 'from-orange-50 to-white dark:from-orange-950/20 dark:to-background', iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600 dark:text-orange-400', shadowColor: 'hover:shadow-orange-200/50 dark:hover:shadow-orange-900/50' },
+    { id: '4', name: 'Semester 4', gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
+    { id: '5', name: 'Semester 5', gradient: 'from-purple-50 to-white dark:from-purple-950/20 dark:to-background', iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600 dark:text-purple-400', shadowColor: 'hover:shadow-purple-200/50 dark:hover:shadow-purple-900/50' },
+    { id: '6', name: 'Semester 6', gradient: 'from-indigo-50 to-white dark:from-indigo-950/20 dark:to-background', iconBg: 'bg-indigo-100 dark:bg-indigo-900/30', iconColor: 'text-indigo-600 dark:text-indigo-400', shadowColor: 'hover:shadow-indigo-200/50 dark:hover:shadow-indigo-900/50' },
+    { id: '7', name: 'Semester 7', gradient: 'from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background', iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', iconColor: 'text-cyan-600 dark:text-cyan-400', shadowColor: 'hover:shadow-cyan-200/50 dark:hover:shadow-cyan-900/50' },
+    { id: '8', name: 'Semester 8', gradient: 'from-violet-50 to-white dark:from-violet-950/20 dark:to-background', iconBg: 'bg-violet-100 dark:bg-violet-900/30', iconColor: 'text-violet-600 dark:text-violet-400', shadowColor: 'hover:shadow-violet-200/50 dark:hover:shadow-violet-900/50' },
   ]);
 
   const [courses, setCourses] = useState<any[]>([]);
@@ -458,6 +460,75 @@ export default function AttendanceHistory() {
     }
   };
 
+  const handleResetQr = async (studentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEdit) return;
+    if (!confirm('Yakin mau RESET status QR mahasiswa ini di SEMUA pertemuan untuk mata kuliah ini?')) return;
+
+    try {
+      setIsLoading(true);
+      // 1. Get all meetings for this course
+      const { data: meetingsData } = await supabase
+        .from('meetings')
+        .select('id')
+        .eq('subject_id', activeId.course);
+
+      if (!meetingsData || meetingsData.length === 0) return;
+      const meetingIds = meetingsData.map(m => m.id);
+
+      // 2. Get all sessions for these meetings
+      const { data: sessionsData } = await supabase
+        .from('attendance_sessions')
+        .select('id')
+        .in('meeting_id', meetingIds);
+
+      if (!sessionsData || sessionsData.length === 0) return;
+      const sessionIds = sessionsData.map(s => s.id);
+
+      // 3. Update records: set scanned_at to null for this student in these sessions
+      const { error } = await supabase
+        .from('attendance_records')
+        .update({ scanned_at: null })
+        .eq('student_id', studentId)
+        .in('session_id', sessionIds);
+
+      if (error) throw error;
+
+      // Optimistic Update (Local view)
+      setStudents(students.map(s => s.id === studentId ? { ...s, scannedAt: null } : s));
+      toast.success("Status QR mahasiswa berhasil direset untuk mata kuliah ini!");
+    } catch (err) {
+      console.error("Failed to reset course QR status:", err);
+      toast.error("Gagal sinkronisasi data ke server");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGlobalWipe = async () => {
+    if (!canEdit) return;
+    if (!confirm('BAHAYA! Yakin mau RESET TOTAL semua data absensi di riwayat kehadiran?')) return;
+    if (!confirm('PERINGATAN TERAKHIR: Semua data absensi di SEMUA semester akan dihapus dan kembali ke "Menunggu Scan". Lanjutkan?')) return;
+
+    setIsLoading(true);
+    try {
+      // 1. Delete all records
+      const { error: recordsError } = await supabase.from('attendance_records').delete().neq('status', 'placeholder');
+      if (recordsError) throw recordsError;
+
+      // 2. Delete all sessions
+      const { error: sessionsError } = await supabase.from('attendance_sessions').delete().neq('is_active', false);
+      if (sessionsError) throw sessionsError;
+
+      toast.success("BERHASIL! Semua data absensi telah dibersihkan secara global.");
+      window.location.reload(); // Refresh to clear all states
+    } catch (err: any) {
+      toast.error("Wipe gagal: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const saveAttendance = async () => {
     if (!canEdit) {
       toast.error("Anda tidak memiliki akses untuk menyimpan absensi");
@@ -577,68 +648,102 @@ export default function AttendanceHistory() {
             </p>
           </div>
         </div>
-        {view !== 'students' && view !== 'semesters' && canEdit && (
-          <Button onClick={openAddDialog} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform w-full md:w-auto">
-            <Plus className="w-4 h-4" /> Tambah {view.slice(0, -1)}
-          </Button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          {view !== 'students' && view !== 'semesters' && canEdit && (
+            <Button onClick={openAddDialog} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
+              <Plus className="w-4 h-4" /> Tambah {view.slice(0, -1)}
+            </Button>
+          )}
+          {view === 'semesters' && canEdit && (
+            <Button variant="destructive" onClick={handleGlobalWipe} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
+              <Trash2 className="w-4 h-4" /> Reset Masal (Global Wipe)
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* LOADING STATE */}
       {isLoading && view !== 'students' && !isAddOpen && !isEditOpen ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary w-10 h-10" /></div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
 
-          {/* VIEW SEMESTERS */}
+          {/* VIEW SEMESTERS - SOFT PASTEL */}
           {view === 'semesters' && semesters.map(sem => (
-            <div key={sem.id} onClick={() => handleSemesterClick(sem.id, sem.name)} className="glass-card rounded-2xl p-6 relative group cursor-pointer hover:border-primary/50 hover:scale-[1.02] transition-all">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4"><Folder className="w-7 h-7 text-primary" /></div>
-              <h3 className="font-bold text-lg">{sem.name}</h3>
-              <ChevronRight className="absolute bottom-6 right-6 w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
+            <PremiumCard
+              key={sem.id}
+              variant="pastel"
+              icon={Folder}
+              title={sem.name}
+              subtitle="Klik untuk lihat matkul"
+              gradient={sem.gradient}
+              iconClassName={`${sem.iconBg} ${sem.iconColor}`}
+              className={sem.shadowColor}
+              onClick={() => handleSemesterClick(sem.id, sem.name)}
+            />
           ))}
 
-          {/* VIEW COURSES */}
-          {view === 'courses' && courses.map(course => (
-            <div key={course.id} onClick={() => handleCourseClick(course.id, course.name)} className="glass-card rounded-2xl p-6 relative group cursor-pointer hover:border-success/50 hover:scale-[1.02] transition-all">
-              <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center mb-4"><FolderOpen className="w-6 h-6 text-success" /></div>
-              <h3 className="font-bold">{course.name}</h3>
-              {canEdit && (
-                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => openEditDialog(course.id, course.name, e)}><Pencil className="w-3 h-3" /></Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={(e) => handleDelete(course.id, e)}><Trash2 className="w-3 h-3" /></Button>
-                </div>
-              )}
-            </div>
-          ))}
+          {/* VIEW COURSES - SOFT PASTEL */}
+          {view === 'courses' && courses.map((course, idx) => {
+            const coursePastels = [
+              { gradient: 'from-violet-50 to-white dark:from-violet-950/20 dark:to-background', iconBg: 'bg-violet-100 dark:bg-violet-900/30', iconColor: 'text-violet-600 dark:text-violet-400', shadowColor: 'hover:shadow-violet-200/50 dark:hover:shadow-violet-900/50' },
+              { gradient: 'from-sky-50 to-white dark:from-sky-950/20 dark:to-background', iconBg: 'bg-sky-100 dark:bg-sky-900/30', iconColor: 'text-sky-600 dark:text-sky-400', shadowColor: 'hover:shadow-sky-200/50 dark:hover:shadow-sky-900/50' },
+              { gradient: 'from-rose-50 to-white dark:from-rose-950/20 dark:to-background', iconBg: 'bg-rose-100 dark:bg-rose-900/30', iconColor: 'text-rose-600 dark:text-rose-400', shadowColor: 'hover:shadow-rose-200/50 dark:hover:shadow-rose-900/50' },
+              { gradient: 'from-amber-50 to-white dark:from-amber-950/20 dark:to-background', iconBg: 'bg-amber-100 dark:bg-amber-900/30', iconColor: 'text-amber-600 dark:text-amber-400', shadowColor: 'hover:shadow-amber-200/50 dark:hover:shadow-amber-900/50' },
+              { gradient: 'from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background', iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', iconColor: 'text-cyan-600 dark:text-cyan-400', shadowColor: 'hover:shadow-cyan-200/50 dark:hover:shadow-cyan-900/50' },
+              { gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
+            ];
+            const pastel = coursePastels[idx % coursePastels.length];
+            return (
+              <div key={course.id} className="relative">
+                <PremiumCard
+                  variant="pastel"
+                  icon={FileText}
+                  title={course.name}
+                  subtitle={course.code}
+                  gradient={pastel.gradient}
+                  iconClassName={`${pastel.iconBg} ${pastel.iconColor}`}
+                  className={pastel.shadowColor}
+                  onClick={() => handleCourseClick(course.id, course.name)}
+                />
+                {canEdit && (
+                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 hover:opacity-100 transition-opacity z-10">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700" onClick={(e) => { e.stopPropagation(); openEditDialog(course.id, course.name, e); }}><Pencil className="w-3 h-3 text-slate-600 dark:text-slate-300" /></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700" onClick={(e) => { e.stopPropagation(); handleDelete(course.id, e); }}><Trash2 className="w-3 h-3 text-red-500" /></Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-          {/* VIEW MEETINGS */}
+          {/* VIEW MEETINGS - SOFT PASTEL (Yellow/Orange tint) */}
           {view === 'meetings' && meetings.map(meeting => (
-            <div key={meeting.id} onClick={() => handleMeetingClick(meeting.id, meeting.topic || `Pertemuan ${meeting.meeting_number}`)} className="glass-card rounded-2xl p-6 relative group cursor-pointer hover:border-warning/50 hover:scale-[1.02] transition-all">
-              <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center mb-4 text-warning font-black text-xl">{meeting.meeting_number}</div>
-              <h3 className="font-bold">{meeting.topic || `Pertemuan ${meeting.meeting_number}`}</h3>
-              {canEdit && (
-                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => openEditDialog(meeting.id, meeting.topic, e)}><Pencil className="w-3 h-3" /></Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={(e) => handleDelete(meeting.id, e)}><Trash2 className="w-3 h-3" /></Button>
-                </div>
-              )}
-            </div>
+            <PremiumCard
+              key={meeting.id}
+              variant="pastel"
+              icon={Calendar}
+              title={meeting.topic || `Pertemuan ${meeting.meeting_number}`}
+              subtitle={`Pertemuan ke-${meeting.meeting_number}`}
+              gradient="from-orange-50 to-white dark:from-orange-950/20 dark:to-background"
+              iconClassName="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+              className="hover:shadow-orange-200/50 dark:hover:shadow-orange-900/50"
+              onClick={() => handleMeetingClick(meeting.id, meeting.topic || `Pertemuan ${meeting.meeting_number}`)}
+            />
           ))}
 
-          {/* VIEW CLASSES */}
+          {/* VIEW CLASSES - SOFT PASTEL (Green/Teal tint) */}
           {view === 'classes' && classes.map(cls => (
-            <div key={cls.id} onClick={() => handleClassClick(cls.id, cls.name)} className="glass-card rounded-2xl p-6 relative group cursor-pointer hover:border-accent/50 text-center hover:scale-[1.02] transition-all">
-              <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform"><Users className="w-8 h-8" /></div>
-              <h3 className="text-xl font-bold">{cls.name}</h3>
-              {canEdit && (
-                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => openEditDialog(cls.id, cls.name, e)}><Pencil className="w-3 h-3" /></Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={(e) => handleDelete(cls.id, e)}><Trash2 className="w-3 h-3" /></Button>
-                </div>
-              )}
-            </div>
+            <PremiumCard
+              key={cls.id}
+              variant="pastel"
+              icon={Users}
+              title={cls.name}
+              subtitle="Klik untuk lihat mahasiswa"
+              gradient="from-blue-50 to-white dark:from-blue-950/20 dark:to-background"
+              iconClassName="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+              className="hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50"
+              onClick={() => handleClassClick(cls.id, cls.name)}
+            />
           ))}
         </div>
       )}
@@ -648,8 +753,8 @@ export default function AttendanceHistory() {
         <div className="glass-card rounded-3xl overflow-hidden border-2 border-primary/10">
           <div className="p-6 bg-muted/30 border-b border-border flex flex-col sm:flex-row justify-between items-center gap-4">
             <div>
-              <h3 className="font-bold flex items-center gap-2"><Users className="w-5 h-5 text-primary" /> Daftar Absensi Mahasiswa</h3>
-              <p className="text-xs text-muted-foreground mt-1">Kelas: {activeId.className} | {activeId.meetingName}</p>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2"><Users className="w-5 h-5 text-primary" /> Daftar Absensi Mahasiswa</h3>
+              <p className="text-xs text-muted-foreground mt-1">Kelas: <span className="font-semibold text-slate-700 dark:text-slate-300">{activeId.className}</span> | <span className="font-semibold text-slate-700 dark:text-slate-300">{activeId.meetingName}</span></p>
             </div>
             {canEdit && (
               <Button size="sm" onClick={saveAttendance} disabled={isLoading} className="bg-success hover:bg-success/80 primary-gradient gap-2 px-6">
@@ -668,7 +773,7 @@ export default function AttendanceHistory() {
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="text-left text-xs font-bold uppercase tracking-widest text-muted-foreground border-b border-border/50">
+                    <tr className="text-left text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300 border-b border-border/50">
                       <th className="p-4 pl-6">NIM</th>
                       <th className="p-4">Nama</th>
                       <th className="p-4 text-center">Status Kehadiran</th>
@@ -677,27 +782,38 @@ export default function AttendanceHistory() {
                   <tbody>
                     {students.map(s => (
                       <tr key={s.id} className="hover:bg-muted/50 transition-colors border-b border-border/10 last:border-0">
-                        <td className="p-4 pl-6 font-mono text-sm text-foreground/70">{s.nim}</td>
-                        <td className="p-4 font-bold text-foreground">{s.name}</td>
+                        <td className="p-4 pl-6 font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">{s.nim}</td>
+                        <td className="p-4 font-bold text-slate-900 dark:text-slate-100">{s.name}</td>
                         <td className="p-4 flex justify-center">
                           <button
                             onClick={() => canEdit && toggleAttendance(s.id, s.status)}
                             disabled={!canEdit}
                             className={cn(
-                              "flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all shadow-sm active:scale-95 outline-none focus:ring-2 ring-primary/50",
-                              s.status === 'hadir' ? 'bg-success/10 text-success border border-success/20' :
-                                s.status === 'izin' ? 'bg-warning/10 text-warning-foreground border border-warning/20' :
-                                  s.status === 'alpha' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                                    'bg-muted text-muted-foreground border border-border', // Pending style
+                              "flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm active:scale-95 outline-none focus:ring-2 ring-primary/50",
+                              s.status === 'hadir' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                s.status === 'izin' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' :
+                                  s.status === 'alpha' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                                    'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
                               !canEdit && "opacity-80 cursor-default active:scale-100"
                             )}
                           >
                             {getStatusIcon(s.status)}
                             <span className="capitalize">{s.status === 'pending' ? 'Menunggu Scan' : s.status}</span>
                             {s.status === 'hadir' && s.scannedAt && (
-                              <div className="ml-2 px-1.5 py-0.5 bg-success rounded text-[10px] text-white flex items-center gap-1" title={`Scanned at: ${new Date(s.scannedAt).toLocaleTimeString()}`}>
-                                <CheckCircle className="w-3 h-3" />
-                                QR
+                              <div className="ml-2 flex items-center gap-1 group/qr">
+                                <div className="px-1.5 py-0.5 bg-green-600 dark:bg-green-700 rounded text-[10px] text-white flex items-center gap-1" title={`Scanned at: ${new Date(s.scannedAt).toLocaleTimeString()}`}>
+                                  <CheckCircle className="w-3 h-3" />
+                                  QR
+                                </div>
+                                {canEdit && (
+                                  <div
+                                    onClick={(e) => handleResetQr(s.id, e)}
+                                    className="p-1 hover:bg-destructive/20 hover:text-destructive rounded-full transition-colors cursor-pointer"
+                                    title="Reset Status QR"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </div>
+                                )}
                               </div>
                             )}
                           </button>

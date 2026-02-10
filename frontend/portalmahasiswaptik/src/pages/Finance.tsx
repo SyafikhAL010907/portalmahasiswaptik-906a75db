@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight } from 'lucide-react';
-import { StatCard } from '@/components/dashboard/StatCard';
+import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder } from 'lucide-react';
+import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -241,6 +241,69 @@ export default function Finance() {
     }
   }, [selectedClassId, selectedMonth, selectedYear, isLifetime, session]);
 
+  // REAL-TIME SUBSCRIPTIONS for Finance Updates ⚡
+  useEffect(() => {
+    if (!selectedClassId || !session) return;
+
+    // Subscribe to transactions table (filtered by class)
+    const txChannel = supabase
+      .channel(`finance_transactions_${selectedClassId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `class_id=eq.${selectedClassId}`
+        },
+        (payload) => {
+          console.log('💰 Finance transaction update:', payload);
+
+          // Re-fetch all finance data
+          fetchTransactionStats();
+          fetchClassStats();
+          fetchStudentMatrix();
+
+          toast.success("Data keuangan telah disinkronkan", {
+            description: "💰 Transaksi diperbarui secara real-time",
+            duration: 2000,
+          });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to weekly_dues
+    const duesChannel = supabase
+      .channel(`finance_dues_${selectedClassId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'weekly_dues'
+        },
+        (payload) => {
+          console.log('💸 Finance dues update:', payload);
+
+          // Re-fetch student matrix and dues total
+          fetchStudentMatrix();
+          fetchDuesTotal();
+
+          toast.success("Matrix iuran telah disinkronkan", {
+            description: "💸 Status pembayaran diupdate secara real-time",
+            duration: 2000,
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup
+    return () => {
+      supabase.removeChannel(txChannel);
+      supabase.removeChannel(duesChannel);
+    };
+  }, [selectedClassId, session]);
+
   // --- EVENT HANDLERS (ANTI-GHOSTING WRAPPERS) ---
   const handleClassChange = (newClassId: string) => {
     if (newClassId === selectedClassId) return;
@@ -478,7 +541,15 @@ export default function Finance() {
   const canEdit = () => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin_dev') return true;
-    if (currentUser.role === 'admin_kelas' && currentUser.class_id === selectedClassId) return true;
+
+    // admin_kelas restrictions:
+    if (currentUser.role === 'admin_kelas') {
+      // Lifetime mode: NO access (angkatan-wide data, admin_dev only)
+      if (isLifetime) return false;
+      // Monthly mode: YES access for ALL classes (can help manage any class)
+      return true;
+    }
+
     return false;
   };
 
@@ -507,6 +578,36 @@ export default function Finance() {
       toast.success(`Berhasil update jadi ${newStatus}`);
       setIsDialogOpen(false);
     } catch (error: any) { toast.error("Gagal: " + error.message); } finally { setIsUpdating(false); }
+  };
+
+  const handleResetStudentStatus = async (studentId: string, studentName: string) => {
+    if (!canEdit()) return;
+    if (selectedMonth === 0) {
+      toast.error("Pilih bulan spesifik dulu untuk me-reset data iuran.");
+      return;
+    }
+
+    const monthName = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"][selectedMonth];
+    if (!confirm(`Hapus data iuran ${monthName} untuk ${studentName}? Tindakan ini tidak bisa dibatalkan.`)) return;
+
+    setIsUpdating(true);
+    try {
+      const { error } = await (supabase.from('weekly_dues') as any)
+        .delete()
+        .eq('student_id', studentId)
+        .eq('year', selectedYear)
+        .eq('month', selectedMonth);
+
+      if (error) throw error;
+
+      toast.success(`Status iuran ${studentName} di bulan ${monthName} berhasil direset.`);
+      fetchStudentMatrix(); // Refresh matrix
+      fetchDuesTotal();
+    } catch (error: any) {
+      toast.error("Gagal reset status: " + error.message);
+    } finally {
+      setIsUpdating(false);
+    }
   };
   const handleAmountChange = (val: string, isEdit = false) => {
     const cleanNumber = val.replace(/\D/g, "");
@@ -603,50 +704,51 @@ export default function Finance() {
         <p className="text-muted-foreground mt-1">Laporan kas angkatan PTIK 2025</p>
       </div>
 
-      <div
-        key={`${selectedClassId}-${selectedMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`}
-        className="animate-in fade-in zoom-in-95 duration-500"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-          <StatCard
+      {/* STATS GRID - STANDARDIZED PREMIUM CARDS */}
+      <div key={`${selectedClassId}-${selectedMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`} className="animate-in fade-in duration-200">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <PremiumCard
             icon={Users}
-            label={`Saldo Kas ${selectedClassName}`}
-            value={isLoadingStats ? <Skeleton className="h-8 w-24 bg-purple-500/10" /> : formatRupiah(classDuesTotal)}
-            iconBg="bg-purple-500/10 text-purple-600"
-            description={isLifetime ? `Total iuran terbayar ${selectedClassName} (12 bulan)` : `Total iuran terbayar ${selectedClassName} bulan ini`}
+            title={`Saldo Kas ${selectedClassName}`}
+            subtitle={isLifetime ? `Total iuran terbayar ${selectedClassName} (12 bulan)` : `Total iuran terbayar ${selectedClassName} bulan ini`}
+            value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-purple-500/10" /> : formatRupiah(classDuesTotal)}
+            gradient="from-purple-500/20 to-purple-500/5"
+            iconClassName="bg-purple-500/10 text-purple-600"
           />
-          <StatCard
+          <PremiumCard
             icon={Wallet}
-            label="Saldo Kas Angkatan"
-            value={isLoadingStats ? <Skeleton className="h-8 w-32 bg-blue-500/10" /> : formatRupiah(totalKasAngkatan)}
-            trend={{ value: isLifetime ? 'Lifetime' : 'Bulan Ini', positive: true }}
-            iconBg="bg-blue-500/10 text-blue-600"
-            description={isLifetime ? "Total iuran terbayar dari 3 kelas (12 bulan)" : "Total iuran terbayar dari 3 kelas bulan ini"}
+            title="Saldo Kas Angkatan"
+            subtitle={isLifetime ? "Total iuran terbayar dari 3 kelas (12 bulan)" : "Total iuran terbayar dari 3 kelas bulan ini"}
+            value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-blue-500/10" /> : formatRupiah(totalKasAngkatan)}
+            gradient="from-blue-500/20 to-blue-500/5"
+            iconClassName="bg-blue-500/10 text-blue-600"
           />
-          <StatCard
+          <PremiumCard
             icon={Gift}
-            label={isLifetime ? "Dana Hibah Angkatan" : `Dana Hibah ${selectedClassName}`}
-            value={isLoadingStats ? <Skeleton className="h-8 w-24 bg-orange-500/10" /> : formatRupiah(danaHibahTotal)}
-            iconBg="bg-orange-500/10 text-orange-600"
-            description={isLifetime ? "Total hibah dari 3 kelas selama 12 bulan" : undefined}
+            title={isLifetime ? "Dana Hibah Angkatan" : `Dana Hibah ${selectedClassName}`}
+            subtitle={isLifetime ? "Total hibah masuk (12 bulan)" : "Total hibah masuk bulan ini"}
+            value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-orange-500/10" /> : formatRupiah(danaHibahTotal)}
+            gradient="from-orange-500/20 to-orange-500/5"
+            iconClassName="bg-orange-500/10 text-orange-600"
           />
-          <StatCard
+          <PremiumCard
             icon={Wallet}
-            label={isLifetime ? `Saldo Bersih ${selectedClassName} Lifetime` : `Saldo Bersih ${selectedClassName}`}
-            value={isLoadingStats ? <Skeleton className="h-8 w-32 bg-teal-500/10" /> : formatRupiah(saldoBersih)}
-            iconBg="bg-teal-500/10 text-teal-600"
-            valueClassName={saldoBersih < 0 ? "text-rose-500" : ""}
-            description={isLifetime ? `Iuran ${selectedClassName} + Hibah ${selectedClassName} - Pengeluaran ${selectedClassName} (12 bulan)` : `Iuran ${selectedClassName} + Hibah ${selectedClassName} - Pengeluaran ${selectedClassName} (bulan ini)`}
+            title={isLifetime ? `Saldo Bersih ${selectedClassName} Lifetime` : `Saldo Bersih ${selectedClassName}`}
+            subtitle={isLifetime ? `Iuran + Hibah - Pengeluaran (12 bulan)` : `Iuran + Hibah - Pengeluaran (bulan ini)`}
+            value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-indigo-500/10" /> : formatRupiah(saldoBersih)}
+            gradient="from-indigo-500/20 to-indigo-500/5"
+            iconClassName="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+            titleClassName={saldoBersih < 0 ? "text-rose-500" : ""}
           />
         </div>
 
         {isLifetime && currentUser && currentUser.role !== 'admin_dosen' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+          <div className="animate-in fade-in duration-200 mb-6">
             <FinancialChart transactions={transactions} selectedClassId={selectedClassId} selectedClassName={selectedClassName} currentSaldo={saldoBersih} className="w-full" />
           </div>
         )}
 
-        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm">
+        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">Matrix Iuran {isLifetime ? 'Lifetime' : 'Bulanan'}</h2>
             <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full lg:w-auto">
@@ -655,7 +757,7 @@ export default function Finance() {
               </select>
               <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
                 {classes.map((cls) => (
-                  <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => handleClassChange(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground whitespace-nowrap' : 'whitespace-nowrap'}> Kelas {cls.name} </Button>
+                  <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => handleClassChange(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground whitespace-nowrap font-bold' : 'whitespace-nowrap font-semibold'}> Kelas {cls.name} </Button>
                 ))}
               </div>
               <Button variant="outline" size="sm" className="w-full sm:w-auto gap-2" onClick={handleDownloadExcel}><Download className="w-4 h-4" /> Export Excel</Button>
@@ -666,47 +768,61 @@ export default function Finance() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="text-left py-4 px-4 text-sm font-medium text-muted-foreground">Nama Mahasiswa</th>
+                    <th className="text-left py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Nama Mahasiswa</th>
                     {!isLifetime ? (
-                      weeks.map((week) => (<th key={week} className="text-center py-4 px-4 text-sm font-medium text-muted-foreground">{week}</th>))
+                      weeks.map((week) => (<th key={week} className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">{week}</th>))
                     ) : (
                       <>
-                        <th className="text-center py-4 px-4 text-sm font-medium text-muted-foreground">Total Bulan Update</th>
-                        <th className="text-center py-4 px-4 text-sm font-medium text-muted-foreground">Total Nominal Kurang</th>
-                        <th className="text-center py-4 px-4 text-sm font-medium text-muted-foreground">Status</th>
+                        <th className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Total Bulan Update</th>
+                        <th className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Total Nominal Kurang</th>
+                        <th className="text-center py-4 px-4 text-sm font-bold text-slate700 dark:text-slate-300">Status</th>
                       </>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   {matrixData.map((student) => (
-                    <tr key={student.student_id} className="hover:bg-muted/30 transition-colors border-b border-border/50 last:border-0">
-                      <td className="py-3 px-4 text-sm text-foreground font-medium">{student.name}</td>
-                      {!isLifetime ? (
+                    <tr key={student.student_id} className="border-b border-border/40 hover:bg-muted/30 transition-colors group">
+                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span>{student.name}</span>
+                          {canEdit() && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleResetStudentStatus(student.student_id, student.name)}
+                              title="Reset Bulan Ini"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>{!isLifetime ? (
                         student.payments.map((status, weekIdx) => (
                           <td key={weekIdx} className="py-3 px-4 text-center">
-                            <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-green-500/10 text-green-600 border-green-200" : status === 'pending' ? "bg-yellow-500/10 text-yellow-600 border-yellow-200" : "bg-red-500/10 text-red-600 border-red-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
+                            <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-blue-500/10 text-blue-600 border-blue-200" : status === 'pending' ? "bg-cyan-500/10 text-cyan-600 border-cyan-200" : "bg-rose-500/10 text-rose-600 border-rose-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
                           </td>
                         ))
                       ) : (
                         <>
-                          <td className="py-3 px-4 text-center text-sm font-semibold text-slate-200">{student.lifetime_paid_count} Bulan</td>
+                          <td className="py-3 px-4 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">{student.lifetime_paid_count} Bulan</td>
                           <td className="py-3 px-4 text-center text-sm">
                             {(student.lifetime_deficiency_amount || 0) > 0 ? (
-                              <span className="font-bold text-rose-400 text-sm">- {formatRupiah(student.lifetime_deficiency_amount || 0)}</span>
+                              <span className="font-bold text-red-600 dark:text-red-400 text-sm">- {formatRupiah(student.lifetime_deficiency_amount || 0)}</span>
                             ) : (
-                              <span className="font-medium text-slate-300 text-sm">{formatRupiah(0)}</span>
+                              <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{formatRupiah(0)}</span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-center text-sm">
                             {student.lifetime_deficiency && student.lifetime_deficiency.length > 0 ? (
-                              <span className="text-xs text-amber-300 bg-amber-950/30 px-3 py-1.5 rounded-md border border-amber-800/40 inline-block font-medium">
+                              <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 text-xs font-bold inline-block">
                                 {student.lifetime_deficiency.map((msg, idx) => msg.replace('(-', '').replace(' mg)', ' mg')).join(' - ')}
                               </span>
                             ) : (student.lifetime_total || 0) === 0 ? (
-                              <span className="px-3 py-1.5 rounded-md bg-slate-800/40 text-slate-400 text-xs border border-slate-700/50 font-medium inline-block">Belum Bayar</span>
+                              <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 text-xs font-bold inline-block">Belum Bayar</span>
                             ) : (
-                              <span className="px-3 py-1.5 rounded-md bg-emerald-950/30 text-emerald-400 text-xs border border-emerald-800/40 font-medium inline-block">✓ Aman</span>
+                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-bold inline-block">✓ Lunas</span>
                             )}
                           </td>
                         </>
@@ -719,8 +835,8 @@ export default function Finance() {
           </div>
         </div>
 
-        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
             <h2 className="text-lg font-semibold text-foreground">{isLifetime ? "Data Transaksi Angkatan" : "Transaksi Terakhir"}</h2>
             <div className="flex gap-2 w-full md:w-auto">
               <div className="flex gap-1 bg-muted/50 p-1 rounded-lg flex-1 md:flex-initial">
@@ -735,8 +851,8 @@ export default function Finance() {
                     <DialogHeader><DialogTitle className="text-xl font-bold text-foreground">Catat Transaksi Angkatan</DialogTitle></DialogHeader>
                     <div className="space-y-5 py-4">
                       <div className="flex gap-2 p-1 bg-muted/50 rounded-xl">
-                        <Button variant={newTx.type === 'income' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'income' && "bg-green-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'income', category: 'hibah' })}>Pemasukan</Button>
-                        <Button variant={newTx.type === 'expense' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'expense' && "bg-red-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'expense', category: 'Umum' })}>Pengeluaran</Button>
+                        <Button variant={newTx.type === 'income' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'income' && "bg-blue-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'income', category: 'hibah' })}>Pemasukan</Button>
+                        <Button variant={newTx.type === 'expense' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'expense' && "bg-rose-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'expense', category: 'Umum' })}>Pengeluaran</Button>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-muted-foreground uppercase">Keterangan / Deskripsi</label>
@@ -763,14 +879,14 @@ export default function Finance() {
                               {classes.map(cls => (<option key={cls.id} value={cls.id}>{cls.name}</option>))}
                             </select>
                           </div>
-                          {newTx.class_id && (
-                            <div className={cn("space-y-2", newTx.type === 'income' && "col-span-2")}>
-                              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Bulan Transaksi</label>
-                              <select className="flex h-11 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm text-foreground" value={selectedTransactionMonth} onChange={e => setSelectedTransactionMonth(Number(e.target.value))}>
-                                {transactionMonths.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
-                              </select>
-                            </div>
-                          )}</>
+                            {newTx.class_id && (
+                              <div className={cn("space-y-2", newTx.type === 'income' && "col-span-2")}>
+                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Bulan Transaksi</label>
+                                <select className="flex h-11 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm text-foreground" value={selectedTransactionMonth} onChange={e => setSelectedTransactionMonth(Number(e.target.value))}>
+                                  {transactionMonths.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
+                                </select>
+                              </div>
+                            )}</>
                         )}
                         {!isLifetime && (
                           <div className="col-span-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/30">
@@ -792,17 +908,22 @@ export default function Finance() {
               displayedTransactions.slice(0, 50).map((tx) => (
                 <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50 group">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tx.type === 'income' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tx.type === 'income' ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground text-sm truncate">{tx.description || tx.category}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">{tx.description || tx.category}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground uppercase font-bold">{tx.transaction_date}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground font-medium uppercase">{tx.category}</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold">{tx.transaction_date}</span>
+                        <span className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
+                          tx.category === 'hibah' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                            tx.type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                              'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        )}>{tx.category}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={cn("font-semibold text-sm whitespace-nowrap", tx.type === 'income' ? 'text-green-600' : 'text-red-600')}> {tx.type === 'income' ? '+' : '-'}{formatRupiah(tx.amount)} </span>
+                    <span className={cn("font-bold text-sm whitespace-nowrap", tx.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}> {tx.type === 'income' ? '+' : '-'}{formatRupiah(tx.amount)} </span>
                     {canEdit() && (
                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEditClick(tx)}><Pencil className="w-4 h-4" /></Button>
@@ -819,12 +940,12 @@ export default function Finance() {
           <div className="mt-6 pt-4 border-t border-border">
             {transactionFilter === 'all' ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pemasukan</div><div className="font-bold text-green-500">{formatRupiah(totalDisplayedIncome)}</div></div>
-                <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pengeluaran</div><div className="font-bold text-red-500">{formatRupiah(totalDisplayedExpense)}</div></div>
+                <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pemasukan</div><div className="font-bold text-blue-500">{formatRupiah(totalDisplayedIncome)}</div></div>
+                <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pengeluaran</div><div className="font-bold text-rose-500">{formatRupiah(totalDisplayedExpense)}</div></div>
                 <div className="flex justify-between items-center sm:block sm:text-center p-2 rounded-lg bg-muted/20 border border-border/50"><div className="text-xs text-muted-foreground mb-1">Saldo Akhir (Validasi)</div><div className={cn("font-bold", (totalDisplayedIncome - totalDisplayedExpense) < 0 ? "text-rose-500" : "text-foreground")}>{formatRupiah(totalDisplayedIncome - totalDisplayedExpense)}</div></div>
               </div>
             ) : (
-              <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">{transactionFilter === 'income' ? 'Total Pemasukan' : 'Total Pengeluaran'}</span><span className={cn("text-lg font-bold", transactionFilter === 'income' ? 'text-green-500' : 'text-red-500')}>{formatRupiah(transactionFilter === 'income' ? totalDisplayedIncome : totalDisplayedExpense)}</span></div>
+              <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">{transactionFilter === 'income' ? 'Total Pemasukan' : 'Total Pengeluaran'}</span><span className={cn("text-lg font-bold", transactionFilter === 'income' ? 'text-blue-500' : 'text-rose-500')}>{formatRupiah(transactionFilter === 'income' ? totalDisplayedIncome : totalDisplayedExpense)}</span></div>
             )}
           </div>
         </div>
@@ -833,7 +954,7 @@ export default function Finance() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
             <div className="grid grid-cols-3 gap-4 py-4">
-              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-green-500/10 border-green-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-green-600" /><span className="text-sm font-medium text-green-600">Lunas</span></Button>
+              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-blue-500/10 border-blue-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-blue-600" /><span className="text-sm font-medium text-blue-600">Lunas</span></Button>
               <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600" /><span className="text-sm font-medium text-yellow-600">Pending</span></Button>
               <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600" /><span className="text-sm font-medium text-red-600">Belum</span></Button>
             </div>

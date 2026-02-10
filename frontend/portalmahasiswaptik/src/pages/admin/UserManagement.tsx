@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 // ✅ Import createClient
 import { createClient } from '@supabase/supabase-js';
-import { 
-  Users, Plus, Search, Edit, Trash2, UserPlus, 
+import {
+  Users, Plus, Search, Edit, Trash2, UserPlus,
   Shield, GraduationCap, BookOpen, Loader2, Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ interface UserData {
   user_id: string;
   nim: string;
   full_name: string;
+  whatsapp?: string | null;
   class_id: string | null;
   class_name?: string;
   roles: AppRole[];
@@ -74,12 +75,13 @@ export default function UserManagement() {
   // ✅ STATE: Untuk fitur Edit
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [editingUserId, setEditingUserId] = useState<string | null>(null); 
-  
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+
   // State form Create
   const [newUser, setNewUser] = useState({
     nim: '',
     full_name: '',
+    whatsapp: '',
     password: '',
     class_id: '',
     role: 'mahasiswa' as AppRole,
@@ -89,28 +91,25 @@ export default function UserManagement() {
   const [editUserForm, setEditUserForm] = useState({
     nim: '',
     full_name: '',
+    whatsapp: '',
     class_id: '',
     role: 'mahasiswa' as AppRole,
   });
 
   // 👇👇👇 DATA KONEKSI NINJA 👇👇👇
-  const ninjaUrl = "https://owqjsqvpmsctztpgensg.supabase.co"; 
-  const ninjaKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93cWpzcXZwbXNjdHp0cGdlbnNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDI0NTkwNCwiZXhwIjoyMDg1ODIxOTA0fQ.S9TInNnZHCsjuuYrpcXB5xpM4Lsr3MIE1YsFPdhq2Hg"; 
+  const ninjaUrl = "https://owqjsqvpmsctztpgensg.supabase.co";
+  const ninjaKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93cWpzcXZwbXNjdHp0cGdlbnNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDI0NTkwNCwiZXhwIjoyMDg1ODIxOTA0fQ.S9TInNnZHCsjuuYrpcXB5xpM4Lsr3MIE1YsFPdhq2Hg";
 
   // Helper function buat bikin client ninja
   const getNinjaClient = () => {
     return createClient(ninjaUrl, ninjaKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false
-        }
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+      }
     });
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -118,7 +117,7 @@ export default function UserManagement() {
       const { data: classData } = await supabase.from('classes').select('*').order('name');
       setClasses(classData || []);
 
-      const { data: profileData, error } = await supabase.from('profiles').select('*');
+      const { data: profileData, error } = await supabase.from('profiles').select('*').order('full_name');
       if (error) throw error;
 
       const { data: rolesData } = await supabase.from('user_roles').select('user_id, role');
@@ -134,6 +133,7 @@ export default function UserManagement() {
         user_id: p.user_id,
         nim: p.nim,
         full_name: p.full_name,
+        whatsapp: (p as any).whatsapp || null,
         class_id: p.class_id,
         class_name: classData?.find(c => c.id === p.class_id)?.name || '-',
         roles: rolesByUser[p.user_id] || [],
@@ -148,6 +148,9 @@ export default function UserManagement() {
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
   // ✅ CREATE USER
   const handleCreateUser = async () => {
     if (!newUser.nim || !newUser.full_name || !newUser.password) {
@@ -159,7 +162,7 @@ export default function UserManagement() {
     try {
       const tempSupabase = getNinjaClient();
       const email = `${newUser.nim}@ptik.local`;
-      
+
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email,
         password: newUser.password,
@@ -174,10 +177,11 @@ export default function UserManagement() {
       // Masukin class_id kalau role mahasiswa ATAU admin_kelas
       const classIdToSave = (newUser.role === 'mahasiswa' || newUser.role === 'admin_kelas') ? (newUser.class_id || null) : null;
 
-      const { error: profileError } = await supabase.from('profiles').upsert({
+      const { error: profileError } = await (supabase.from('profiles') as any).upsert({
         user_id: authData.user.id,
         nim: newUser.nim,
         full_name: newUser.full_name,
+        whatsapp: newUser.whatsapp || null,
         class_id: classIdToSave,
       });
       if (profileError) throw profileError;
@@ -189,9 +193,9 @@ export default function UserManagement() {
       if (roleError) throw roleError;
 
       toast.success(`Pengguna ${newUser.full_name} berhasil dibuat!`);
-      setNewUser({ nim: '', full_name: '', password: '', class_id: '', role: 'mahasiswa' });
+      setNewUser({ nim: '', full_name: '', whatsapp: '', password: '', class_id: '', role: 'mahasiswa' });
       fetchData();
-      
+
     } catch (error: any) {
       console.error('Error creating user:', error);
       toast.error(error.message || 'Gagal membuat pengguna');
@@ -206,6 +210,7 @@ export default function UserManagement() {
     setEditUserForm({
       nim: user.nim,
       full_name: user.full_name,
+      whatsapp: user.whatsapp || '',
       class_id: user.class_id || '',
       role: user.roles[0] || 'mahasiswa',
     });
@@ -224,8 +229,8 @@ export default function UserManagement() {
       const tempSupabase = getNinjaClient();
 
       // Pastikan class_id disimpan jika role adalah admin_kelas
-      const classIdToSave = (editUserForm.role === 'mahasiswa' || editUserForm.role === 'admin_kelas') 
-        ? (editUserForm.class_id || null) 
+      const classIdToSave = (editUserForm.role === 'mahasiswa' || editUserForm.role === 'admin_kelas')
+        ? (editUserForm.class_id || null)
         : null;
 
       const { error: profileError } = await tempSupabase
@@ -233,6 +238,7 @@ export default function UserManagement() {
         .update({
           nim: editUserForm.nim,
           full_name: editUserForm.full_name,
+          whatsapp: editUserForm.whatsapp || null,
           class_id: classIdToSave
         })
         .eq('user_id', editingUserId);
@@ -244,14 +250,14 @@ export default function UserManagement() {
         .from('user_roles')
         .delete()
         .eq('user_id', editingUserId);
-        
+
       if (deleteError) throw deleteError;
 
       const { error: roleError } = await tempSupabase
         .from('user_roles')
         .insert({
-            user_id: editingUserId,
-            role: editUserForm.role
+          user_id: editingUserId,
+          role: editUserForm.role
         });
 
       if (roleError) throw roleError;
@@ -287,7 +293,7 @@ export default function UserManagement() {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       user.nim.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.full_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesClass = selectedClass === 'all' || user.class_id === selectedClass;
@@ -342,8 +348,17 @@ export default function UserManagement() {
                 <Input id="nim" placeholder="Contoh: 1512625001" value={newUser.nim} onChange={(e) => setNewUser({ ...newUser, nim: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="full_name">Nama Lengkap</Label>
-                <Input id="full_name" placeholder="Nama Lengkap" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} />
+                <Label htmlFor="create-name">Nama Lengkap</Label>
+                <Input id="create-name" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} placeholder="Nama Lengkap" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-whatsapp">Nomor WhatsApp</Label>
+                <Input
+                  id="create-whatsapp"
+                  value={newUser.whatsapp}
+                  onChange={(e) => setNewUser({ ...newUser, whatsapp: e.target.value })}
+                  placeholder="Contoh: 08123456789"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -397,6 +412,14 @@ export default function UserManagement() {
               <div className="space-y-2">
                 <Label>Nama Lengkap</Label>
                 <Input value={editUserForm.full_name} onChange={(e) => setEditUserForm({ ...editUserForm, full_name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Nomor WhatsApp</Label>
+                <Input
+                  placeholder="Contoh: 08123456789"
+                  value={editUserForm.whatsapp}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, whatsapp: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
@@ -463,9 +486,12 @@ export default function UserManagement() {
         <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       ) : (
         <Tabs defaultValue="all" className="space-y-4">
-          <TabsList>
+          <TabsList className="bg-card border border-border">
             <TabsTrigger value="all">Semua ({filteredUsers.length})</TabsTrigger>
-            <TabsTrigger value="by-class">Per Kelas</TabsTrigger>
+            <TabsTrigger value="admin_dev">Admin Dev</TabsTrigger>
+            <TabsTrigger value="admin_kelas">Admin Kelas</TabsTrigger>
+            <TabsTrigger value="admin_dosen">Dosen</TabsTrigger>
+            <TabsTrigger value="mahasiswa">Mahasiswa</TabsTrigger>
           </TabsList>
 
           <TabsContent value="all">
@@ -487,20 +513,16 @@ export default function UserManagement() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          {/* Badge Kelas untuk Mahasiswa */}
                           {user.roles.includes('mahasiswa') && user.class_name !== '-' && (
                             <Badge variant="outline">Kelas {user.class_name}</Badge>
                           )}
-                          
-                          {/* ✅ PERBAIKAN TAMPILAN: Admin Kelas sekarang kelihatan megang kelas apa */}
                           {user.roles.map((role) => (
                             <Badge key={role} className={roleColors[role]}>
-                              {role === 'admin_kelas' && user.class_name !== '-' 
-                                ? `Admin Kelas ${user.class_name}`  // <--- INI KUNCINYA BRO!
+                              {role === 'admin_kelas' && user.class_name !== '-'
+                                ? `Admin Kelas ${user.class_name}`
                                 : roleLabels[role]}
                             </Badge>
                           ))}
-                          
                           <Button variant="ghost" size="icon" onClick={() => handleEditClick(user)}>
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -516,38 +538,105 @@ export default function UserManagement() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="by-class">
+          <TabsContent value="admin_dev">
             <div className="grid gap-4">
-              {usersByClass.map((cls) => (
-                <Card key={cls.id}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center"><BookOpen className="w-4 h-4 text-primary" /></div>
-                      Kelas {cls.name}
-                      <Badge variant="secondary">{cls.users.length} Mahasiswa</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {cls.users.length === 0 ? (
-                      <p className="text-muted-foreground text-sm">Belum ada mahasiswa</p>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {cls.users.map((user) => (
-                          <div key={user.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
-                              {user.full_name.charAt(0)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{user.full_name}</p>
-                              <p className="text-xs text-muted-foreground">{user.nim}</p>
-                            </div>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
+              {filteredUsers.filter(u => u.roles.includes('admin_dev')).map(user => (
+                <Card key={user.id} className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center"><Shield className="w-5 h-5 text-destructive" /></div>
+                    <div>
+                      <p className="font-bold">{user.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{user.nim}</p>
+                    </div>
+                  </div>
+                  <Badge className={roleColors['admin_dev']}>Admin Dev</Badge>
                 </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="admin_kelas">
+            <div className="grid gap-6">
+              {classes.map(cls => {
+                const adminsInClass = filteredUsers.filter(u => u.roles.includes('admin_kelas') && u.class_id === cls.id);
+                return (
+                  <div key={cls.id} className="space-y-3">
+                    <h3 className="font-bold text-lg border-l-4 border-indigo-500 pl-3">Admin Kelas {cls.name}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {adminsInClass.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">Belum ada admin di kelas ini</p>
+                      ) : (
+                        adminsInClass.map(user => (
+                          <Card key={user.id} className="p-4 border-indigo-500/20 bg-indigo-500/5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-600">{user.full_name.charAt(0)}</div>
+                                <div>
+                                  <p className="font-bold text-sm">{user.full_name}</p>
+                                  <p className="text-[10px] text-muted-foreground">{user.nim}</p>
+                                </div>
+                              </div>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
+                            </div>
+                          </Card>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="admin_dosen">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredUsers.filter(u => u.roles.includes('admin_dosen')).map(user => (
+                <Card key={user.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600"><BookOpen className="w-5 h-5" /></div>
+                      <div>
+                        <p className="font-bold">{user.full_name}</p>
+                        <p className="text-xs text-muted-foreground">{user.nim}</p>
+                      </div>
+                    </div>
+                    <Badge className={roleColors['admin_dosen']}>Dosen</Badge>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="mahasiswa">
+            <div className="grid gap-8">
+              {classes.map((cls) => (
+                <div key={cls.id} className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-border pb-2">
+                    <h3 className="font-black text-xl flex items-center gap-2">
+                      Kelas {cls.name}
+                      <Badge variant="secondary" className="font-bold">{filteredUsers.filter(u => u.class_id === cls.id && (u.roles.includes('mahasiswa') || u.roles.includes('admin_kelas'))).length} Orang</Badge>
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {filteredUsers.filter(u => u.class_id === cls.id && (u.roles.includes('mahasiswa') || u.roles.includes('admin_kelas'))).map((user) => (
+                      <Card key={user.id} className="p-3 hover:shadow-md transition-shadow group">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary transition-transform group-hover:scale-110">
+                            {user.full_name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm truncate">{user.full_name}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="text-[10px] text-muted-foreground font-medium">{user.nim}</p>
+                              {user.roles.includes('admin_kelas') && <Badge className="h-4 px-1 text-[8px] bg-indigo-500">Admin</Badge>}
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </TabsContent>

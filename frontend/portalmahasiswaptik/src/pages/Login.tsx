@@ -18,16 +18,16 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!nim || !password) {
       toast.error('Masukkan NIM dan password');
       return;
     }
 
     setIsLoading(true);
-    
+
     const { error } = await signIn(nim, password);
-    
+
     if (error) {
       toast.error(error);
       setIsLoading(false);
@@ -134,14 +134,14 @@ export default function Login() {
         </div>
 
         {/* WhatsApp Support Link */}
-        <a 
+        <a
           href="https://wa.me/628568025957"
           target="_blank"
           rel="noopener noreferrer"
           className="block w-full"
         >
           <Button variant="outline" className="w-full h-12 gap-2">
-            <MessageCircle className="w-5 h-5 text-green-500" />
+            <MessageCircle className="w-5 h-5 text-cyan-500" />
             Hubungi Admin via WhatsApp
           </Button>
         </a>

@@ -115,7 +115,7 @@ export function FinancialChart({ transactions, selectedClassId, selectedClassNam
         ? chartData[chartData.length - 1].balance >= chartData[0].balance
         : true;
 
-    const trendColor = isUptrend ? "#10b981" : "#f43f5e";
+    const trendColor = isUptrend ? "#4f46e5" : "#f43f5e"; // indigo-600 : rose-500
 
     const formatRupiah = (value: number) => {
         const absValue = Math.abs(value);
@@ -221,7 +221,7 @@ export function FinancialChart({ transactions, selectedClassId, selectedClassNam
                                 fillOpacity={1}
                                 fill="url(#colorBalance)"
                                 strokeWidth={2.5}
-                                animationDuration={1000}
+                                animationDuration={200}
                                 connectNulls
                             />
                         </AreaChart>

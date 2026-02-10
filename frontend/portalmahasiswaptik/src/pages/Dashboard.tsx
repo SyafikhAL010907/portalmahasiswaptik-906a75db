@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { AnnouncementCard } from '@/components/dashboard/AnnouncementCard';
+import { PremiumCard } from '@/components/ui/PremiumCard';
 import {
   Dialog,
   DialogContent,
@@ -64,20 +65,13 @@ export default function Dashboard() {
   const greeting = currentHour < 12 ? 'Selamat Pagi' : currentHour < 17 ? 'Selamat Siang' : 'Selamat Malam';
 
   // --- STATE ---
-  const [userName, setUserName] = useState('');
-  const [userNim, setUserNim] = useState('');
-  const [userClass, setUserClass] = useState(''); // e.g., "A"
-  const [userRole, setUserRole] = useState("Mahasiswa");
-
+  // Profile data now comes from AuthContext via 'profile'
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
 
   const [balance, setBalance] = useState<number>(0);
   const [isLoadingSaldo, setIsLoadingSaldo] = useState(true);
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Widget States
@@ -85,11 +79,21 @@ export default function Dashboard() {
   const [classRank, setClassRank] = useState<number | null>(null);
   const [topClass, setTopClass] = useState<{ name: string, total: number } | null>(null);
   const [isLoadingRank, setIsLoadingRank] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Derived constants for backward compatibility
+  const userName = profile?.full_name;
+  const userNim = profile?.nim;
+  const userClass = profile?.user_class;
+  const userRole = roles.includes('admin_dev') ? 'AdminDev'
+    : roles.includes('admin_kelas') ? 'Admin Kelas'
+      : roles.includes('admin_dosen') ? 'Dosen'
+        : 'Mahasiswa';
 
   // --- INITIAL LOAD ---
   useEffect(() => {
     fetchDashboardData();
-    fetchRealtimeBalance();
+    // Remove fetchLifetimeClassBalance from here - will be called when profile loads
     fetchWeather();
     fetchClassRank();
 
@@ -105,6 +109,73 @@ export default function Dashboard() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Fetch balance when profile is loaded
+  useEffect(() => {
+    if (profile?.class_id) {
+      fetchLifetimeClassBalance();
+    }
+  }, [profile?.class_id]);
+
+  // REAL-TIME SUBSCRIPTIONS for Finance Updates ⚡
+  useEffect(() => {
+    if (!profile?.class_id) return;
+
+    const userClassId = profile.class_id;
+
+    // Subscribe to transactions table (filtered by class)
+    const transactionsChannel = supabase
+      .channel('dashboard_transactions_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'transactions',
+          filter: `class_id=eq.${userClassId}` // Only user's class
+        },
+        (payload) => {
+          console.log('💰 Transaction changed:', payload);
+          fetchLifetimeClassBalance();
+
+          toast({
+            title: "💰 Data Keuangan Diperbarui",
+            description: "Saldo telah disinkronkan secara real-time",
+            duration: 2000,
+          });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to weekly_dues table
+    const duesChannel = supabase
+      .channel('dashboard_dues_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'weekly_dues'
+        },
+        (payload) => {
+          console.log('💸 Weekly dues changed:', payload);
+          fetchLifetimeClassBalance();
+
+          toast({
+            title: "💸 Iuran Diperbarui",
+            description: "Status pembayaran telah diupdate",
+            duration: 2000,
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup on unmount
+    return () => {
+      supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(duesChannel);
+    };
+  }, [profile?.class_id]);
 
   // ... (rest of imports/setup)
 
@@ -156,21 +227,21 @@ export default function Dashboard() {
 
   const getClassColor = (name: string) => {
     if (name?.includes('A')) return 'bg-primary/10 text-primary border-primary/20';
-    if (name?.includes('B')) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-    if (name?.includes('C')) return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+    if (name?.includes('B')) return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
+    if (name?.includes('C')) return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
     return 'bg-secondary text-secondary-foreground';
   };
 
 
 
   const getRoleDisplay = () => {
-    if (userRole === "Super Admin") return "AdminDev";
-    if (userRole === "Admin Kelas") return "Admin Kelas";
-    if (userRole === "Dosen") return "Dosen";
+    if (roles.includes('admin_dev')) return "AdminDev";
+    if (roles.includes('admin_kelas')) return "Admin Kelas";
+    if (roles.includes('admin_dosen')) return "Dosen";
     return "Mahasiswa";
   };
 
-  const qrData = `${userName} - ${userNim} - ${userClass || getRoleDisplay()}`;
+  const qrData = `${profile?.full_name} - ${profile?.nim} - ${profile?.user_class || getRoleDisplay()}`;
 
   const fetchWeather = () => {
     if (!navigator.geolocation) {
@@ -223,9 +294,6 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // 0. Fetch Top Competitions & Announcements
       const { data: comps } = await supabase
         .from('competitions')
         .select('*')
@@ -262,57 +330,12 @@ export default function Dashboard() {
         setDashboardAnnouncements(sortedAnns.slice(0, 2));
       }
 
-      if (user) {
-        // 1. Get Profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, nim, class_id, avatar_url')
-          .eq('user_id', user.id)
-          .single();
-
-        let currentClassId = '';
-        let className = ''; // Local var
-
-        if (profile) {
-          setUserName(profile.full_name);
-          setUserNim(profile.nim);
-          setAvatarUrl(profile.avatar_url);
-          currentClassId = profile.class_id || '';
-
-          // 2. Get Class Name if class_id exists
-          if (profile.class_id) {
-            const { data: classData } = await supabase
-              .from('classes')
-              .select('name')
-              .eq('id', profile.class_id)
-              .single();
-            if (classData) {
-              setUserClass(classData.name);
-              className = classData.name;
-            }
-          }
-        }
-
+      if (profile) {
         // Trigger Rank Calculation with confirmed class name
-        calculateRank(className);
-
-        // 3. Get Role
-        const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle();
-        let isLecturer = false;
-
-        if (roleData) {
-          const roles: Record<string, string> = { admin_dev: "Super Admin", admin_kelas: "Admin Kelas", admin_dosen: "Dosen" };
-          const roleName = roles[roleData.role] || "Mahasiswa";
-          setUserRole(roleName);
-          isLecturer = roleData.role === 'admin_dosen';
-
-          if (roleName === "Dosen") {
-            setUserClass('');
-          }
-        }
+        calculateRank(profile.user_class || '');
 
         // 4. Fetch Schedules
-        await fetchTodaySchedule(currentClassId, isLecturer ? user.id : undefined);
+        await fetchTodaySchedule(profile.class_id || '', roles.includes('admin_dosen') ? profile.user_id : undefined);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -444,7 +467,7 @@ export default function Dashboard() {
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${userNim}/${fileName}`;
+      const filePath = `${profile?.nim || 'unknown'}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -467,7 +490,6 @@ export default function Dashboard() {
 
         if (updateError) throw updateError;
 
-        setAvatarUrl(`${publicUrl}?t=${new Date().getTime()}`);
         await refreshProfile(); // Refresh sidebar
         toast({
           title: "Berhasil",
@@ -501,7 +523,7 @@ export default function Dashboard() {
 
         if (error) throw error;
 
-        setAvatarUrl(null);
+        // setAvatarUrl(null);
         await refreshProfile(); // Refresh sidebar
 
         toast({
@@ -520,25 +542,47 @@ export default function Dashboard() {
     }
   };
 
-  const fetchRealtimeBalance = async () => {
+  const fetchLifetimeClassBalance = async () => {
     setIsLoadingSaldo(true);
     try {
-      // A. Hitung Iuran Lunas (weekly_dues)
-      const { count } = await supabase
+      // Get user's class_id from profile
+      const userClassId = profile?.class_id;
+      if (!userClassId) {
+        setBalance(0);
+        setIsLoadingSaldo(false);
+        return;
+      }
+
+      // A. Hitung Iuran Lunas (weekly_dues) - LIFETIME, PER CLASS
+      // Join weekly_dues with users to filter by class_id
+      const { data: duesData } = await supabase
         .from('weekly_dues')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'paid');
-      const duesIncome = (count || 0) * 5000;
+        .select(`
+          status,
+          users!inner (
+            class_id
+          )
+        `)
+        .eq('status', 'paid')
+        .eq('users.class_id', userClassId);
 
-      // B. Hitung Transaksi Manual (transactions)
-      const { data: tx } = await supabase.from('transactions').select('amount, type');
-      const manualIncome = tx?.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) || 0;
-      const totalExpense = tx?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
+      const duesIncome = (duesData?.length || 0) * 5000;
 
-      // C. Final Balance
-      setBalance((duesIncome + manualIncome) - totalExpense);
+      // B. Hitung Transaksi Manual (transactions) - LIFETIME, PER CLASS
+      const { data: txData } = await supabase
+        .from('transactions')
+        .select('amount, type')
+        .eq('class_id', userClassId);
+
+      const manualIncome = txData?.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) || 0;
+      const totalExpense = txData?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
+
+      // C. Final Lifetime Balance (Saldo Bersih)
+      const lifetimeBalance = (duesIncome + manualIncome) - totalExpense;
+      setBalance(lifetimeBalance);
     } catch (err) {
-      console.error("Gagal hitung saldo:", err);
+      console.error("Gagal hitung saldo lifetime:", err);
+      setBalance(0);
     } finally {
       setIsLoadingSaldo(false);
     }
@@ -597,50 +641,49 @@ export default function Dashboard() {
       {/* 2. Stats Grid */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${userRole === 'Dosen' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
         {userRole !== 'Dosen' && (
-          <StatCard
+          <PremiumCard
             icon={Wallet}
-            label="Saldo Kas"
+            title="Saldo Kas"
             value={isLoadingSaldo ? "..." : formatRupiah(balance)}
-            trend={{ value: 'Realtime', positive: true }}
-            iconBg="bg-success/10 text-success"
+            subtitle="Saldo Bersih Lifetime"
+            gradient="from-blue-500/20 to-blue-500/5"
+            iconClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
           />
         )}
-        <StatCard
+        <PremiumCard
           icon={Calendar}
-          label="Jadwal Hari Ini"
+          title="Jadwal Hari Ini"
           value={`${schedules.length} Matkul`}
-          iconBg="bg-primary/10 text-primary"
+          subtitle="Jadwal Kuliah"
+          gradient="from-primary/20 to-primary/5"
+          iconClassName="bg-primary/10 text-primary"
         />
-        <StatCard icon={CheckCircle2} label="Kehadiran" value="95%" trend={{ value: '2%', positive: true }} iconBg="bg-accent text-accent-foreground" />
-        {/* Top Class Wrapper Card */}
-        <div className="glass-card p-6 rounded-2xl relative overflow-hidden flex flex-col items-center justify-center text-center space-y-2 border border-white/5 bg-card/30">
-          {isLoadingRank ? (
-            <Skeleton className="h-10 w-20" />
-          ) : topClass ? (
-            <>
-              {/* Trophy Badge */}
-              <div className="absolute top-0 right-0 p-2 bg-yellow-500/20 rounded-bl-xl border-l border-b border-yellow-500/20 backdrop-blur-sm">
-                <Trophy className="w-5 h-5 text-yellow-500" />
-              </div>
+        <PremiumCard
+          icon={CheckCircle2}
+          title="Kehadiran"
+          value="95%"
+          subtitle="Persentase Hadir"
+          gradient="from-accent/40 to-accent/10"
+          iconClassName="bg-accent text-accent-foreground"
+        />
 
-              {/* Class Avatar */}
-              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold mb-1 border", getClassColor(topClass.name))}>
-                {topClass.name}
-              </div>
-
-              {/* Info */}
-              <div>
-                <p className="text-muted-foreground text-sm font-medium">Kelas {topClass.name}</p>
-                <div className="text-2xl font-bold text-foreground leading-none mt-1">
-                  {topClass.total}
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1">Total Prestasi</p>
-              </div>
-            </>
-          ) : (
-            <div className="text-xs text-muted-foreground">Belum ada data</div>
-          )}
-        </div>
+        {/* Top Class Card modernized with PremiumCard shell or logic */}
+        {isLoadingRank ? (
+          <Skeleton className="h-[120px] w-full rounded-2xl" />
+        ) : topClass ? (
+          <PremiumCard
+            icon={Trophy}
+            title={`Top: ${topClass.name}`}
+            value={topClass.total.toString()}
+            subtitle="Total Prestasi Kelas"
+            gradient="from-yellow-500/20 to-yellow-500/5"
+            iconClassName="bg-yellow-500/10 text-yellow-500"
+          />
+        ) : (
+          <div className="glass-card p-6 rounded-2xl text-center border border-white/5 bg-card/30 flex items-center justify-center">
+            <span className="text-xs text-muted-foreground">Belum ada data prestasi</span>
+          </div>
+        )}
       </div>
 
       {/* 3. Main Content Layout */}
@@ -699,20 +742,37 @@ export default function Dashboard() {
                         </span>
                       )}
 
-                      <h3 className="font-bold text-foreground text-lg mb-1">{schedule.subjects?.name}</h3>
+                      {/* PRIMARY: Course Name - ULTRA FORCE BLACK */}
+                      <h3
+                        className="!text-black dark:!text-white !font-extrabold !text-2xl mb-3 tracking-tight"
+                        style={{ color: '#000000', fontWeight: 900, filter: 'drop-shadow(0 0 0.5px rgba(0,0,0,0.3))' }}
+                      >
+                        {schedule.subjects?.name}
+                      </h3>
 
-                      <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm text-muted-foreground mt-3">
+                      <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-sm mt-3">
+                        {/* PRIMARY: Time - FORCE BLACK BOLD */}
                         <div className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}</span>
+                          <Clock className="w-4 h-4 text-blue-500" />
+                          <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                            {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
+                          </span>
                         </div>
+
+                        {/* SECONDARY: Room - FORCE BLACK */}
                         <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5" />
-                          <span>{schedule.room}</span>
+                          <MapPin className="w-4 h-4 text-rose-500" />
+                          <span className="text-slate-500 dark:text-slate-400 text-xs">Ruang:</span>
+                          <span className="!text-gray-900 dark:!text-gray-100 !font-bold">{schedule.room}</span>
                         </div>
+
+                        {/* SECONDARY: Lecturer - FORCE BLACK */}
                         <div className="flex items-center gap-2 col-span-2">
-                          <User className="w-3.5 h-3.5" />
-                          <span>{schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}</span>
+                          <User className="w-4 h-4 text-blue-500" />
+                          <span className="text-slate-500 dark:text-slate-400 text-xs">Dosen:</span>
+                          <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                            {schedule.profiles?.full_name || 'Belum Ditentukan'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -748,7 +808,7 @@ export default function Dashboard() {
                     date={new Date(comp.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                     excerpt={comp.description || 'Tidak ada deskripsi'}
                     isNew={['Hot', 'New'].includes(comp.badge)}
-                    priority={comp.badge === 'Hot' ? 'important' : 'normal'}
+                    priority="normal"
                     icon={Trophy}
                   />
                 </Link>
@@ -762,7 +822,7 @@ export default function Dashboard() {
                     date={new Date(ann.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                     excerpt={ann.content || ann.excerpt || 'Tidak ada konten'}
                     isNew={ann.is_new}
-                    priority={ann.priority}
+                    priority="normal"
                   // Default icon (Megaphone) is used
                   />
                 </Link>
@@ -782,7 +842,7 @@ export default function Dashboard() {
         <div className="space-y-6 order-1 lg:order-2">
 
           {/* Digital Card */}
-          <div className="glass-card rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-500 w-full">
+          <div className="glass-card rounded-2xl p-6 relative overflow-hidden group w-full border border-border/50">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
             <div className="relative z-10">
@@ -806,67 +866,37 @@ export default function Dashboard() {
                       <div className="w-8 h-8 flex items-center justify-center">
                         <img src="/Logo UNJ.jpg" alt="Logo UNJ" className="w-full h-full object-contain mix-blend-screen" />
                       </div>
-                      <span className="text-xs text-white/60">Universitas Negeri Jakarta</span>
+                      <span className="text-[10px] text-white/60 tracking-wider">Universitas Negeri Jakarta</span>
                     </div>
-                    {/* Profile Picture / Actions */}
-                    <div className="relative w-10 h-10 rounded-full flex items-center justify-center">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleUploadAvatar}
-                        disabled={isUploading}
-                      />
 
-                      {isUploading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20 rounded-full">
-                          <Loader2 className="w-5 h-5 text-white animate-spin" />
-                        </div>
-                      )}
-
-                      {avatarUrl ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <div className="w-full h-full relative cursor-pointer group hover:scale-105 transition-transform">
-                              <Avatar className="w-full h-full border border-white/20">
-                                <AvatarImage src={avatarUrl} className="object-cover" />
-                                <AvatarFallback className="bg-transparent"></AvatarFallback>
-                              </Avatar>
-                            </div>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                              <ImagePlus className="mr-2 h-4 w-4" />
-                              <span>Ubah Foto</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleDeleteAvatar} className="text-red-600 focus:text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              <span>Hapus Foto</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                    {/* Profile Avatar (Read Only in Dashboard) */}
+                    <div className="relative w-12 h-12 rounded-full border-2 border-white/20 overflow-hidden shadow-lg shadow-black/40">
+                      {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
-                        <div
-                          className="w-full h-full bg-white/5 flex items-center justify-center rounded-full border border-white/10 text-emerald-400 hover:bg-white/10 transition-colors cursor-pointer"
-                          onClick={() => !isUploading && fileInputRef.current?.click()}
-                        >
-                          <User className="w-5 h-5" />
+                        <div className="w-full h-full bg-indigo-600 flex items-center justify-center text-white font-black text-xs">
+                          {profile?.full_name?.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2) || "??"}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-white font-bold text-lg tracking-wide mb-0.5">{userName || 'Loading...'}</p>
-                    <p className="text-white/60 text-xs font-mono">{userNim || '...'}</p>
+                  <div className="space-y-0.5">
+                    <p className="text-white font-bold text-lg tracking-wide leading-tight break-words">
+                      {profile?.full_name || 'Memuat...'}
+                    </p>
+                    <p className="text-white/60 text-[10px] font-mono tracking-widest uppercase">
+                      {profile?.nim || '----------'}
+                    </p>
                   </div>
 
-                  <div className="flex justify-between items-end">
-                    <div className="px-2 py-1 rounded bg-emerald-500/20 border border-emerald-500/30 text-[10px] text-emerald-400 font-medium uppercase">
+                  <div className="flex justify-between items-end border-t border-white/10 pt-2">
+                    <div className="px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-500/30 text-[9px] text-blue-400 font-black uppercase tracking-tighter">
                       {getRoleDisplay()}
                     </div>
-                    <p className="text-[10px] text-white/40">{userClass ? `PTIK ${userClass}-2025` : 'PTIK 2025'}</p>
+                    <p className="text-[9px] text-white/40 font-bold tracking-tight">
+                      {profile?.user_class ? `PTIK ${profile.user_class}-2025` : 'PTIK 2025'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -887,7 +917,7 @@ export default function Dashboard() {
               </Link>
               <Link to="/dashboard/payment" className="block">
                 <button className="w-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-secondary/5 border border-border/50 hover:bg-secondary/10 hover:border-primary/20 transition-all duration-300">
-                  <div className="p-2 rounded-full bg-emerald-500/10 text-emerald-500">
+                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
                     <Wallet size={18} />
                   </div>
                   <span className="text-xs font-medium text-muted-foreground">Bayar Kas</span>

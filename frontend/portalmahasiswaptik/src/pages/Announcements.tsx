@@ -197,15 +197,15 @@ export default function Announcements() {
   const regularAnnouncements = filteredAnnouncements.filter(a => !a.is_pinned);
 
   const getTypeIcon = (priority: string, category: string) => {
-    if (priority === 'important') return <Bell className="w-5 h-5 text-destructive" />;
-    if (category === 'Sistem') return <AlertCircle className="w-5 h-5 text-warning-foreground" />;
+    if (priority === 'important') return <Bell className="w-5 h-5 text-indigo-500" />;
+    if (category === 'Sistem') return <AlertCircle className="w-5 h-5 text-amber-500" />;
     return <Info className="w-5 h-5 text-primary" />;
   };
 
   const getTypeBg = (priority: string, category: string) => {
-    if (priority === 'important') return 'bg-destructive/10 border-destructive/30';
-    if (category === 'Sistem') return 'bg-warning/10 border-warning/30';
-    return 'bg-primary/5 border-primary/20';
+    if (priority === 'important') return 'bg-indigo-50/50 border-indigo-200/50 dark:bg-indigo-900/10 dark:border-indigo-900/30';
+    if (category === 'Sistem') return 'bg-amber-50/50 border-amber-200/50 dark:bg-amber-900/10 dark:border-amber-900/30';
+    return 'bg-indigo-50/50 border-indigo-200/50 dark:bg-indigo-900/10 dark:border-indigo-900/30';
   };
 
   const formatDate = (dateString: string) => {
@@ -219,16 +219,16 @@ export default function Announcements() {
   const AnnouncementCard = ({ item }: { item: Announcement }) => (
     <div
       className={cn(
-        "glass-card rounded-2xl p-5 border-2 transition-all duration-300 cursor-pointer hover:shadow-soft relative group",
+        "glass-card rounded-2xl p-5 border-2 transition-all duration-300 cursor-pointer hover-glow-blue relative group",
         getTypeBg(item.priority, item.category),
-        item.is_pinned && "border-primary/30"
+        item.is_pinned && "border-primary/40 shadow-soft"
       )}
       onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
     >
       <div className="flex items-start gap-4">
         <div className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
-          item.priority === 'important' ? 'bg-destructive/10' : 'bg-card'
+          "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110",
+          item.priority === 'important' ? 'bg-indigo-500/10' : 'bg-card shadow-inner'
         )}>
           {getTypeIcon(item.priority, item.category)}
         </div>

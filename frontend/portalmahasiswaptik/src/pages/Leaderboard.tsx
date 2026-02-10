@@ -245,9 +245,9 @@ export default function Leaderboard() {
   };
 
   const getClassColor = (name: string) => {
-    if (name?.includes('A')) return 'bg-primary/10 text-primary border-primary/20';
-    if (name?.includes('B')) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-    if (name?.includes('C')) return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+    if (name?.includes('A')) return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+    if (name?.includes('B')) return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
+    if (name?.includes('C')) return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
     return 'bg-secondary text-secondary-foreground';
   };
 
@@ -283,11 +283,11 @@ export default function Leaderboard() {
       ) : (
         <>
           {/* Top Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {(() => {
               const maxScore = Math.max(...orderedStats.map(s => s.total));
               return orderedStats.map((stat, idx) => (
-                <div key={stat.className} className="glass-card rounded-2xl p-6 relative overflow-hidden group hover:shadow-glow transition-all">
+                <div key={stat.className} className="bg-card rounded-2xl p-6 relative overflow-hidden group hover-glow-blue hover:border-primary/30 transition-all border border-border/50 shadow-sm">
                   {stat.total > 0 && stat.total === maxScore && (
                     <div className="absolute top-0 right-0 p-3 bg-yellow-500/10 rounded-bl-2xl">
                       <Trophy className="w-6 h-6 text-yellow-500" />
@@ -321,11 +321,14 @@ export default function Leaderboard() {
                 <div className="flex items-end gap-4 md:gap-12 relative z-10 pb-4 min-h-[300px]">
                   {/* 2nd Place */}
                   {sortedStats[1] && (
-                    <div className="flex flex-col items-center justify-end h-full">
+                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1">
                       <span className="font-bold text-foreground text-lg mb-12">Kelas {sortedStats[1].className}</span>
-                      <div className="w-20 md:w-24 h-24 md:h-32 bg-gradient-to-t from-gray-400/30 to-gray-400/5 rounded-t-lg border-t border-x border-gray-400/30 flex items-center justify-center relative">
+                      <div className={cn(
+                        "w-20 md:w-24 h-24 md:h-32 bg-gradient-to-t from-gray-400/30 to-gray-400/5 rounded-t-lg border-t border-x border-gray-400/30 flex items-center justify-center relative",
+                        "shadow-[0_0_40px_-5px_rgba(148,163,184,0.3)] dark:shadow-[0_0_40px_-5px_rgba(148,163,184,0.15)]"
+                      )}>
                         <span className="text-4xl font-bold text-gray-400 opacity-50">2</span>
-                        <div className="absolute -top-8">
+                        <div className="absolute -top-8 transition-transform group-hover:scale-110 duration-300">
                           <Medal className="w-12 h-12 text-gray-400 drop-shadow-lg" />
                         </div>
                       </div>
@@ -335,15 +338,18 @@ export default function Leaderboard() {
 
                   {/* 1st Place */}
                   {sortedStats[0] && (
-                    <div className="flex flex-col items-center justify-end h-full -mx-4 z-20">
+                    <div className="flex flex-col items-center justify-end h-full -mx-4 z-20 group transition-all duration-300 hover:-translate-y-2">
                       <div className="animate-bounce-slow mb-2">
                         <Crown className="w-10 h-10 text-yellow-500" />
                       </div>
-                      <span className="font-bold text-foreground text-xl text-yellow-500 mb-14">Kelas {sortedStats[0].className}</span>
-                      <div className="w-24 md:w-32 h-32 md:h-48 bg-gradient-to-t from-yellow-500/30 to-yellow-500/5 rounded-t-lg border-t border-x border-yellow-500/30 flex items-center justify-center relative shadow-[0_0_30px_-5px_rgba(234,179,8,0.3)]">
+                      <span className="font-bold text-foreground text-xl text-yellow-500 mb-14 drop-shadow-sm">Kelas {sortedStats[0].className}</span>
+                      <div className={cn(
+                        "w-24 md:w-32 h-32 md:h-48 bg-gradient-to-t from-yellow-500/30 to-yellow-500/5 rounded-t-lg border-t border-x border-yellow-500/30 flex items-center justify-center relative",
+                        "shadow-[0_0_50px_-10px_rgba(234,179,8,0.5)] dark:shadow-[0_0_50px_-10px_rgba(234,179,8,0.25)]"
+                      )}>
                         <span className="text-6xl font-bold text-yellow-500 opacity-50">1</span>
-                        <div className="absolute -top-10">
-                          <Trophy className="w-16 h-16 text-yellow-500 drop-shadow-xl" />
+                        <div className="absolute -top-10 transition-transform group-hover:scale-110 duration-300">
+                          <Trophy className="w-16 h-16 text-yellow-500 [filter:drop-shadow(0_0_10px_rgba(234,179,8,0.4))]" />
                         </div>
                       </div>
                       <span className="font-mono text-sm font-bold text-yellow-500 mt-2">{sortedStats[0].total} Poin</span>
@@ -352,11 +358,14 @@ export default function Leaderboard() {
 
                   {/* 3rd Place */}
                   {sortedStats[2] && (
-                    <div className="flex flex-col items-center justify-end h-full">
+                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1">
                       <span className="font-bold text-foreground text-lg mb-12">Kelas {sortedStats[2].className}</span>
-                      <div className="w-20 md:w-24 h-20 md:h-24 bg-gradient-to-t from-amber-700/30 to-amber-700/5 rounded-t-lg border-t border-x border-amber-700/30 flex items-center justify-center relative">
+                      <div className={cn(
+                        "w-20 md:w-24 h-20 md:h-24 bg-gradient-to-t from-amber-700/30 to-amber-700/5 rounded-t-lg border-t border-x border-amber-700/30 flex items-center justify-center relative",
+                        "shadow-[0_0_40px_-5px_rgba(180,83,9,0.3)] dark:shadow-[0_0_40px_-5px_rgba(180,83,9,0.15)]"
+                      )}>
                         <span className="text-4xl font-bold text-amber-700 opacity-50">3</span>
-                        <div className="absolute -top-8">
+                        <div className="absolute -top-8 transition-transform group-hover:scale-110 duration-300">
                           <Medal className="w-12 h-12 text-amber-700 drop-shadow-lg" />
                         </div>
                       </div>

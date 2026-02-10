@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PremiumCard } from '@/components/ui/PremiumCard';
 
 // --- INTERFACES ---
 interface Subject {
@@ -34,16 +35,16 @@ interface Material {
   created_at: string;
 }
 
-// Semester data with pastel gradients (Static)
+// SOFT PASTEL MODE: Finance Dashboard Style (matching Attendance)
 const semesters = [
-  { id: 1, name: 'Semester 1', gradient: 'from-primary/20 to-primary/5' },
-  { id: 2, name: 'Semester 2', gradient: 'from-success/20 to-success/5' },
-  { id: 3, name: 'Semester 3', gradient: 'from-warning/20 to-warning/5' },
-  { id: 4, name: 'Semester 4', gradient: 'from-destructive/20 to-destructive/5' },
-  { id: 5, name: 'Semester 5', gradient: 'from-accent/40 to-accent/10' },
-  { id: 6, name: 'Semester 6', gradient: 'from-primary/30 to-success/10' },
-  { id: 7, name: 'Semester 7', gradient: 'from-success/30 to-warning/10' },
-  { id: 8, name: 'Semester 8', gradient: 'from-warning/30 to-destructive/10' },
+  { id: 1, name: 'Semester 1', gradient: 'from-purple-50 to-white dark:from-purple-950/20 dark:to-background', iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600 dark:text-purple-400', shadowColor: 'hover:shadow-purple-200/50 dark:hover:shadow-purple-900/50' },
+  { id: 2, name: 'Semester 2', gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
+  { id: 3, name: 'Semester 3', gradient: 'from-orange-50 to-white dark:from-orange-950/20 dark:to-background', iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600 dark:text-orange-400', shadowColor: 'hover:shadow-orange-200/50 dark:hover:shadow-orange-900/50' },
+  { id: 4, name: 'Semester 4', gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
+  { id: 5, name: 'Semester 5', gradient: 'from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background', iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', iconColor: 'text-cyan-600 dark:text-cyan-400', shadowColor: 'hover:shadow-cyan-200/50 dark:hover:shadow-cyan-900/50' },
+  { id: 6, name: 'Semester 6', gradient: 'from-indigo-50 to-white dark:from-indigo-950/20 dark:to-background', iconBg: 'bg-indigo-100 dark:bg-indigo-900/30', iconColor: 'text-indigo-600 dark:text-indigo-400', shadowColor: 'hover:shadow-indigo-200/50 dark:hover:shadow-indigo-900/50' },
+  { id: 7, name: 'Semester 7', gradient: 'from-yellow-50 to-white dark:from-yellow-950/20 dark:to-background', iconBg: 'bg-yellow-100 dark:bg-yellow-900/30', iconColor: 'text-yellow-600 dark:text-yellow-400', shadowColor: 'hover:shadow-yellow-200/50 dark:hover:shadow-yellow-900/50' },
+  { id: 8, name: 'Semester 8', gradient: 'from-pink-50 to-white dark:from-pink-950/20 dark:to-background', iconBg: 'bg-pink-100 dark:bg-pink-900/30', iconColor: 'text-pink-600 dark:text-pink-400', shadowColor: 'hover:shadow-pink-200/50 dark:hover:shadow-pink-900/50' },
 ];
 
 type ViewState = 'semesters' | 'courses' | 'files';
@@ -325,22 +326,19 @@ export default function Repository() {
 
       {/* 1. Semester Selection */}
       {view === 'semesters' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {semesters.map((semester) => (
-            <button
+            <PremiumCard
               key={semester.id}
               onClick={() => handleSelectSemester(semester)}
-              className={cn(
-                "glass-card rounded-2xl p-6 text-left transition-all duration-300 hover:scale-[1.02] hover:shadow-glow group",
-                `bg-gradient-to-br ${semester.gradient}`
-              )}
-            >
-              <div className="w-14 h-14 rounded-2xl bg-card/80 backdrop-blur flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Folder className="w-7 h-7 text-primary" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">{semester.name}</h3>
-              <p className="text-sm text-muted-foreground mt-1">Klik untuk lihat matkul</p>
-            </button>
+              variant="pastel"
+              icon={Folder}
+              title={semester.name}
+              subtitle="Klik untuk lihat matkul"
+              gradient={semester.gradient}
+              iconClassName={`${semester.iconBg} ${semester.iconColor}`}
+              className={semester.shadowColor}
+            />
           ))}
         </div>
       )}
@@ -351,37 +349,45 @@ export default function Repository() {
           {isLoading ? (
             <div className="flex justify-center py-20"><Loader2 className="animate-spin w-10 h-10 text-primary" /></div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {subjects.length === 0 ? (
                 <div className="col-span-full text-center py-10 text-muted-foreground">Belum ada mata kuliah.</div>
               ) : (
-                subjects.map((course) => (
-                  <div
-                    key={course.id}
-                    onClick={() => handleSelectCourse(course)}
-                    className="glass-card rounded-2xl p-5 text-left transition-all duration-300 hover:scale-[1.02] hover:shadow-soft group cursor-pointer relative"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
-                        <Folder className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-medium text-foreground line-clamp-2">{course.name}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">{course.code}</p>
-                      </div>
+                subjects.map((course, idx) => {
+                  const subjectPastels = [
+                    { gradient: 'from-violet-50 to-white dark:from-violet-950/20 dark:to-background', iconBg: 'bg-violet-100 dark:bg-violet-900/30', iconColor: 'text-violet-600 dark:text-violet-400', shadowColor: 'hover:shadow-violet-200/50 dark:hover:shadow-violet-900/50' },
+                    { gradient: 'from-sky-50 to-white dark:from-sky-950/20 dark:to-background', iconBg: 'bg-sky-100 dark:bg-sky-900/30', iconColor: 'text-sky-600 dark:text-sky-400', shadowColor: 'hover:shadow-sky-200/50 dark:hover:shadow-sky-900/50' },
+                    { gradient: 'from-rose-50 to-white dark:from-rose-950/20 dark:to-background', iconBg: 'bg-rose-100 dark:bg-rose-900/30', iconColor: 'text-rose-600 dark:text-rose-400', shadowColor: 'hover:shadow-rose-200/50 dark:hover:shadow-rose-900/50' },
+                    { gradient: 'from-amber-50 to-white dark:from-amber-950/20 dark:to-background', iconBg: 'bg-amber-100 dark:bg-amber-900/30', iconColor: 'text-amber-600 dark:text-amber-400', shadowColor: 'hover:shadow-amber-200/50 dark:hover:shadow-amber-900/50' },
+                    { gradient: 'from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background', iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', iconColor: 'text-cyan-600 dark:text-cyan-400', shadowColor: 'hover:shadow-cyan-200/50 dark:hover:shadow-cyan-900/50' },
+                    { gradient: 'from-lime-50 to-white dark:from-lime-950/20 dark:to-background', iconBg: 'bg-lime-100 dark:bg-lime-900/30', iconColor: 'text-lime-600 dark:text-lime-400', shadowColor: 'hover:shadow-lime-200/50 dark:hover:shadow-lime-900/50' },
+                  ];
+                  const pastel = subjectPastels[idx % subjectPastels.length];
+                  return (
+                    <div key={course.id} className="relative">
+                      <PremiumCard
+                        variant="pastel"
+                        icon={FileText}
+                        title={course.name}
+                        subtitle={course.code}
+                        gradient={pastel.gradient}
+                        iconClassName={`${pastel.iconBg} ${pastel.iconColor}`}
+                        className={pastel.shadowColor}
+                        onClick={() => handleSelectCourse(course)}
+                      />
                       {canManage && (
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="text-destructive hover:bg-destructive/10 z-10"
+                          className="absolute top-4 right-4 h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 z-10"
                           onClick={(e) => handleDeleteCourse(course.id, e)}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}

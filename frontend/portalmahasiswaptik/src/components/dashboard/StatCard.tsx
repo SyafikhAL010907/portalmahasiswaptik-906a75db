@@ -17,7 +17,7 @@ interface StatCardProps {
 
 export function StatCard({ icon: Icon, label, value, trend, iconBg = 'bg-primary/10 text-primary', className, valueClassName, description }: StatCardProps) {
   return (
-    <div className={cn("glass-card rounded-2xl p-6 hover:scale-[1.02] transition-transform duration-300", className)}>
+    <div className={cn("glass-card rounded-2xl p-6 transition-all duration-200", className)}>
       <div className="flex items-start justify-between">
         <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", iconBg)}>
           <Icon className="w-6 h-6" />

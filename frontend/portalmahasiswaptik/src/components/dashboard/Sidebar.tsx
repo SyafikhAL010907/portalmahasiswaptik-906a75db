@@ -132,13 +132,13 @@ export function Sidebar() {
                 to={item.path}
                 onClick={() => setIsMobileOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300",
                   isActive(item.path)
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                    ? "bg-blue-50 text-blue-700 dark:bg-gradient-to-r dark:from-blue-600/20 dark:to-purple-600/20 dark:text-blue-400 shadow-sm border-r-2 border-blue-500/50"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:translate-x-1"
                 )}
               >
-                <item.icon className="w-5 h-5" />
+                <item.icon className={cn("w-5 h-5", isActive(item.path) ? "text-blue-500" : "text-muted-foreground")} />
                 {item.label}
               </Link>
             ) : (
@@ -146,14 +146,14 @@ export function Sidebar() {
                 <button
                   onClick={() => toggleExpand(item.label)}
                   className={cn(
-                    "w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                    "w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300",
                     isParentActive(item.children)
-                      ? "bg-sidebar-accent text-sidebar-primary"
+                      ? "bg-blue-50/50 text-blue-700 dark:bg-blue-600/10 dark:text-blue-400"
                       : "text-sidebar-foreground hover:bg-sidebar-accent"
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <item.icon className="w-5 h-5" />
+                    <item.icon className={cn("w-5 h-5", isParentActive(item.children) ? "text-blue-500" : "text-muted-foreground")} />
                     {item.label}
                   </div>
                   {expandedItems.includes(item.label) ? (
@@ -163,20 +163,20 @@ export function Sidebar() {
                   )}
                 </button>
                 {expandedItems.includes(item.label) && item.children && (
-                  <div className="ml-4 mt-1 space-y-1 animate-fade-in">
+                  <div className="ml-4 mt-1 space-y-1 animate-fade-in border-l border-border/30 pl-2">
                     {item.children.map((child) => (
                       <Link
                         key={child.path}
                         to={child.path}
                         onClick={() => setIsMobileOpen(false)}
                         className={cn(
-                          "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200",
+                          "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-300",
                           isActive(child.path)
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
-                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                            ? "bg-blue-50 text-blue-700 dark:bg-gradient-to-r dark:from-blue-600/20 dark:to-purple-600/20 dark:text-blue-400 shadow-sm border-r-2 border-blue-500/50"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground hover:translate-x-1"
                         )}
                       >
-                        <child.icon className="w-4 h-4" />
+                        <child.icon className={cn("w-4 h-4", isActive(child.path) ? "text-blue-500" : "text-muted-foreground")} />
                         {child.label}
                       </Link>
                     ))}

@@ -28,7 +28,7 @@ export default function IPKSimulator() {
   useEffect(() => {
     let totalPoints = 0;
     let totalSks = 0;
-    
+
     subjects.forEach(subject => {
       const grade = selectedGrades[subject.name];
       totalPoints += gradePoints[grade] * subject.sks;
@@ -45,7 +45,7 @@ export default function IPKSimulator() {
   }, [selectedGrades]);
 
   const getIpkStatus = () => {
-    if (ipk >= 3.5) return { label: 'Cumlaude', color: 'text-success', bg: 'bg-success/20', icon: Award };
+    if (ipk >= 3.5) return { label: 'Cumlaude', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10', icon: Award };
     if (ipk >= 3.0) return { label: 'Sangat Memuaskan', color: 'text-primary', bg: 'bg-primary/20', icon: Star };
     if (ipk >= 2.5) return { label: 'Memuaskan', color: 'text-warning-foreground', bg: 'bg-warning/30', icon: Star };
     return { label: 'Perlu Peningkatan', color: 'text-destructive', bg: 'bg-destructive/20', icon: AlertTriangle };
@@ -66,7 +66,7 @@ export default function IPKSimulator() {
               style={{
                 left: `${Math.random() * 100}%`,
                 top: '100%',
-                backgroundColor: ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning))'][i % 3],
+                backgroundColor: ['hsl(var(--primary))', '#3b82f6', '#a855f7'][i % 3],
                 animationDelay: `${Math.random() * 0.5}s`,
                 borderRadius: Math.random() > 0.5 ? '50%' : '0',
               }}
@@ -81,102 +81,116 @@ export default function IPKSimulator() {
         <p className="text-muted-foreground mt-1">Rencanakan target nilaimu dan lihat prediksi IPK</p>
       </div>
 
-      {/* IPK Display */}
-      <div className="glass-card rounded-3xl p-8 text-center">
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center", status.bg)}>
-            <StatusIcon className={cn("w-8 h-8", status.color)} />
-          </div>
-        </div>
-        
-        <div className="text-6xl md:text-7xl font-bold text-foreground mb-2">
-          {ipk.toFixed(2)}
-        </div>
-        
-        <div className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium", status.bg, status.color)}>
-          <StatusIcon className="w-4 h-4" />
-          {status.label}
-        </div>
+      {/* IPK Display - HERO CARD */}
+      <div className={cn(
+        "bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/30 dark:from-slate-900 dark:via-indigo-950/10 dark:to-purple-950/10",
+        "rounded-3xl p-10 text-center border border-indigo-100/50 dark:border-indigo-900/30",
+        "shadow-sm hover-glow-blue cursor-default relative overflow-hidden group"
+      )}>
+        {/* Decorative Glass Elements */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-500" />
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl group-hover:bg-purple-500/10 transition-colors duration-500" />
 
-        {/* IPK Scale */}
-        <div className="mt-8 max-w-md mx-auto">
-          <div className="h-3 rounded-full bg-muted overflow-hidden">
-            <div 
-              className="h-full rounded-full primary-gradient transition-all duration-500"
-              style={{ width: `${(ipk / 4) * 100}%` }}
-            />
+        <div className="relative z-10">
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center shadow-inner", status.bg)}>
+              <StatusIcon className={cn("w-10 h-10", status.color)} />
+            </div>
           </div>
-          <div className="flex justify-between text-xs text-muted-foreground mt-2">
-            <span>0.00</span>
-            <span>2.00</span>
-            <span>3.00</span>
-            <span>3.50</span>
-            <span>4.00</span>
+
+          <div className="text-7xl md:text-8xl font-black text-foreground mb-4 tracking-tighter transition-all duration-500 group-hover:scale-105">
+            {ipk.toFixed(2)}
+          </div>
+
+          <div className={cn("inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm", status.bg, status.color)}>
+            <StatusIcon className="w-4 h-4" />
+            {status.label}
+          </div>
+
+          {/* IPK Scale */}
+          <div className="mt-10 max-w-md mx-auto">
+            <div className="h-4 rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 shadow-inner overflow-hidden border border-border/20">
+              <div
+                className="h-full rounded-full primary-gradient transition-all duration-1000 cubic-bezier(0.34, 1.56, 0.64, 1)"
+                style={{ width: `${(ipk / 4) * 100}%` }}
+              >
+                <div className="w-full h-full opacity-30 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px]" />
+              </div>
+            </div>
+            <div className="flex justify-between text-[10px] font-bold text-muted-foreground mt-3 px-1 uppercase tracking-tighter">
+              <span>0.00</span>
+              <span>2.00</span>
+              <span>3.00</span>
+              <span>3.50</span>
+              <span className="text-primary font-black">4.00</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Grade Input Grid */}
-      <div className="glass-card rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
+      {/* Grade Input - CARD CONTAINER */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-foreground px-2 flex items-center gap-2">
           <Calculator className="w-5 h-5 text-primary" />
           Pilih Target Nilai
         </h2>
 
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3">
           {subjects.map((subject) => (
-            <div key={subject.name} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-muted/30">
-              <div>
-                <p className="font-medium text-foreground">{subject.name}</p>
-                <p className="text-sm text-muted-foreground">{subject.sks} SKS</p>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {grades.map((grade) => (
-                  <Button
-                    key={grade}
-                    size="sm"
-                    variant={selectedGrades[subject.name] === grade ? 'default' : 'ghost'}
-                    onClick={() => setSelectedGrades(prev => ({ ...prev, [subject.name]: grade }))}
-                    className={cn(
-                      "min-w-[40px]",
-                      selectedGrades[subject.name] === grade && "primary-gradient"
-                    )}
-                  >
-                    {grade}
-                  </Button>
-                ))}
+            <div
+              key={subject.name}
+              className="bg-card rounded-2xl p-5 border border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 group hover-glow-blue"
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/20 transition-colors group-hover:bg-primary group-hover:text-white">
+                    {subject.sks}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{subject.name}</h3>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">{subject.sks} Sks • Mata Kuliah Inti</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 p-1 bg-secondary/30 dark:bg-slate-900/50 rounded-xl">
+                  {grades.map((grade) => (
+                    <button
+                      key={grade}
+                      onClick={() => setSelectedGrades(prev => ({ ...prev, [subject.name]: grade }))}
+                      className={cn(
+                        "flex-1 min-w-[32px] h-8 rounded-lg text-xs font-bold transition-all duration-300",
+                        selectedGrades[subject.name] === grade
+                          ? "bg-primary text-white shadow-lg shadow-primary/30 scale-105"
+                          : "text-muted-foreground hover:bg-white dark:hover:bg-slate-800 hover:text-primary hover:shadow-sm hover:-translate-y-0.5"
+                      )}
+                    >
+                      {grade}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="glass-card rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Ringkasan</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 rounded-xl bg-primary/10">
-            <div className="text-2xl font-bold text-primary">{subjects.length}</div>
-            <div className="text-sm text-muted-foreground">Mata Kuliah</div>
+      {/* Summary Chips */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-20">
+        {[
+          { label: 'Matkul', val: subjects.length, color: 'text-primary', bg: 'bg-card hover-glow-blue' },
+          { label: 'Total SKS', val: subjects.reduce((acc, s) => acc + s.sks, 0), color: 'text-success', bg: 'bg-card hover-glow-blue' },
+          { label: 'Target A', val: Object.values(selectedGrades).filter(g => g === 'A' || g === 'A-').length, color: 'text-warning-foreground', bg: 'bg-card hover-glow-yellow' },
+          { label: 'Prediksi IPK', val: ipk.toFixed(2), color: 'text-white', bg: 'primary-gradient shadow-lg shadow-primary/20 hover:scale-105 group' }
+        ].map((item, i) => (
+          <div key={i} className={cn("p-6 rounded-2xl flex flex-col items-center justify-center text-center transition-all border border-border/50 shadow-sm cursor-default", item.bg)}>
+            <span className={cn("text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:scale-110 transition-transform", item.color === 'text-white' ? 'text-white' : 'text-muted-foreground')}>
+              {item.label}
+            </span>
+            <span className={cn("text-3xl font-black tracking-tighter transition-transform group-hover:scale-110", item.color)}>
+              {item.val}
+            </span>
           </div>
-          <div className="text-center p-4 rounded-xl bg-success/10">
-            <div className="text-2xl font-bold text-success">
-              {subjects.reduce((acc, s) => acc + s.sks, 0)}
-            </div>
-            <div className="text-sm text-muted-foreground">Total SKS</div>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-warning/20">
-            <div className="text-2xl font-bold text-warning-foreground">
-              {Object.values(selectedGrades).filter(g => g === 'A' || g === 'A-').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Target A</div>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-accent">
-            <div className="text-2xl font-bold text-accent-foreground">{ipk.toFixed(2)}</div>
-            <div className="text-sm text-muted-foreground">Prediksi IPK</div>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

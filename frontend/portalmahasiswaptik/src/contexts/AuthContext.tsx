@@ -10,6 +10,7 @@ interface Profile {
   user_id: string;
   nim: string;
   full_name: string;
+  whatsapp?: string | null;
   class_id: string | null;
   avatar_url: string | null;
   user_class?: string;
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return {
           ...data,
+          whatsapp: (data as any).whatsapp || null,
           user_class: className
         } as Profile;
       }
@@ -99,6 +101,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Error in fetchRoles:', err);
       return [];
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (user) {
+      console.log('🔄 Refreshing profile for user:', user.id);
+      const [profileData, rolesData] = await Promise.all([
+        fetchProfile(user.id),
+        fetchRoles(user.id)
+      ]);
+      setProfile(profileData);
+      setRoles(rolesData);
     }
   };
 
@@ -184,16 +198,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdminDosen = () => hasRole('admin_dosen');
   const isMahasiswa = () => hasRole('mahasiswa');
 
-  const refreshProfile = async () => {
-    if (user) {
-      const [profileData, rolesData] = await Promise.all([
-        fetchProfile(user.id),
-        fetchRoles(user.id)
-      ]);
-      setProfile(profileData);
-      setRoles(rolesData);
-    }
-  };
 
   return (
     <AuthContext.Provider

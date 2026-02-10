@@ -20,7 +20,10 @@ import Announcements from "./pages/Announcements";
 import Competitions from "./pages/Competitions";
 import Leaderboard from "./pages/Leaderboard";
 import UserManagement from "./pages/admin/UserManagement";
+import Profile from "./pages/Profile";
+import ChangePassword from "./pages/ChangePassword";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
+import { GlobalChat } from "./components/dashboard/GlobalChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +36,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <GlobalChat />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -50,8 +54,9 @@ const App = () => (
                 <Route path="competitions" element={<Competitions />} />
                 <Route path="leaderboard" element={<Leaderboard />} />
                 <Route path="users" element={<UserManagement />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="change-password" element={<ChangePassword />} />
               </Route>
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </TooltipProvider>

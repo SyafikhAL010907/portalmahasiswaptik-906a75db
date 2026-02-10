@@ -297,7 +297,7 @@ export default function Competitions() {
                 )}
                 {comp.badge === 'New' && (
                   <div className="absolute top-4 right-4">
-                    <span className="flex items-center gap-1 px-3 py-1 bg-emerald-500 text-white text-xs font-medium rounded-full">
+                    <span className="flex items-center gap-1 px-3 py-1 bg-indigo-500 text-white text-xs font-medium rounded-full">
                       <Sparkles className="w-3 h-3" />
                       New
                     </span>
