@@ -252,8 +252,10 @@ export default function ScanQR() {
       if (!isOnlineMode) {
         if (!location) throw new Error("Lokasi tidak ditemukan. Aktifkan GPS.");
         const dist = calculateDistance(location.lat, location.lng, UNJ_LAT, UNJ_LNG);
-        if (dist > MAX_DISTANCE_METERS) {
-          throw new Error(`Jarak kejauhan! Anda ${Math.round(dist)}m dari UNJ. Max ${MAX_DISTANCE_METERS}m.`);
+        const dynamicMaxDist = payload.r || MAX_DISTANCE_METERS;
+
+        if (dist > dynamicMaxDist) {
+          throw new Error(`Jarak kejauhan! Anda ${Math.round(dist)}m dari kampus. Maksimum yang diizinkan dosen adalah ${dynamicMaxDist}m.`);
         }
       }
 
@@ -272,11 +274,10 @@ export default function ScanQR() {
 
       if (sessionError || !session) throw new Error("Sesi absensi tidak ditemukan atau sudah berakhir.");
 
-      // Verify Token (Anti-Cheat 2 Mins)
-      // Parse DB stored payload to compare tokens
+      // Verify Token (Anti-Cheat 1-2 Mins)
       const dbPayload = JSON.parse(session.qr_code);
       if (dbPayload.t !== payload.t) {
-        throw new Error("QR Code sudah kadaluarsa (Token mismatch). Silakan scan ulang yang terbaru.");
+        throw new Error("QR Code sudah kadaluarsa (Token mismatch). Silakan scan ulang yang terbaru dari layar dosen.");
       }
 
       // 5. Check Duplicate Attendance
@@ -289,11 +290,12 @@ export default function ScanQR() {
 
       if (existing) {
         setScanResult({
-          success: true, // Treated as success but info
-          message: "Anda sudah absen sebelumnya.",
+          success: true,
+          message: "Anda sudah melakukan absen untuk sesi ini.",
           subject: (session.meetings as any)?.subjects?.name,
           meeting: (session.meetings as any)?.meeting_number
         });
+        toast.info("Sudah absen!");
         return;
       }
 
@@ -311,7 +313,7 @@ export default function ScanQR() {
 
       setScanResult({
         success: true,
-        message: "Kehadiran berhasil dicatat!",
+        message: "Mantap! Kehadiran kamu berhasil dicatat.",
         subject: (session.meetings as any)?.subjects?.name,
         meeting: (session.meetings as any)?.meeting_number
       });
@@ -326,7 +328,7 @@ export default function ScanQR() {
       toast.error(error.message);
     } finally {
       isProcessingRef.current = false;
-      setIsProcessing(false); // Fix: Remove spinner
+      setIsProcessing(false);
       // Do NOT resume scanner automatically to show result
       // But we can stop the camera stream to save battery
       if (scannerRef.current && scannerRef.current.isScanning) {
@@ -501,9 +503,12 @@ export default function ScanQR() {
               </p>
 
               {scanResult.success && scanResult.subject && (
-                <div className="flex justify-center gap-2 mt-4">
-                  <Badge variant="secondary">{scanResult.subject}</Badge>
-                  <Badge variant="outline">Pertemuan {scanResult.meeting}</Badge>
+                <div className="flex justify-center gap-2 mt-4 items-center">
+                  <Badge variant="secondary" className="rounded-full px-3">{scanResult.subject}</Badge>
+                  <Badge variant="outline" className="rounded-full px-3 border-primary/30 text-primary flex items-center gap-1">
+                    <QrCode className="w-3 h-3" />
+                    QR Hadir
+                  </Badge>
                 </div>
               )}
 

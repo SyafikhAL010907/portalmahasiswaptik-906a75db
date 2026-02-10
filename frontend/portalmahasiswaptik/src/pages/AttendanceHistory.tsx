@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   Folder, FolderOpen, Users, ChevronRight, ArrowLeft, Calendar,
-  CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2, UserCheck, FileText
+  CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2,
+  UserCheck, FileText, Search, Edit, QrCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -185,6 +186,7 @@ export default function AttendanceHistory() {
         .select('id')
         .eq('meeting_id', meetingId)
         .eq('class_id', classId)
+        .order('created_at', { ascending: false })
         .limit(1);
 
       let recordMap = new Map<string, { status: string, scannedAt: string }>();
@@ -610,10 +612,10 @@ export default function AttendanceHistory() {
 
   // --- HELPERS ---
   const getStatusIcon = (status: string) => {
-    if (status === 'hadir') return <CheckCircle className="w-5 h-5 text-success" />;
-    if (status === 'izin') return <Clock className="w-5 h-5 text-warning-foreground" />;
+    if (status === 'hadir') return <CheckCircle className="w-5 h-5 text-green-500" />;
+    if (status === 'izin') return <Clock className="w-5 h-5 text-yellow-500" />;
     if (status === 'alpha') return <XCircle className="w-5 h-5 text-destructive" />;
-    return <Loader2 className="w-4 h-4 text-muted-foreground" />; // Pending
+    return <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />; // Pending
   };
 
   const getAddTitle = () => {
@@ -801,8 +803,8 @@ export default function AttendanceHistory() {
                             <span className="capitalize">{s.status === 'pending' ? 'Menunggu Scan' : s.status}</span>
                             {s.status === 'hadir' && s.scannedAt && (
                               <div className="ml-2 flex items-center gap-1 group/qr">
-                                <div className="px-1.5 py-0.5 bg-green-600 dark:bg-green-700 rounded text-[10px] text-white flex items-center gap-1" title={`Scanned at: ${new Date(s.scannedAt).toLocaleTimeString()}`}>
-                                  <CheckCircle className="w-3 h-3" />
+                                <div className="px-1.5 py-0.5 bg-indigo-600 dark:bg-indigo-700/80 rounded text-[10px] text-white flex items-center gap-1 shadow-sm" title={`Scanned at: ${new Date(s.scannedAt).toLocaleTimeString()}`}>
+                                  <QrCode className="w-3 h-3" />
                                   QR
                                 </div>
                                 {canEdit && (

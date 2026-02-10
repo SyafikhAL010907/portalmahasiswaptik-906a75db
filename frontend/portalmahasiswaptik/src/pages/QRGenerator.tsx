@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   QrCode, Clock, CheckCircle2, RefreshCw,
-  BookOpen, Calendar, Loader2, AlertCircle
+  BookOpen, Calendar, Loader2, AlertCircle, MapPin, Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -62,6 +63,9 @@ export default function QRGenerator() {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [isExpired, setIsExpired] = useState(false);
+  const [radiusLimit, setRadiusLimit] = useState<string>('150'); // Default 150m
+  const [sessionDuration, setSessionDuration] = useState<string>('90'); // Default 90 mins
+  const [scannedStudents, setScannedStudents] = useState<any[]>([]);
 
   // cleanup and fresh start
   useEffect(() => {
@@ -93,8 +97,75 @@ export default function QRGenerator() {
     };
   }, []);
 
-  // Removed: user dependency useEffect for fetchActiveSession (No auto-restore)
-  // Removed: LocalStorage sync useEffects
+  // REAL-TIME FEEDBACK: Watch for new scans
+  useEffect(() => {
+    if (!activeSession) {
+      setScannedStudents([]);
+      return;
+    }
+
+    // Fetch initial scans
+    const fetchInitialScans = async () => {
+      const { data } = await (supabase
+        .from('attendance_records' as any)
+        .select(`
+          id,
+          scanned_at,
+          profiles:student_id (
+            full_name,
+            nim,
+            avatar_url
+          )
+        `)
+        .eq('session_id', activeSession.id)
+        .order('scanned_at', { ascending: false }) as any);
+
+      if (data) setScannedStudents(data);
+    };
+
+    fetchInitialScans();
+
+    const channel = supabase
+      .channel(`session_scans_${activeSession.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'attendance_records',
+          filter: `session_id=eq.${activeSession.id}`
+        },
+        async (payload) => {
+          // Fetch the full student info for the new record
+          const { data } = await (supabase
+            .from('attendance_records' as any)
+            .select(`
+              id,
+              scanned_at,
+              profiles:student_id (
+                full_name,
+                nim,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single() as any);
+
+          if (data) {
+            setScannedStudents(prev => {
+              if (prev.some(s => s.id === data.id)) return prev;
+              return [data, ...prev];
+            });
+            toast.success(`${(data.profiles as any)?.full_name} berhasil absen!`, { icon: '👋' });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeSession]);
 
   useEffect(() => {
     if (selectedSubject) {
@@ -103,9 +174,6 @@ export default function QRGenerator() {
       setMeetings([]);
     }
   }, [selectedSubject]);
-
-  // REMOVED: Aggressive useEffects that reset state on dependency change.
-  // We now handle resets in the onValueChange handlers to allow restoration from LS.
 
   // Timer logic for QR code expiration
   useEffect(() => {
@@ -123,7 +191,7 @@ export default function QRGenerator() {
     }
 
     return () => clearInterval(timer);
-  }, [activeSession, isExpired]); // Reset timer when activeSession or isExpired changes
+  }, [activeSession, isExpired]);
 
   const fetchSubjects = async () => {
     const { data } = await supabase
@@ -147,37 +215,6 @@ export default function QRGenerator() {
     setClasses(data || []);
   };
 
-  // Removed fetchActiveSession to ensure fresh start (no auto-fill)
-
-  // Removed generateQRCodeImage function as it is no longer needed
-
-  // Auto-refresh QR Code every 2 minutes - REMOVED as per instruction
-  // useEffect(() => {
-  //   let refreshInterval: NodeJS.Timeout;
-
-  //   if (activeSession && activeSession.expires_at) {
-  //     // Check if session is still valid
-  //     const checkValidity = () => {
-  //       const now = new Date();
-  //       const expires = new Date(activeSession.expires_at);
-  //       if (now >= expires) {
-  //         setActiveSession(null);
-  //         return false;
-  //       }
-  //       return true;
-  //     };
-
-  //     if (!checkValidity()) return;
-
-  //     refreshInterval = setInterval(async () => {
-  //       if (!checkValidity()) return;
-  //       await handleRefreshQR(true); // true = silent refresh
-  //     }, 2 * 60 * 1000); // 2 minutes
-  //   }
-
-  //   return () => clearInterval(refreshInterval);
-  // }, [activeSession]);
-
   const handleGenerateQR = async () => {
     if (!selectedSemester || !selectedSubject || !selectedMeeting || !selectedClass) {
       toast.error('Mohon lengkapi semua data sesi (Semester, Matkul, Pertemuan, Kelas)');
@@ -192,20 +229,21 @@ export default function QRGenerator() {
     setIsLoading(true);
 
     try {
-      // 1. Deactivate existing sessions
+      // 1. Deactivate existing sessions for this lecturer+class+meeting to avoid confusion
       await supabase
         .from('attendance_sessions')
         .update({ is_active: false })
-        .eq('lecturer_id', user.id);
+        .eq('lecturer_id', user.id)
+        .eq('class_id', selectedClass)
+        .eq('meeting_id', selectedMeeting);
 
       // 2. Generate Initial Token
       const token = Math.random().toString(36).substring(7);
 
-      // 3. Create Session DB Record FIRST to get the ID
-      // We use a temporary placeholder for qr_code initially or generate ID first?
-      // Supabase insert returns data.
-
-      const expiresAt = new Date(Date.now() + 100 * 60 * 1000).toISOString(); // Session valid for 100 mins (class duration)
+      // 3. Create Session Record
+      // Duration is in minutes, convert to ISO
+      const mins = parseInt(sessionDuration) || 90;
+      const expiresAt = new Date(Date.now() + mins * 60 * 1000).toISOString();
 
       const { data, error } = await supabase
         .from('attendance_sessions')
@@ -213,7 +251,7 @@ export default function QRGenerator() {
           meeting_id: selectedMeeting,
           class_id: selectedClass,
           lecturer_id: user.id,
-          qr_code: 'init', // Placeholder, will update immediately with ID
+          qr_code: 'init',
           expires_at: expiresAt,
           is_active: true,
         })
@@ -222,11 +260,12 @@ export default function QRGenerator() {
 
       if (error) throw error;
 
-      // 4. Update with actual Payload: { sessionId, classId, token }
+      // 4. Actual Payload: Include Radius Limit 'r'
       const payload = JSON.stringify({
         s: data.id,
         c: selectedClass,
-        t: token
+        t: token,
+        r: parseInt(radiusLimit) || 150
       });
 
       await supabase
@@ -264,13 +303,13 @@ export default function QRGenerator() {
     setIsLoading(true);
     try {
       setIsExpired(false);
-      setTimeLeft(60); // Reset timer
+      setTimeLeft(60);
       const newCode = Math.random().toString(36).substring(7);
-      // Payload structure must match scanner expectation
+
+      const currentPayload = JSON.parse(activeSession.qr_code);
       const payload = JSON.stringify({
-        s: activeSession.id,
-        c: selectedClass || parseClassIdFromPayload(activeSession.qr_code),
-        t: newCode // Use newCode here
+        ...currentPayload,
+        t: newCode
       });
 
       const { error } = await supabase
@@ -434,15 +473,44 @@ export default function QRGenerator() {
               </Select>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  Batas Jarak (Meter)
+                </label>
+                <Input
+                  type="number"
+                  value={radiusLimit}
+                  onChange={(e) => setRadiusLimit(e.target.value)}
+                  placeholder="Contoh: 150"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" />
+                  Durasi Sesi (Menit)
+                </label>
+                <Input
+                  type="number"
+                  value={sessionDuration}
+                  onChange={(e) => setSessionDuration(e.target.value)}
+                  placeholder="Contoh: 90"
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+
             <Button
-              className="w-full gap-2"
+              className="w-full gap-2 h-12 text-lg font-bold rounded-2xl primary-gradient shadow-lg"
               onClick={handleGenerateQR}
               disabled={isLoading || !selectedSemester || !selectedSubject || !selectedMeeting || !selectedClass}
             >
               {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <QrCode className="w-4 h-4" />
+                <QrCode className="w-5 h-5" />
               )}
               Generate QR Code
             </Button>
@@ -450,87 +518,140 @@ export default function QRGenerator() {
         </Card>
 
         {/* QR Display Section */}
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden border-none shadow-2xl">
+          <CardHeader className="bg-muted/30 border-b border-border/50">
             <CardTitle className="text-lg flex items-center gap-2">
-              <QrCode className="w-5 h-5" />
-              QR Code Aktif
+              <QrCode className="w-5 h-5 text-primary" />
+              QR Code & Real-time Scans
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             {activeSession ? (
-              <div className="text-center space-y-4">
-                {/* Session Info */}
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Badge variant="secondary">{activeSession.subject_name}</Badge>
-                  <Badge variant="outline">Pertemuan {activeSession.meeting_number}</Badge>
-                  <Badge className="bg-primary">Kelas {activeSession.class_name}</Badge>
-                </div>
-
-                {isExpired ? (
-                  <div className="flex flex-col items-center justify-center p-8 bg-muted/20 rounded-xl border-2 border-dashed border-muted-foreground/30">
-                    <Clock className="w-12 h-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground font-medium mb-4">QR Code Kadaluwarsa</p>
-                    <Button onClick={handleRefreshQR} className="gap-2" disabled={isLoading}>
-                      <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-                      Generate Ulang
-                    </Button>
+              <div className="space-y-8">
+                <div className="text-center space-y-4">
+                  {/* Session Info */}
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Badge variant="secondary" className="px-3 py-1 rounded-full">{activeSession.subject_name}</Badge>
+                    <Badge variant="outline" className="px-3 py-1 rounded-full border-primary/30 text-primary">Pertemuan {activeSession.meeting_number}</Badge>
+                    <Badge className="px-3 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 border-none shadow-none">Kelas {activeSession.class_name}</Badge>
                   </div>
-                ) : (
-                  <div className="bg-white p-4 rounded-2xl inline-block shadow-lg">
-                    <QRCodeCanvas
-                      value={activeSession.qr_code}
-                      size={256}
-                      level={"H"}
-                      includeMargin={true}
-                    />
-                  </div>
-                )}
 
-                {!isExpired && (
-                  <>
-                    {/* Timer */}
-                    <div className={`flex items-center justify-center gap-2 text-lg font-mono ${timeLeft < 10 ? 'text-destructive' : 'text-foreground'
-                      }`}>
-                      <Clock className="w-5 h-5" />
-                      <span>Berlaku: {formatTime(timeLeft)}</span>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-3 justify-center">
-                      <Button
-                        variant="outline"
-                        className="gap-2"
-                        onClick={handleRefreshQR}
-                        disabled={isLoading}
-                      >
-                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        Refresh QR
+                  {isExpired ? (
+                    <div className="flex flex-col items-center justify-center p-8 bg-muted/20 rounded-2xl border-2 border-dashed border-muted-foreground/30">
+                      <Clock className="w-12 h-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground font-medium mb-4">Sesi Absensi Berakhir</p>
+                      <Button onClick={handleRefreshQR} className="gap-2 rounded-xl" disabled={isLoading}>
+                        <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+                        Mulai Sesi Baru
                       </Button>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <div className="relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                      <div className="relative bg-white p-6 rounded-3xl inline-block shadow-inner border border-white/50">
+                        <QRCodeCanvas
+                          value={activeSession.qr_code}
+                          size={220}
+                          level={"H"}
+                          includeMargin={false}
+                          className="mx-auto"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-                {/* Instructions */}
-                <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground">
-                  <p className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 mt-0.5 text-success" />
-                    <CheckCircle2 className="w-4 h-4 mt-0.5 text-success" />
-                    QR Code akan berubah otomatis setiap 1 menit (Anti-Cheat)
-                  </p>
-                  <p className="flex items-start gap-2 mt-2">
-                    <CheckCircle2 className="w-4 h-4 mt-0.5 text-success" />
-                    Tampilkan QR ini di layar untuk mahasiswa scan
-                  </p>
+                  {!isExpired && (
+                    <div className="space-y-4">
+                      {/* Timer */}
+                      <div className={cn(
+                        "inline-flex items-center gap-2 px-4 py-2 rounded-full font-mono text-lg font-bold shadow-sm transition-colors",
+                        timeLeft < 10
+                          ? 'bg-destructive/10 text-destructive animate-pulse'
+                          : 'bg-primary/5 text-primary'
+                      )}>
+                        <Clock className="w-5 h-5" />
+                        <span>Token Reset: {formatTime(timeLeft)}s</span>
+                      </div>
+
+                      <div className="flex gap-3 justify-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 rounded-full px-4 border-primary/20 hover:bg-primary/5"
+                          onClick={handleRefreshQR}
+                          disabled={isLoading}
+                        >
+                          <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+                          Refresh Manual
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* REAL-TIME STUDENT LIST */}
+                <div className="space-y-4 pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" />
+                      Mahasiswa Terabsen ({scannedStudents.length})
+                    </h4>
+                    {scannedStudents.length > 0 && (
+                      <div className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 font-bold px-2 py-0.5 rounded-full text-[10px] animate-pulse">
+                        Live
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="max-h-[250px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                    {scannedStudents.length === 0 ? (
+                      <div className="text-center py-8 bg-muted/30 rounded-2xl border-2 border-dashed border-border/50">
+                        <div className="animate-bounce mb-2">
+                          <Loader2 className="w-8 h-8 text-muted-foreground/30 mx-auto" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Menunggu mahasiswa scanning...</p>
+                      </div>
+                    ) : (
+                      scannedStudents.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 border border-border/30 animate-in fade-in slide-in-from-top-2 duration-300"
+                          style={{ animationDelay: `${idx * 50}ms` }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">
+                              {(item.profiles as any)?.avatar_url ? (
+                                <img src={(item.profiles as any).avatar_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Users className="w-5 h-5 text-primary/50" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-sm">{(item.profiles as any)?.full_name}</p>
+                              <p className="text-[10px] text-muted-foreground font-mono">{(item.profiles as any)?.nim}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 font-bold px-2 py-0.5 rounded-full text-[10px] inline-block">Hadir</div>
+                            <p className="text-[9px] text-muted-foreground mt-1">
+                              {new Date(item.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="w-32 h-32 mx-auto mb-4 rounded-2xl bg-muted/50 flex items-center justify-center">
-                  <QrCode className="w-16 h-16 text-muted-foreground" />
+              <div className="text-center py-20 px-8">
+                <div className="w-40 h-40 mx-auto mb-6 rounded-full bg-primary/5 flex items-center justify-center relative">
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-primary/20 animate-spin-slow"></div>
+                  <QrCode className="w-20 h-20 text-primary/20" />
                 </div>
-                <p className="text-muted-foreground">
-                  Lengkapi form di samping untuk membuat QR Code
+                <h3 className="text-xl font-bold mb-2">Siap untuk Sesi Baru?</h3>
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                  Silakan pilih Semester, Mata Kuliah, Pertemuan, dan Kelas untuk memulai absensi.
                 </p>
               </div>
             )}
