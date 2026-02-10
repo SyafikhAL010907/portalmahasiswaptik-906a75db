@@ -89,7 +89,6 @@ const getMenuItems = (): MenuItem[] => [
     children: [
       { icon: BarChart3, label: 'Dashboard Kas', path: '/dashboard/finance' },
       { icon: CreditCard, label: 'Bayar Iuran', path: '/dashboard/payment' },
-      { icon: FileText, label: 'Laporan Transparansi', path: '/dashboard/finance-report' },
     ],
   },
 

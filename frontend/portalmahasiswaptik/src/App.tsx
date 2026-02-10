@@ -16,7 +16,6 @@ import ScanQR from "./pages/ScanQR";
 import QRGenerator from "./pages/QRGenerator";
 import AttendanceHistory from "./pages/AttendanceHistory";
 import Payment from "./pages/Payment";
-import Transparency from "./pages/Transparency";
 import Announcements from "./pages/Announcements";
 import Competitions from "./pages/Competitions";
 import Leaderboard from "./pages/Leaderboard";
@@ -47,7 +46,6 @@ const App = () => (
                 <Route path="qr-generator" element={<QRGenerator />} />
                 <Route path="attendance-history" element={<AttendanceHistory />} />
                 <Route path="payment" element={<Payment />} />
-                <Route path="finance-report" element={<Transparency />} />
                 <Route path="announcements" element={<Announcements />} />
                 <Route path="competitions" element={<Competitions />} />
                 <Route path="leaderboard" element={<Leaderboard />} />

@@ -129,16 +129,16 @@ func (AttendanceRecord) TableName() string {
 
 // Transaction represents financial transactions
 type Transaction struct {
-	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	ClassID         uuid.UUID `gorm:"type:uuid;not null" json:"class_id"`
-	CreatedBy       uuid.UUID `gorm:"type:uuid;not null" json:"created_by"`
-	Type            string    `gorm:"type:text;not null" json:"type"` // income or expense
-	Category        string    `gorm:"type:text;not null" json:"category"`
-	Amount          float64   `gorm:"type:numeric;not null" json:"amount"`
-	Description     *string   `gorm:"type:text" json:"description,omitempty"`
-	ProofURL        *string   `gorm:"type:text" json:"proof_url,omitempty"`
-	TransactionDate time.Time `gorm:"type:date;default:CURRENT_DATE" json:"transaction_date"`
-	CreatedAt       time.Time `gorm:"default:now()" json:"created_at"`
+	ID              uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ClassID         *uuid.UUID `gorm:"type:uuid" json:"class_id,omitempty"` // Nullable: for class-specific or batch-wide
+	CreatedBy       uuid.UUID  `gorm:"type:uuid;not null" json:"created_by"`
+	Type            string     `gorm:"type:text;not null" json:"type"` // income or expense
+	Category        string     `gorm:"type:text;not null" json:"category"`
+	Amount          float64    `gorm:"type:numeric;not null" json:"amount"`
+	Description     *string    `gorm:"type:text" json:"description,omitempty"`
+	ProofURL        *string    `gorm:"type:text" json:"proof_url,omitempty"`
+	TransactionDate time.Time  `gorm:"type:date;default:CURRENT_DATE" json:"transaction_date"`
+	CreatedAt       time.Time  `gorm:"default:now()" json:"created_at"`
 
 	// Relations
 	Class *Class `gorm:"foreignKey:ClassID" json:"class,omitempty"`
@@ -151,9 +151,10 @@ func (Transaction) TableName() string {
 // WeeklyDue represents weekly student dues/payments
 type WeeklyDue struct {
 	ID         uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	StudentID  uuid.UUID  `gorm:"type:uuid;not null" json:"student_id"`
-	WeekNumber int        `gorm:"not null" json:"week_number"`
-	Year       int        `gorm:"default:extract(year from CURRENT_DATE)" json:"year"`
+	StudentID  uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_weekly_due_unique" json:"student_id"`
+	WeekNumber int        `gorm:"not null;uniqueIndex:idx_weekly_due_unique" json:"week_number"`
+	Month      int        `gorm:"default:extract(month from CURRENT_DATE);uniqueIndex:idx_weekly_due_unique" json:"month"`
+	Year       int        `gorm:"default:extract(year from CURRENT_DATE);uniqueIndex:idx_weekly_due_unique" json:"year"`
 	Amount     float64    `gorm:"type:numeric;default:5000" json:"amount"`
 	Status     string     `gorm:"type:text;default:'unpaid'" json:"status"` // unpaid, pending, paid
 	ProofURL   *string    `gorm:"type:text" json:"proof_url,omitempty"`

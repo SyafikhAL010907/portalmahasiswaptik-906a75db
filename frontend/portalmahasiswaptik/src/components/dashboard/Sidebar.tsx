@@ -61,7 +61,6 @@ const menuItems: MenuItem[] = [
     children: [
       { icon: CreditCard, label: 'Dashboard Kas', path: '/dashboard/finance' },
       { icon: FileText, label: 'Bayar Iuran', path: '/dashboard/payment' },
-      { icon: FileText, label: 'Laporan Transparansi', path: '/dashboard/finance-report' },
     ],
   },
   {
