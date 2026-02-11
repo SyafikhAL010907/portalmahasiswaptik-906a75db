@@ -60,7 +60,11 @@ export function GlobalChat() {
     }, [isOpen, viewMode, messages]);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setMessages([]);
+            setMembers([]);
+            return;
+        }
 
         if (isOpen) {
             fetchMessages();
@@ -125,6 +129,10 @@ export function GlobalChat() {
     }, [user, isOpen]);
 
     const fetchMessages = async () => {
+        if (!user) {
+            setMessages([]);
+            return;
+        }
         setIsLoading(true);
         setErrorMsg(null);
         try {
@@ -151,6 +159,10 @@ export function GlobalChat() {
     };
 
     const fetchMembers = async () => {
+        if (!user) {
+            setMembers([]);
+            return;
+        }
         try {
             const { data, error } = await (supabase
                 .from('profiles')

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LandingStats } from '@/pages/Landing';
 
-export function HeroSection() {
+export function HeroSection({ stats }: { stats: LandingStats | null }) {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden hero-gradient pt-16">
       {/* Decorative Elements */}
@@ -15,13 +16,13 @@ export function HeroSection() {
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center">
           {/* Badge - Modified by Vasya AI (Clean Version) */}
-<Link 
-  to="/"
-  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8 animate-fade-in hover:bg-primary/20 transition-colors cursor-pointer"
->
-  <Sparkles className="w-4 h-4" />
-  <span>Portal Angkatan PTIK 2025</span>
-</Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8 animate-fade-in hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Portal Angkatan PTIK 2025</span>
+          </Link>
 
           {/* Main Heading */}
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
@@ -55,17 +56,17 @@ export function HeroSection() {
           {/* Stats Preview */}
           <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
             {[
-              { label: 'Mahasiswa', value: '120+' },
-              { label: 'Kelas', value: '3' },
-              { label: 'Mata Kuliah', value: '40+' },
-              { label: 'Semester', value: '7' },
+              { label: 'Mahasiswa', value: stats ? `${stats.total_students}+` : '120+' },
+              { label: 'Kelas', value: stats ? stats.total_classes.toString() : '3' },
+              { label: 'Materi Semester 2', value: stats ? `${stats.total_subjects}` : '40+' },
+              { label: 'Semester', value: '2' },
             ].map((stat, index) => (
-              <div 
-                key={stat.label} 
+              <div
+                key={stat.label}
                 className="glass-card rounded-2xl p-4 hover:scale-105 transition-transform duration-300"
                 style={{ animationDelay: `${0.5 + index * 0.1}s` }}
               >
-                <div className="text-2xl md:text-3xl font-bold text-primary">{stat.value}</div>
+                <div className="text-2xl md:text-3xl font-bold text-gradient bg-gradient-to-r from-primary to-success">{stat.value}</div>
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
               </div>
             ))}
@@ -76,8 +77,8 @@ export function HeroSection() {
       {/* Bottom Wave */}
       <div className="absolute bottom-0 left-0 right-0">
         <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
-          <path 
-            d="M0 120L60 110C120 100 240 80 360 75C480 70 600 80 720 85C840 90 960 90 1080 85C1200 80 1320 70 1380 65L1440 60V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z" 
+          <path
+            d="M0 120L60 110C120 100 240 80 360 75C480 70 600 80 720 85C840 90 960 90 1080 85C1200 80 1320 70 1380 65L1440 60V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z"
             className="fill-background"
           />
         </svg>

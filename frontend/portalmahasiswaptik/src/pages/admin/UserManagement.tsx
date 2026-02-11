@@ -114,7 +114,10 @@ export default function UserManagement() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const { data: classData } = await supabase.from('classes').select('*').order('name');
+      // ✅ Menggunakan client ninja untuk bypass RLS pada tabel classes jika perlu
+      const tempSupabase = getNinjaClient();
+      const { data: classData, error: classError } = await tempSupabase.from('classes').select('*').order('name');
+      if (classError) throw classError;
       setClasses(classData || []);
 
       const { data: profileData, error } = await supabase.from('profiles').select('*').order('full_name');
@@ -375,14 +378,18 @@ export default function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* ✅ LOGIKA BARU: Jika Admin Kelas dipilih, MUNCULKAN PILIHAN KELAS */}
+              {/* ✅ LOGIKA BARU: Munculkan pilihan kelas untuk Mahasiswa DAN Admin Kelas */}
               {(newUser.role === 'mahasiswa' || newUser.role === 'admin_kelas') && (
                 <div className="space-y-2">
                   <Label htmlFor="class">Kelas (Wajib untuk Mahasiswa & Admin Kelas)</Label>
                   <Select value={newUser.class_id} onValueChange={(value) => setNewUser({ ...newUser, class_id: value })}>
                     <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
                     <SelectContent>
-                      {classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>Kelas {cls.name}</SelectItem>))}
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          Kelas {cls.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -432,14 +439,18 @@ export default function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* ✅ LOGIKA EDIT: Jika Admin Kelas, BISA EDIT KELAS */}
+              {/* ✅ LOGIKA EDIT: Jika Mahasiswa atau Admin Kelas, BISA EDIT KELAS */}
               {(editUserForm.role === 'mahasiswa' || editUserForm.role === 'admin_kelas') && (
                 <div className="space-y-2">
                   <Label>Kelas</Label>
                   <Select value={editUserForm.class_id} onValueChange={(value) => setEditUserForm({ ...editUserForm, class_id: value })}>
                     <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
                     <SelectContent>
-                      {classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>Kelas {cls.name}</SelectItem>))}
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          Kelas {cls.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

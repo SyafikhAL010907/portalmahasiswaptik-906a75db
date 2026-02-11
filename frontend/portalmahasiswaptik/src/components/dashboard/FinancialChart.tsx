@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { format, startOfDay, endOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
 import { TrendingUp, TrendingDown, Clock, Activity } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatIDR } from '@/lib/utils';
 
 interface Transaction {
     id: string;
@@ -134,9 +134,8 @@ export function FinancialChart({ transactions, selectedClassId, selectedClassNam
                         <span className="font-bold">{format(new Date(data.date), 'd MMMM yyyy')}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-muted-foreground font-medium">Saldo Bersih Lifetime:</span>
                         <span className="font-bold text-sm" style={{ color: trendColor }}>
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.balance)}
+                            {formatIDR(data.balance)}
                         </span>
                     </div>
                 </div>

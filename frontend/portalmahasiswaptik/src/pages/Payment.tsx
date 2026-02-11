@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn, formatIDR } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -71,7 +72,7 @@ export default function Payment() {
           .maybeSingle();
 
         if (classData?.name) {
-          className = `Kelas ${classData.name}`;
+          className = `Kelas ${classData.name} `;
           classLetter = classData.name.replace('Kelas ', '').trim();
         }
       }
@@ -190,14 +191,14 @@ export default function Payment() {
   };
 
   const getQRISImage = (classLetter: string, amount: number) => {
-    const folder = `Qris${classLetter}`;
+    const folder = `Qris${classLetter} `;
     const filename = amount === 5000 ? 'qris-5k.jpg' :
       amount === 10000 ? 'qris-10k.jpg' :
         amount === 15000 ? 'qris-15k.jpg' :
           amount === 20000 ? 'qris-20k.jpg' : 'qris-dana-all-nominal.jpg';
 
     // Path correctly mapped to public folder
-    return `/Qris${classLetter}/${filename}`;
+    return `/ Qris${classLetter}/${filename}`;
   };
 
   return (
@@ -303,7 +304,7 @@ export default function Payment() {
                     <div>
                       <p className="text-[10px] text-primary/70 uppercase font-black tracking-tighter mb-1">Total Akumulasi Tagihan:</p>
                       <p className="text-4xl font-black text-primary tracking-tight">
-                        {isBelumBayar ? "Rp 0" : formatRupiah(totalBill)}
+                        {isBelumBayar ? "Rp 0" : formatIDR(totalBill)}
                       </p>
                     </div>
                   </div>
@@ -336,7 +337,7 @@ export default function Payment() {
 
               <div className="text-center mb-8 z-10">
                 <p className="text-sm font-bold text-muted-foreground">Silakan Scan & Bayar Sejumlah</p>
-                <p className="text-4xl font-black text-foreground tracking-tighter mt-1">{formatRupiah(totalBill)}</p>
+                <p className="text-4xl font-black text-foreground tracking-tighter mt-1">{formatIDR(totalBill)}</p>
               </div>
 
               <div className="bg-white p-5 rounded-3xl shadow-2xl mb-8 border-8 border-primary/5 relative group transition-transform hover:scale-[1.02] duration-500">
@@ -372,4 +373,4 @@ export default function Payment() {
   );
 }
 
-const formatRupiah = (val: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+// formatRupiah removed and replaced by formatIDR from utils.ts

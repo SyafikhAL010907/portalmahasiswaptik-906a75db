@@ -28,7 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { cn } from '@/lib/utils';
+import { cn, formatIDR } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { AnnouncementCard } from '@/components/dashboard/AnnouncementCard';
@@ -602,7 +602,7 @@ export default function Dashboard() {
     return 'upcoming';
   };
 
-  const formatRupiah = (val: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+  // formatRupiah removed and replaced by formatIDR from utils.ts
 
 
 
@@ -644,7 +644,7 @@ export default function Dashboard() {
           <PremiumCard
             icon={Wallet}
             title="Saldo Kas"
-            value={isLoadingSaldo ? "..." : formatRupiah(balance)}
+            value={isLoadingSaldo ? "..." : formatIDR(balance)}
             subtitle="Saldo Bersih Lifetime"
             gradient="from-blue-500/20 to-blue-500/5"
             iconClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"

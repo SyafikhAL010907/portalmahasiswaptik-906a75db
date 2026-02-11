@@ -250,18 +250,18 @@ export default function Schedule() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ongoing': return 'border-l-4 border-l-primary bg-primary/5'; // Greenish
-      case 'next': return 'border-l-4 border-l-warning bg-warning/5'; // Yellowish
-      case 'finished': return 'border-l-4 border-l-muted bg-muted/5 opacity-60 grayscale'; // Gray & Grayscale
+      case 'ongoing': return 'border-l-4 border-l-blue-500 bg-blue-500/5';
+      case 'next': return 'border-l-4 border-l-violet-500 bg-violet-500/5';
+      case 'finished': return 'border-l-4 border-l-slate-400 bg-slate-400/5 opacity-60 grayscale';
       default: return 'border-l-4 border-l-muted';
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'ongoing': return <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary animate-pulse">Sedang Berlangsung</span>;
-      case 'next': return <span className="text-xs px-2 py-1 rounded-full bg-warning/20 text-warning">Selanjutnya</span>;
-      case 'finished': return <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Mata Kuliah Selesai</span>;
+      case 'ongoing': return <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 border border-blue-500/20 font-bold uppercase tracking-wider animate-pulse">Berlangsung</span>;
+      case 'next': return <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/20 font-bold uppercase tracking-wider">Selanjutnya</span>;
+      case 'finished': return <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400 font-bold uppercase tracking-wider">Selesai</span>;
       default: return null;
     }
   };
@@ -488,15 +488,15 @@ export default function Schedule() {
       <div className="glass-card rounded-2xl p-4">
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-primary/20" />
-            <span className="text-muted-foreground">Sedang Berlangsung</span>
+            <div className="w-3 h-3 rounded-full bg-blue-500/30" />
+            <span className="text-muted-foreground">Berlangsung</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-warning/20" />
+            <div className="w-3 h-3 rounded-full bg-violet-500/30" />
             <span className="text-muted-foreground">Selanjutnya</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-muted/20" />
+            <div className="w-3 h-3 rounded-full bg-slate-400/30" />
             <span className="text-muted-foreground">Selesai</span>
           </div>
         </div>

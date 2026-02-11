@@ -1,6 +1,17 @@
 import { Wallet, Users, TrendingUp } from 'lucide-react';
+import { LandingStats } from '@/pages/Landing';
+import { cn } from '@/lib/utils';
 
-export function StatsSection() {
+const formatRupiah = (amount: number | string) => {
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(numericAmount || 0);
+};
+
+export function StatsSection({ stats }: { stats: LandingStats | null }) {
   return (
     <section className="py-16 hero-gradient">
       <div className="container mx-auto px-4">
@@ -11,9 +22,9 @@ export function StatsSection() {
               <Wallet className="w-8 h-8 text-success" />
             </div>
             <div className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              Rp 12.500.000
+              {stats ? formatRupiah(stats.total_cash_lifetime) : 'Rp 0'}
             </div>
-            <div className="text-muted-foreground">Total Saldo Kas</div>
+            <div className="text-muted-foreground">Saldo Bersih Lifetime</div>
             <div className="mt-4 inline-flex items-center gap-1 text-success text-sm font-medium">
               <TrendingUp className="w-4 h-4" />
               +15% dari bulan lalu
@@ -26,14 +37,24 @@ export function StatsSection() {
               <Users className="w-8 h-8 text-primary" />
             </div>
             <div className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              127
+              {stats ? stats.total_students : '0'}
             </div>
             <div className="text-muted-foreground">Total Mahasiswa</div>
-            <div className="mt-4 flex justify-center gap-4 text-sm">
-              <span className="px-3 py-1 rounded-full bg-primary/10 text-primary">A: 42</span>
-              <span className="px-3 py-1 rounded-full bg-success/10 text-success">B: 43</span>
-              <span className="px-3 py-1 rounded-full bg-warning/20 text-warning-foreground">C: 42</span>
-            </div>
+            {stats && stats.class_breakdown && (
+              <div className="mt-4 flex flex-wrap justify-center gap-2 text-[10px] font-black uppercase">
+                {stats.class_breakdown.map((item, idx) => (
+                  <span key={item.name} className={cn(
+                    "px-2 py-1 rounded-lg border",
+                    idx % 4 === 0 ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
+                      idx % 4 === 1 ? "bg-violet-500/10 text-violet-600 border-violet-500/20" :
+                        idx % 4 === 2 ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20" :
+                          "bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
+                  )}>
+                    {item.name}: {item.count}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Tingkat Kehadiran */}

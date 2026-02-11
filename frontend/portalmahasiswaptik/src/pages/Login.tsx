@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, GraduationCap, ArrowLeft, MessageCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -15,6 +17,17 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const [classes, setClasses] = useState<{ id: string, name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      const { data, error } = await supabase.from('classes').select('id, name').order('name');
+      if (!error && data) {
+        setClasses(data);
+      }
+    };
+    fetchClasses();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,10 +164,22 @@ export default function Login() {
           <p className="text-sm text-muted-foreground">
             Kelas akan terdeteksi otomatis berdasarkan NIM yang terdaftar
           </p>
-          <div className="flex justify-center gap-3 mt-3">
-            <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">Kelas A</span>
-            <span className="px-3 py-1 rounded-full bg-success/10 text-success text-xs font-medium">Kelas B</span>
-            <span className="px-3 py-1 rounded-full bg-warning/20 text-warning-foreground text-xs font-medium">Kelas C</span>
+          <div className="flex flex-wrap justify-center gap-2 mt-3">
+            {classes.length > 0 ? (
+              classes.map((c, idx) => (
+                <span key={c.id} className={cn(
+                  "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm border",
+                  idx % 4 === 0 ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
+                    idx % 4 === 1 ? "bg-violet-500/10 text-violet-600 border-violet-500/20" :
+                      idx % 4 === 2 ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20" :
+                        "bg-cyan-500/10 text-cyan-600 border-cyan-500/20"
+                )}>
+                  Kelas {c.name}
+                </span>
+              ))
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium animate-pulse">Memuat kelas...</span>
+            )}
           </div>
         </div>
       </div>
