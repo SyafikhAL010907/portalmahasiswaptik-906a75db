@@ -678,17 +678,26 @@ export default function Finance() {
   };
 
   const handleEditClick = (tx: Transaction) => {
-    console.log('DEBUG_EDIT_DATA:', tx); // ✅ CRITICAL DEBUG LOG
+    console.log('DEBUG_EDIT_DATA:', tx);
     if (canEdit()) {
-      // ✅ THE CLEANER: Ensure all critical fields are valid and non-null
+      // --- SANITASI DATA ANTI-CRASH ---
+      const safeAmount = Number(tx.amount);
+
       const sanitizedTx: Transaction = {
         ...tx,
-        amount: Number(tx.amount ?? 0),
+        // Pastikan Amount jadi angka 0 kalau dia NaN atau Null
+        amount: isNaN(safeAmount) ? 0 : safeAmount,
+        // Pastikan string tidak null
         description: tx.description || '',
+        // Pastikan kategori ada isinya
         category: tx.category || 'Lainnya',
+        // Pastikan tanggal aman
         transaction_date: tx.transaction_date || new Date().toISOString().slice(0, 10),
-        type: tx.type || 'expense'
+        type: tx.type || 'expense',
+        // Jaga-jaga class_id (biarkan undefined kalau tidak ada)
+        class_id: tx.class_id || undefined
       };
+
       console.log('DEBUG_SANITIZED_DATA:', sanitizedTx);
       setEditingTx(sanitizedTx);
       setIsEditTxOpen(true);
@@ -1144,7 +1153,7 @@ export default function Finance() {
                         type="text"
                         placeholder="0"
                         className="bg-background/50 h-11 rounded-xl border-input font-bold text-primary shadow-sm focus:ring-2 focus:ring-primary/20"
-                        value={new Intl.NumberFormat('id-ID').format(editingTx.amount || 0)}
+                        value={editingTx?.amount ? new Intl.NumberFormat('id-ID').format(editingTx.amount) : '0'}
                         onChange={e => handleAmountChange(e.target.value, true)}
                       />
                     </div>
@@ -1178,14 +1187,14 @@ export default function Finance() {
                     <div className="space-y-2 col-span-2">
                       <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Target Kelas</label>
                       <Select
-                        value={editingTx.class_id || ""}
-                        onValueChange={(val) => setEditingTx(prev => prev ? { ...prev, class_id: val || undefined } : null)}
+                        value={editingTx.class_id || "general"}
+                        onValueChange={(val) => setEditingTx(prev => prev ? { ...prev, class_id: val === "general" ? undefined : val } : null)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih Target Kelas" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">-- Angkatan (General) --</SelectItem>
+                          <SelectItem value="general">-- Angkatan (General) --</SelectItem>
                           {classes.map(cls => (
                             <SelectItem key={cls.id} value={cls.id}>
                               Kelas {cls.name}
