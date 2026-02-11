@@ -188,7 +188,7 @@ export default function Profile() {
     }
 
     const roleLabels: Record<AppRole, string> = {
-        admin_dev: "Super Admin",
+        admin_dev: "AdminDev",
         admin_kelas: "Admin Kelas",
         admin_dosen: "Dosen",
         mahasiswa: "Mahasiswa",
@@ -293,7 +293,7 @@ export default function Profile() {
                             </div>
                         </div>
                         <p className="text-[10px] text-amber-600 bg-amber-500/10 p-2 rounded-lg leading-relaxed italic border border-amber-500/20">
-                            * Data identitas akademik dikunci oleh sistem. Hubungi Admin Dev jika ada kesalahan data.
+                            * Data identitas akademik dikunci oleh sistem. Hubungi AdminDev jika ada kesalahan data.
                         </p>
                     </CardContent>
                 </Card>

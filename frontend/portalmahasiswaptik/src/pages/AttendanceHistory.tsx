@@ -79,7 +79,7 @@ export default function AttendanceHistory() {
 
         const rolesList = roles?.map(r => r.role) || [];
 
-        // STRICT ACCESS: Only 'admin_dev' (Super Admin) can edit/save manual attendance
+        // STRICT ACCESS: Only 'admin_dev' (AdminDev) can edit/save manual attendance
         const hasAccess = rolesList.includes('admin_dev');
         setCanEdit(hasAccess);
       }

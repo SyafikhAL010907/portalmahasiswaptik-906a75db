@@ -48,7 +48,7 @@ interface ClassData {
 }
 
 const roleLabels: Record<AppRole, string> = {
-  admin_dev: 'Super Admin',
+  admin_dev: 'AdminDev',
   admin_kelas: 'Admin Kelas',
   admin_dosen: 'Dosen',
   mahasiswa: 'Mahasiswa',

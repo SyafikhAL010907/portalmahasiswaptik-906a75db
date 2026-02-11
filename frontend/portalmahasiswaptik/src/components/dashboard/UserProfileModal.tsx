@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Phone, MessageCircle, GraduationCap, Hash, Loader2, UserPlus } from 'lucide-react';
+import { Phone, MessageCircle, GraduationCap, Hash, Loader2, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -34,7 +34,7 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
             const { data, error } = await supabase
                 .from('profiles')
                 .select(`
-          *,
+          user_id, full_name, avatar_url, nim, class_id, role, whatsapp,
           classes ( name )
         `)
                 .eq('user_id', userId)
@@ -59,7 +59,16 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-white dark:bg-slate-950 border-white/10 shadow-2xl rounded-3xl">
+            <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-white dark:bg-slate-950 border-white/10 shadow-2xl sm:rounded-3xl h-full sm:h-auto max-sm:max-w-none max-sm:w-full max-sm:rounded-none z-[1000]">
+                {/* Close Button */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onClose}
+                    className="absolute top-4 right-4 z-[1001] bg-black/20 backdrop-blur-md hover:bg-black/40 text-white rounded-full transition-all"
+                >
+                    <X className="w-6 h-6" />
+                </Button>
                 {loading ? (
                     <div className="h-[400px] flex items-center justify-center">
                         <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -81,8 +90,40 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                         {/* Content Area */}
                         <div className="pt-20 pb-8 px-6 text-center space-y-6">
                             <div>
-                                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">{profile.full_name}</h2>
-                                <p className="text-sm font-mono text-blue-500 dark:text-blue-400 tracking-widest mt-1">{profile.nim}</p>
+                                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-1">{profile.full_name}</h2>
+                                <div className="flex items-center justify-center gap-2 mb-2">
+                                    <p className="text-xs font-mono text-blue-500 dark:text-blue-400 tracking-widest">{profile.nim}</p>
+                                    {(() => {
+                                        const raw = (profile.role || '').trim();
+                                        const r = raw.toLowerCase();
+
+                                        let label = 'MAHASISWA';
+                                        let color = 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+
+                                        if (r === 'admin_kelas') {
+                                            label = 'ADMIN';
+                                            color = 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 shadow-sm';
+                                        } else if (r === 'admin_dosen' || r === 'dosen') {
+                                            label = 'DOSEN';
+                                            color = 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+                                        } else if (r === 'admin_dev') {
+                                            label = 'ADMINDEV';
+                                            color = 'bg-red-700 text-white border-red-500 shadow-sm font-black';
+                                        }
+
+                                        const isSpecial = r === 'admin_dev';
+
+                                        return (
+                                            <span className={cn(
+                                                "text-[10px] px-2 py-0.5 rounded font-black tracking-tighter uppercase border",
+                                                isSpecial ? "border-red-500" : "border-transparent",
+                                                color
+                                            )}>
+                                                {label}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">

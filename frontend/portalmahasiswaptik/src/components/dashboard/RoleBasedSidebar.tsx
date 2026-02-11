@@ -72,9 +72,9 @@ const getMenuItems = (): MenuItem[] => [
     icon: MapPin,
     label: 'Absensi',
     children: [
-      // 🔑 Generator QR sekarang masuk sini (Khusus Dosen & Super Admin)
+      // 🔑 Generator QR sekarang masuk sini (Khusus Dosen & AdminDev)
       { icon: QrCode, label: 'Generator QR', path: '/dashboard/qr-generator', roles: ['admin_dosen', 'admin_dev'] },
-      // Scan QR (Khusus Mahasiswa & Super Admin)
+      // Scan QR (Khusus Mahasiswa & AdminDev)
       { icon: QrCode, label: 'Scan QR', path: '/dashboard/scan-qr', roles: ['mahasiswa', 'admin_dev'] },
       // 🔑 Riwayat Kehadiran (Dosen 'admin_dosen' Dibuang dari daftar roles agar tidak muncul)
       { icon: History, label: 'Riwayat Kehadiran', path: '/dashboard/attendance-history', roles: ['mahasiswa', 'admin_dev', 'admin_kelas'] },
@@ -117,7 +117,7 @@ const getMenuItems = (): MenuItem[] => [
 // ... (Sisa kode roleLabels, roleColors, dan komponen RoleBasedSidebar tetep utuh tanpa perubahan)
 
 const roleLabels: Record<AppRole, string> = {
-  admin_dev: 'Super Admin',
+  admin_dev: 'AdminDev',
   admin_kelas: 'Admin Kelas',
   admin_dosen: 'Dosen',
   mahasiswa: 'Mahasiswa',

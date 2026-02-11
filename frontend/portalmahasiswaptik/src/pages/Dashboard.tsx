@@ -345,7 +345,7 @@ export default function Dashboard() {
 
   // Separate function for calculating rank to be called when data is ready
   const calculateRank = async (myClassName: string) => {
-    if (!myClassName) return; // Super Admin or Dosen might not have class
+    if (!myClassName) return; // AdminDev or Dosen might not have class
     try {
       const { data } = await supabase
         .from('class_achievements')
