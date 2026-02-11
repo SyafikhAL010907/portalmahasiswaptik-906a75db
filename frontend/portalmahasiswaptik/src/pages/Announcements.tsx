@@ -1,3 +1,4 @@
+//
 import { useState, useEffect } from 'react';
 import { Megaphone, Calendar, Pin, ChevronRight, Bell, AlertCircle, Info, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
