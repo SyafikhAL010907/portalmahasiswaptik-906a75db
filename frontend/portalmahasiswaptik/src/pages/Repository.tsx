@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File } from 'lucide-react';
+import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PremiumCard } from '@/components/ui/PremiumCard';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 // --- INTERFACES ---
 interface Subject {
@@ -22,6 +23,13 @@ interface Subject {
   name: string;
   code: string;
   semester: number;
+}
+
+interface Semester {
+  id: number;
+  name: string;
+  created_at?: string;
+  gradient?: string;
 }
 
 interface Material {
@@ -35,16 +43,16 @@ interface Material {
   created_at: string;
 }
 
-// SOFT PASTEL MODE: Finance Dashboard Style (matching Attendance)
-const semesters = [
-  { id: 1, name: 'Semester 1', gradient: 'from-purple-50 to-white dark:from-purple-950/20 dark:to-background', iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600 dark:text-purple-400', shadowColor: 'hover:shadow-purple-200/50 dark:hover:shadow-purple-900/50' },
-  { id: 2, name: 'Semester 2', gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
-  { id: 3, name: 'Semester 3', gradient: 'from-orange-50 to-white dark:from-orange-950/20 dark:to-background', iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600 dark:text-orange-400', shadowColor: 'hover:shadow-orange-200/50 dark:hover:shadow-orange-900/50' },
-  { id: 4, name: 'Semester 4', gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
-  { id: 5, name: 'Semester 5', gradient: 'from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background', iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', iconColor: 'text-cyan-600 dark:text-cyan-400', shadowColor: 'hover:shadow-cyan-200/50 dark:hover:shadow-cyan-900/50' },
-  { id: 6, name: 'Semester 6', gradient: 'from-indigo-50 to-white dark:from-indigo-950/20 dark:to-background', iconBg: 'bg-indigo-100 dark:bg-indigo-900/30', iconColor: 'text-indigo-600 dark:text-indigo-400', shadowColor: 'hover:shadow-indigo-200/50 dark:hover:shadow-indigo-900/50' },
-  { id: 7, name: 'Semester 7', gradient: 'from-yellow-50 to-white dark:from-yellow-950/20 dark:to-background', iconBg: 'bg-yellow-100 dark:bg-yellow-900/30', iconColor: 'text-yellow-600 dark:text-yellow-400', shadowColor: 'hover:shadow-yellow-200/50 dark:hover:shadow-yellow-900/50' },
-  { id: 8, name: 'Semester 8', gradient: 'from-pink-50 to-white dark:from-pink-950/20 dark:to-background', iconBg: 'bg-pink-100 dark:bg-pink-900/30', iconColor: 'text-pink-600 dark:text-pink-400', shadowColor: 'hover:shadow-pink-200/50 dark:hover:shadow-pink-900/50' },
+// SOFT PASTEL MODE: Finance Dashboard Style
+// Hardcoded gradients for dynamic semesters display
+const SEMESTER_GRADIENTS = [
+  { gradient: 'from-purple-50 to-white dark:from-purple-950/20 dark:to-background', iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600 dark:text-purple-400', shadowColor: 'hover:shadow-purple-200/50 dark:hover:shadow-purple-900/50' },
+  { gradient: 'from-blue-50 to-white dark:from-blue-950/20 dark:to-background', iconBg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600 dark:text-blue-400', shadowColor: 'hover:shadow-blue-200/50 dark:hover:shadow-blue-900/50' },
+  { gradient: 'from-orange-50 to-white dark:from-orange-950/20 dark:to-background', iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600 dark:text-orange-400', shadowColor: 'hover:shadow-orange-200/50 dark:hover:shadow-orange-900/50' },
+  { gradient: 'from-cyan-50 to-white dark:from-cyan-950/20 dark:to-background', iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', iconColor: 'text-cyan-600 dark:text-cyan-400', shadowColor: 'hover:shadow-cyan-200/50 dark:hover:shadow-cyan-900/50' },
+  { gradient: 'from-indigo-50 to-white dark:from-indigo-950/20 dark:to-background', iconBg: 'bg-indigo-100 dark:bg-indigo-900/30', iconColor: 'text-indigo-600 dark:text-indigo-400', shadowColor: 'hover:shadow-indigo-200/50 dark:hover:shadow-indigo-900/50' },
+  { gradient: 'from-yellow-50 to-white dark:from-yellow-950/20 dark:to-background', iconBg: 'bg-yellow-100 dark:bg-yellow-900/30', iconColor: 'text-yellow-600 dark:text-yellow-400', shadowColor: 'hover:shadow-yellow-200/50 dark:hover:shadow-yellow-900/50' },
+  { gradient: 'from-pink-50 to-white dark:from-pink-950/20 dark:to-background', iconBg: 'bg-pink-100 dark:bg-pink-900/30', iconColor: 'text-pink-600 dark:text-pink-400', shadowColor: 'hover:shadow-pink-200/50 dark:hover:shadow-pink-900/50' },
 ];
 
 type ViewState = 'semesters' | 'courses' | 'files';
@@ -52,25 +60,71 @@ type ViewState = 'semesters' | 'courses' | 'files';
 export default function Repository() {
   // --- STATE ---
   const [view, setView] = useState<ViewState>('semesters');
-  const [selectedSemester, setSelectedSemester] = useState<typeof semesters[0] | null>(null);
+  const [selectedSemester, setSelectedSemester] = useState<Semester | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Subject | null>(null);
   const [mediaFilter, setMediaFilter] = useState<'all' | 'document' | 'video' | 'image' | 'other'>('all');
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // RBAC
   const [canManage, setCanManage] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Dialogs
-  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
-  const [courseForm, setCourseForm] = useState({ name: '', code: '' });
+  // Course Dialog
+  const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false);
+  const [courseForm, setCourseForm] = useState({ id: '', name: '', code: '' });
+  const [isEditingCourse, setIsEditingCourse] = useState(false);
 
+  // Material Dialog
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
   const [materialForm, setMaterialForm] = useState({ title: '', description: '' });
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+
+  // Semester Dialog
+  const [isSemesterDialogOpen, setIsSemesterDialogOpen] = useState(false);
+  const [semesterForm, setSemesterForm] = useState({ id: 0, name: '' });
+  const [isEditingSemester, setIsEditingSemester] = useState(false);
+
+  // Modal Config
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    variant: 'danger' | 'warning' | 'info';
+    confirmText?: string;
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    variant: 'danger',
+    onConfirm: () => { },
+  });
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
+
+  const openConfirmation = (
+    title: string,
+    description: string,
+    onConfirm: () => Promise<void> | void,
+    variant: 'danger' | 'warning' | 'info' = 'danger',
+    confirmText: string = 'Konfirmasi'
+  ) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      description,
+      variant,
+      confirmText,
+      onConfirm: async () => {
+        await onConfirm();
+        closeModal();
+      }
+    });
+  };
 
   // --- INITIAL CHECK ---
   useEffect(() => {
@@ -83,7 +137,8 @@ export default function Repository() {
           .select('role')
           .eq('user_id', user.id);
 
-        const hasAccess = roles?.some(r => ['admin_dev', 'admin_kelas'].includes(r.role)) || false;
+        // Access restricted strictly to 'admin_dev' as per user request
+        const hasAccess = roles?.some(r => r.role === 'admin_dev') || false;
         setCanManage(hasAccess);
       }
     };
@@ -91,6 +146,18 @@ export default function Repository() {
   }, []);
 
   // --- FETCH DATA ---
+  const fetchSemesters = async () => {
+    try {
+      const { data, error } = await supabase.from('semesters').select('*').order('id');
+      if (error && error.code === '42P01') {
+        console.warn("Semesters table not found"); // Should exist after migration
+      }
+      if (data) setSemesters(data);
+    } catch (err) {
+      console.error("Error fetching semesters", err);
+    }
+  };
+
   const fetchSubjects = async (semesterId: number) => {
     setIsLoading(true);
     try {
@@ -108,6 +175,10 @@ export default function Repository() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSemesters();
+  }, []);
 
   const fetchMaterials = async (subjectId: string) => {
     setIsLoading(true);
@@ -128,7 +199,7 @@ export default function Repository() {
   };
 
   // --- NAVIGATION ---
-  const handleSelectSemester = (semester: typeof semesters[0]) => {
+  const handleSelectSemester = (semester: Semester) => {
     setSelectedSemester(semester);
     setView('courses');
     fetchSubjects(semester.id);
@@ -153,24 +224,50 @@ export default function Repository() {
   // --- CRUD ACTIONS ---
 
   // 1. Course Actions
-  const handleAddCourse = async () => {
+  const handleResetCourseForm = () => {
+    setCourseForm({ id: '', name: '', code: '' });
+    setIsEditingCourse(false);
+    setIsCourseDialogOpen(true);
+  };
+
+  const handleEditCourseClick = (course: Subject, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCourseForm({ id: course.id, name: course.name, code: course.code });
+    setIsEditingCourse(true);
+    setIsCourseDialogOpen(true);
+  };
+
+  const handleSaveCourse = async () => {
     if (!courseForm.name || !selectedSemester) return;
     setIsLoading(true);
     try {
-      const { error } = await supabase.from('subjects').insert([{
-        name: courseForm.name,
-        code: courseForm.code || 'TBA',
-        semester: selectedSemester.id
-        // Removed sks to avoid schema error
-      }]);
+      if (isEditingCourse) {
+        // Update
+        const { error } = await supabase.from('subjects')
+          .update({
+            name: courseForm.name,
+            code: courseForm.code || 'TBA',
+          })
+          .eq('id', courseForm.id);
 
-      if (error) throw error;
-      toast.success("Mata kuliah berhasil ditambahkan");
-      setIsAddCourseOpen(false);
-      setCourseForm({ name: '', code: '' });
+        if (error) throw error;
+        toast.success("Mata kuliah diperbarui");
+      } else {
+        // Insert
+        const { error } = await supabase.from('subjects').insert([{
+          name: courseForm.name,
+          code: courseForm.code || 'TBA',
+          semester: selectedSemester.id
+        }]);
+
+        if (error) throw error;
+        toast.success("Mata kuliah ditambahkan");
+      }
+
+      setIsCourseDialogOpen(false);
       fetchSubjects(selectedSemester.id);
     } catch (err: any) {
-      toast.error("Gagal menambah mata kuliah: " + err.message);
+      toast.error("Gagal menyimpan mata kuliah: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -178,16 +275,68 @@ export default function Repository() {
 
   const handleDeleteCourse = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Hapus mata kuliah ini? Semua materi di dalamnya akan ikut terhapus.")) return;
 
+    openConfirmation(
+      'Hapus Mata Kuliah?',
+      'Semua materi di dalamnya akan ikut terhapus. Lanjutkan?',
+      async () => {
+        try {
+          const { error } = await supabase.from('subjects').delete().eq('id', id);
+          if (error) throw error;
+          toast.success("Mata kuliah dihapus");
+          if (selectedSemester) fetchSubjects(selectedSemester.id);
+        } catch (err: any) {
+          toast.error("Gagal menghapus: " + err.message);
+        }
+      }
+    );
+  };
+
+  // 1.5 Semester CRUD
+  const handleSaveSemester = async () => {
+    if (!semesterForm.name) return;
+    setIsLoading(true);
     try {
-      const { error } = await supabase.from('subjects').delete().eq('id', id);
-      if (error) throw error;
-      toast.success("Mata kuliah dihapus");
-      if (selectedSemester) fetchSubjects(selectedSemester.id);
+      if (isEditingSemester) {
+        const { error } = await supabase.from('semesters').update({ name: semesterForm.name }).eq('id', semesterForm.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('semesters').insert({ name: semesterForm.name });
+        if (error) throw error;
+      }
+      toast.success(isEditingSemester ? "Semester diperbarui" : "Semester ditambahkan");
+      setIsSemesterDialogOpen(false);
+      fetchSemesters();
     } catch (err: any) {
-      toast.error("Gagal menghapus: " + err.message);
+      toast.error("Gagal menyimpan semester: " + err.message);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleDeleteSemester = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    openConfirmation(
+      'Hapus Semester?',
+      'Semua mata kuliah dan materi di semester ini akan ikut terhapus. Yakin?',
+      async () => {
+        try {
+          const { error } = await supabase.from('semesters').delete().eq('id', id);
+          if (error) throw error;
+          toast.success("Semester dihapus");
+          fetchSemesters();
+        } catch (err: any) {
+          toast.error("Gagal menghapus: " + err.message);
+        }
+      }
+    );
+  };
+
+  const openEditSemester = (sem: Semester, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSemesterForm({ id: sem.id, name: sem.name });
+    setIsEditingSemester(true);
+    setIsSemesterDialogOpen(true);
   };
 
   // 2. Material Actions
@@ -219,7 +368,7 @@ export default function Repository() {
       let type = 'other';
       if (fileToUpload.type.startsWith('image/')) type = 'image';
       else if (fileToUpload.type.startsWith('video/')) type = 'video';
-      else if (fileToUpload.type.includes('pdf') || fileToUpload.type.includes('document') || fileToUpload.type.includes('text')) type = 'pdf'; // Mapping simple types
+      else if (fileToUpload.type.includes('pdf')) type = 'pdf';
 
       // 4. Insert Record
       const { error: insertError } = await supabase.from('materials').insert([{
@@ -249,17 +398,22 @@ export default function Repository() {
   };
 
   const handleDeleteMaterial = async (id: string, url: string) => {
-    if (!confirm("Yakin hapus file ini?")) return;
-    try {
-      // Ideally delete from storage too, but for now just delete record to avoid permission issues if storage delete policies aren't set
-      const { error } = await supabase.from('materials').delete().eq('id', id);
-      if (error) throw error;
+    openConfirmation(
+      'Hapus File?',
+      'Apakah Anda yakin ingin menghapus file ini?',
+      async () => {
+        try {
+          // Ideally delete from storage too
+          const { error } = await supabase.from('materials').delete().eq('id', id);
+          if (error) throw error;
 
-      toast.success("File dihapus");
-      if (selectedCourse) fetchMaterials(selectedCourse.id);
-    } catch (err: any) {
-      toast.error("Gagal menghapus: " + err.message);
-    }
+          toast.success("File dihapus");
+          if (selectedCourse) fetchMaterials(selectedCourse.id);
+        } catch (err: any) {
+          toast.error("Gagal menghapus: " + err.message);
+        }
+      }
+    );
   };
 
   // --- HELPERS ---
@@ -273,7 +427,7 @@ export default function Repository() {
   const filteredMaterials = mediaFilter === 'all'
     ? materials
     : materials.filter(m => {
-      if (mediaFilter === 'document') return m.file_type === 'pdf'; // simple mapping
+      if (mediaFilter === 'document') return m.file_type === 'pdf';
       return m.file_type === mediaFilter;
     });
 
@@ -310,8 +464,13 @@ export default function Repository() {
         {/* Add Actions */}
         {canManage && (
           <div>
+            {view === 'semesters' && (
+              <Button onClick={() => { setSemesterForm({ id: 0, name: '' }); setIsEditingSemester(false); setIsSemesterDialogOpen(true); }} className="rounded-xl gap-2 shadow-lg">
+                <Plus className="w-4 h-4" /> Tambah Semester
+              </Button>
+            )}
             {view === 'courses' && (
-              <Button onClick={() => setIsAddCourseOpen(true)} className="rounded-xl gap-2 shadow-lg">
+              <Button onClick={handleResetCourseForm} className="rounded-xl gap-2 shadow-lg">
                 <Plus className="w-4 h-4" /> Tambah Matkul
               </Button>
             )}
@@ -327,18 +486,29 @@ export default function Repository() {
       {/* 1. Semester Selection */}
       {view === 'semesters' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {semesters.map((semester) => (
-            <PremiumCard
-              key={semester.id}
-              onClick={() => handleSelectSemester(semester)}
-              variant="pastel"
-              icon={Folder}
-              title={semester.name}
-              subtitle="Klik untuk lihat matkul"
-              gradient={semester.gradient}
-              iconClassName={`${semester.iconBg} ${semester.iconColor}`}
-              className={semester.shadowColor}
-            />
+          {semesters.map((semester, idx) => (
+            <div key={semester.id} className="relative group">
+              <PremiumCard
+                onClick={() => handleSelectSemester(semester)}
+                variant="pastel"
+                icon={Folder}
+                title={semester.name}
+                subtitle="Klik untuk lihat matkul"
+                gradient={semester.gradient || SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].gradient}
+                iconClassName={`${SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].iconBg} ${SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].iconColor}`}
+                className={SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].shadowColor}
+              />
+              {canManage && (
+                <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button size="icon" variant="ghost" className="h-8 w-8 bg-black/20 text-white hover:bg-black/30" onClick={(e) => openEditSemester(semester, e)}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 bg-red-500/80 text-white hover:bg-red-600" onClick={(e) => handleDeleteSemester(semester.id, e)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -364,7 +534,7 @@ export default function Repository() {
                   ];
                   const pastel = subjectPastels[idx % subjectPastels.length];
                   return (
-                    <div key={course.id} className="relative">
+                    <div key={course.id} className="relative group">
                       <PremiumCard
                         variant="pastel"
                         icon={FileText}
@@ -376,14 +546,24 @@ export default function Repository() {
                         onClick={() => handleSelectCourse(course)}
                       />
                       {canManage && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="absolute top-4 right-4 h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 z-10"
-                          onClick={(e) => handleDeleteCourse(course.id, e)}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+                        <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                            onClick={(e) => handleEditCourseClick(course, e)}
+                          >
+                            <Pencil className="w-4 h-4 text-blue-500" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                            onClick={(e) => handleDeleteCourse(course.id, e)}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   );
@@ -474,11 +654,11 @@ export default function Repository() {
         </div>
       )}
 
-      {/* --- ADD COURSE DIALOG --- */}
-      <Dialog open={isAddCourseOpen} onOpenChange={setIsAddCourseOpen}>
+      {/* --- ADD/EDIT COURSE DIALOG --- */}
+      <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Tambah Mata Kuliah</DialogTitle>
+            <DialogTitle>{isEditingCourse ? 'Edit Mata Kuliah' : 'Tambah Mata Kuliah'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -499,8 +679,8 @@ export default function Repository() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddCourseOpen(false)}>Batal</Button>
-            <Button onClick={handleAddCourse} disabled={isLoading}>
+            <Button variant="outline" onClick={() => setIsCourseDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleSaveCourse} disabled={isLoading}>
               {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
               Simpan
             </Button>
@@ -549,6 +729,42 @@ export default function Repository() {
         </DialogContent>
       </Dialog>
 
+      {/* --- ADD/EDIT SEMESTER DIALOG --- */}
+      <Dialog open={isSemesterDialogOpen} onOpenChange={setIsSemesterDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isEditingSemester ? 'Edit Semester' : 'Tambah Semester'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nama Semester</Label>
+              <Input
+                placeholder="Contoh: Semester 9"
+                value={semesterForm.name}
+                onChange={(e) => setSemesterForm({ ...semesterForm, name: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSemesterDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleSaveSemester} disabled={isLoading}>
+              {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmationModal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        description={modalConfig.description}
+        variant={modalConfig.variant}
+        confirmText={modalConfig.confirmText}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown } from 'lucide-react';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,6 +106,44 @@ export default function Finance() {
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // --- CONFIRMATION MODAL STATE ---
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    variant: 'danger' | 'warning' | 'info';
+    confirmText?: string;
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    variant: 'danger',
+    onConfirm: () => { },
+  });
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
+
+  const openConfirmation = (
+    title: string,
+    description: string,
+    onConfirm: () => Promise<void> | void,
+    variant: 'danger' | 'warning' | 'info' = 'danger',
+    confirmText: string = 'Konfirmasi'
+  ) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      description,
+      variant,
+      confirmText,
+      onConfirm: async () => {
+        await onConfirm();
+        closeModal();
+      }
+    });
+  };
 
   // Default to Lifetime mode (0). User can switch to specific months if needed.
   const [selectedMonth, setSelectedMonth] = useState<number>(0);
@@ -603,26 +642,33 @@ export default function Finance() {
     }
 
     const monthName = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"][selectedMonth];
-    if (!confirm(`Hapus data iuran ${monthName} untuk ${studentName}? Tindakan ini tidak bisa dibatalkan.`)) return;
 
-    setIsUpdating(true);
-    try {
-      const { error } = await (supabase.from('weekly_dues') as any)
-        .delete()
-        .eq('student_id', studentId)
-        .eq('year', selectedYear)
-        .eq('month', selectedMonth);
+    openConfirmation(
+      'Reset Status Iuran?',
+      `Hapus data iuran ${monthName} untuk ${studentName}? Tindakan ini tidak bisa dibatalkan.`,
+      async () => {
+        setIsUpdating(true);
+        try {
+          const { error } = await (supabase.from('weekly_dues') as any)
+            .delete()
+            .eq('student_id', studentId)
+            .eq('year', selectedYear)
+            .eq('month', selectedMonth);
 
-      if (error) throw error;
+          if (error) throw error;
 
-      toast.success(`Status iuran ${studentName} di bulan ${monthName} berhasil direset.`);
-      fetchStudentMatrix(); // Refresh matrix
-      fetchDuesTotal();
-    } catch (error: any) {
-      toast.error("Gagal reset status: " + error.message);
-    } finally {
-      setIsUpdating(false);
-    }
+          toast.success(`Status iuran ${studentName} di bulan ${monthName} berhasil direset.`);
+          fetchStudentMatrix(); // Refresh matrix
+          fetchDuesTotal();
+        } catch (error: any) {
+          toast.error("Gagal reset status: " + error.message);
+        } finally {
+          setIsUpdating(false);
+        }
+      },
+      'danger',
+      'Reset Status'
+    );
   };
   const handleAmountChange = (val: string, isEdit = false) => {
     const cleanNumber = val.replace(/\D/g, "");
@@ -668,13 +714,19 @@ export default function Finance() {
 
   const handleDeleteTransaction = async (id: string) => {
     if (!canEdit()) return;
-    if (!confirm("Hapus transaksi?")) return;
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase.from('transactions').delete().eq('id', id);
-      if (error) throw error;
-      toast.success("Dihapus"); fetchTransactionStats(); fetchClassStats();
-    } catch (err: any) { toast.error(err.message); } finally { setIsDeleting(false); }
+
+    openConfirmation(
+      'Hapus Transaksi?',
+      "Apakah Anda yakin ingin menghapus transaksi ini?",
+      async () => {
+        setIsDeleting(true);
+        try {
+          const { error } = await supabase.from('transactions').delete().eq('id', id);
+          if (error) throw error;
+          toast.success("Dihapus"); fetchTransactionStats(); fetchClassStats();
+        } catch (err: any) { toast.error(err.message); } finally { setIsDeleting(false); }
+      }
+    );
   };
 
   const handleEditClick = (tx: Transaction) => {

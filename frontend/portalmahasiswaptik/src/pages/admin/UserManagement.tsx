@@ -5,6 +5,7 @@ import {
   Users, Plus, Search, Edit, Trash2, UserPlus,
   Shield, GraduationCap, BookOpen, Loader2, Filter
 } from 'lucide-react';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,6 +77,11 @@ export default function UserManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+
+  // ✅ STATE: Delete Confirmation
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // State form Create
   const [newUser, setNewUser] = useState({
@@ -278,13 +284,19 @@ export default function UserManagement() {
     }
   };
 
-  // ✅ DELETE USER
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Yakin ingin menghapus pengguna ini SECARA PERMANEN?')) return;
+  // ✅ DELETE USER HANDLERS
+  const handleDeleteClick = (userId: string) => {
+    setUserToDelete(userId);
+    setIsDeleteModalOpen(true);
+  };
 
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setIsDeleting(true);
     try {
       const tempSupabase = getNinjaClient();
-      const { error } = await tempSupabase.auth.admin.deleteUser(userId);
+      const { error } = await tempSupabase.auth.admin.deleteUser(userToDelete);
       if (error) throw error;
 
       toast.success('Pengguna berhasil dihapus permanen');
@@ -292,6 +304,10 @@ export default function UserManagement() {
     } catch (error: any) {
       console.error('Error deleting user:', error);
       toast.error('Gagal menghapus pengguna: ' + error.message);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+      setUserToDelete(null);
     }
   };
 
@@ -323,6 +339,16 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDeleteUser}
+        title="Hapus Pengguna?"
+        description="Apakah Anda yakin ingin menghapus pengguna ini secara permanen? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Hapus Permanen"
+        variant="danger"
+        isLoading={isDeleting}
+      />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -537,7 +563,7 @@ export default function UserManagement() {
                           <Button variant="ghost" size="icon" onClick={() => handleEditClick(user)}>
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteUser(user.user_id)}>
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(user.user_id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
