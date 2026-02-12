@@ -77,6 +77,7 @@ export function GlobalChat() {
     const [isLoadingMembers, setIsLoadingMembers] = useState(false);
     const [groupUnreadCount, setGroupUnreadCount] = useState(0);
     const [lastActiveChatId, setLastActiveChatId] = useState<string | null>(null);
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
     const LS_GROUP_READ_KEY = `last_read_group_at_${user?.id}`;
 
@@ -92,6 +93,41 @@ export function GlobalChat() {
         const privateUnread = recentChats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
         return privateUnread + groupUnreadCount;
     }, [recentChats, groupUnreadCount]);
+
+    // ==========================================
+    // PRESENCE: REAL-TIME ONLINE STATUS
+    // ==========================================
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const presenceChannel = supabase.channel('online-users');
+
+        presenceChannel
+            .on('presence', { event: 'sync' }, () => {
+                const newState = presenceChannel.presenceState();
+                const onlineIds = new Set<string>();
+
+                // Extract user_ids from presence state
+                for (const key in newState) {
+                    const users = newState[key];
+                    if (Array.isArray(users)) {
+                        users.forEach((u: any) => {
+                            if (u.user_id) onlineIds.add(String(u.user_id));
+                        });
+                    }
+                }
+                setOnlineUsers(onlineIds);
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await presenceChannel.track({ user_id: user.id });
+                }
+            });
+
+        return () => {
+            supabase.removeChannel(presenceChannel);
+        };
+    }, [user?.id]);
 
     // Fetch current user profile for input area
     useEffect(() => {
@@ -143,7 +179,7 @@ export function GlobalChat() {
     }, [searchTerm]);
 
     // --- UPDATE LOGIC DISINI (Real-time listener) ---
-   // ==========================================
+    // ==========================================
     // UPDATE V16: REAL-TIME GLOBAL & AUTO-ADD CONTACT
     // ==========================================
     useEffect(() => {
@@ -166,7 +202,7 @@ export function GlobalChat() {
                     // 1. UPDATE LOBI SECARA INSTAN
                     setRecentChats(prev => {
                         const exists = prev.some(c => c.room_id === msgRoomId);
-                        
+
                         // JIKA ORANG BARU CHAT: Tarik data terbaru biar nama dia muncul di lobi
                         if (!exists && !isMe) {
                             fetchRecentChats(false); // Silent fetch
@@ -188,10 +224,10 @@ export function GlobalChat() {
                             }
                             return chat;
                         }).sort((a, b) => {
-                             // Selalu pindahkan chat terbaru ke urutan paling atas
-                             const timeA = a.room_id === msgRoomId ? new Date().getTime() : new Date(a.last_message_at || 0).getTime();
-                             const timeB = b.room_id === msgRoomId ? new Date().getTime() : new Date(b.last_message_at || 0).getTime();
-                             return timeB - timeA;
+                            // Selalu pindahkan chat terbaru ke urutan paling atas
+                            const timeA = a.room_id === msgRoomId ? new Date().getTime() : new Date(a.last_message_at || 0).getTime();
+                            const timeB = b.room_id === msgRoomId ? new Date().getTime() : new Date(b.last_message_at || 0).getTime();
+                            return timeB - timeA;
                         });
                     });
 
@@ -210,7 +246,7 @@ export function GlobalChat() {
             supabase.removeChannel(globalChannel);
         };
         // Dependency diperkecil agar koneksi tidak sering terputus
-    }, [user?.id, activeChat?.room_id]); 
+    }, [user?.id, activeChat?.room_id]);
     // ==========================================
     // V11: Polling Fallback (Backup WebSocket)
     useEffect(() => {
@@ -828,7 +864,7 @@ export function GlobalChat() {
 
                                 <div
                                     onClick={() => {
-                                        if (activeChat?.type === 'GROUP') { setIsGroupMembersOpen(true); } 
+                                        if (activeChat?.type === 'GROUP') { setIsGroupMembersOpen(true); }
                                         else { setSelectedProfileId(activeChat?.id || null); }
                                     }}
                                     className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 group"
@@ -855,9 +891,19 @@ export function GlobalChat() {
                                             {activeChat?.type === 'PRIVATE' && getRoleBadge(activeChat.role || null)}
                                             {activeChat?.type === 'GROUP' && <Users size={12} className="text-indigo-500" />}
                                         </div>
-                                        <p className="text-[8px] sm:text-[10px] text-green-500 dark:text-green-400 font-black uppercase tracking-widest leading-none mt-1 flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                                            {activeChat?.type === 'GROUP' ? `${allMembers.length} Anggota Online` : 'Aktif Sekarang'}
+                                        <p className={cn(
+                                            "text-[8px] sm:text-[10px] font-black uppercase tracking-widest leading-none mt-1 flex items-center gap-1.5",
+                                            (activeChat?.type === 'GROUP' || onlineUsers.has(activeChat?.id || ''))
+                                                ? "text-green-500 dark:text-green-400"
+                                                : "text-slate-400 dark:text-slate-500"
+                                        )}>
+                                            {(activeChat?.type === 'GROUP' || onlineUsers.has(activeChat?.id || '')) && (
+                                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                            )}
+                                            {activeChat?.type === 'GROUP'
+                                                ? `${onlineUsers.size} Anggota Online`
+                                                : (onlineUsers.has(activeChat?.id || '') ? 'Aktif Sekarang' : 'Offline')
+                                            }
                                         </p>
                                     </div>
                                 </div>
