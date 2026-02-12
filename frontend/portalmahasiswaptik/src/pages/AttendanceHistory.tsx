@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Folder, FolderOpen, Users, ChevronRight, ArrowLeft, Calendar,
   CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2,
-  UserCheck, FileText, Search, Edit, QrCode
+  UserCheck, FileText, Search, Edit, QrCode, RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -498,6 +498,13 @@ export default function AttendanceHistory() {
   const toggleAttendance = async (studentId: string, current: string) => {
     if (!canEdit) return;
 
+    // RULE: If method is 'qr' and user is not 'admin_dev', LOCK editing.
+    const student = students.find(s => s.id === studentId);
+    if (student?.method === 'qr' && userRole !== 'admin_dev') {
+      toast.error("Absensi via QR Code sudah valid dan tidak dapat diubah manual (Kunci Baris). Hubungi AdminDev jika butuh reset.");
+      return;
+    }
+
     // Cycle: Pending -> Hadir -> Izin -> Alpha -> Pending
     const statuses: ('pending' | 'hadir' | 'izin' | 'alpha')[] = ['pending', 'hadir', 'izin', 'alpha'];
     const nextStatus = statuses[(statuses.indexOf(current as any) + 1) % statuses.length];
@@ -595,13 +602,50 @@ export default function AttendanceHistory() {
     );
   };
 
-  // ✅ NEW FEATURE: Reset Status Pertemuan for Admins
+  // ✅ NEW FEATURE: Reset Status Individual for AdminDev
+  const handleResetIndividual = (studentId: string, studentName: string) => {
+    if (userRole !== 'admin_dev' || !currentSessionId) return;
+
+    openConfirmation(
+      `Reset Status ${studentName}?`,
+      `Status kehadiran untuk ${studentName} di pertemuan ini akan direset menjadi "Menunggu Scan".`,
+      async () => {
+        setIsLoading(true);
+        try {
+          const { error } = await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('session_id', currentSessionId)
+            .eq('student_id', studentId);
+
+          if (error) throw error;
+
+          toast.success(`Status ${studentName} berhasil direset!`);
+
+          // Re-fetch to sync
+          await fetchStudentsAndAttendance(activeId.class, activeId.meeting);
+
+        } catch (err: any) {
+          toast.error("Gagal reset status: " + err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      'warning',
+      'Reset Status'
+    );
+  };
+
+  // ✅ NEW FEATURE: Reset Status Pertemuan for AdminDev ONLY
   const handleResetSession = () => {
-    if (!canEdit || !currentSessionId) return;
+    if (userRole !== 'admin_dev' || !currentSessionId) {
+      toast.error("Hanya AdminDev yang dapat melakukan Reset Pertemuan!");
+      return;
+    }
 
     openConfirmation(
       'Reset Status Pertemuan?',
-      'Semua status mahasiswa di pertemuan ini akan direset menjadi "Menunggu Scan". Data yang sudah disimpan akan hilang.',
+      'SEMUA status mahasiswa di pertemuan ini akan direset menjadi "Menunggu Scan". Metode dan Waktu Scan akan dihapus tuntas.',
       async () => {
         setIsLoading(true);
         try {
@@ -612,14 +656,10 @@ export default function AttendanceHistory() {
 
           if (error) throw error;
 
-          toast.success("Status pertemuan berhasil direset!");
+          toast.success("Status pertemuan berhasil direset total!");
 
-          // Optimistic update
-          setStudents(prev => prev.map(s => ({
-            ...s,
-            status: 'pending',
-            scannedAt: null
-          })));
+          // Explicit re-fetch
+          await fetchStudentsAndAttendance(activeId.class, activeId.meeting);
 
         } catch (err: any) {
           toast.error("Gagal reset pertemuan: " + err.message);
@@ -698,6 +738,13 @@ export default function AttendanceHistory() {
 
           const updatePromises = changes.map(async ([studentId, status]) => {
             console.log(`Processing student ${studentId} -> ${status}`);
+
+            // SECURITY CHECK: If existing record is 'qr' and current user is NOT 'admin_dev', reject this specific change.
+            const existingStudent = students.find(s => s.id === studentId);
+            if (existingStudent?.method === 'qr' && userRole !== 'admin_dev') {
+              console.warn(`Attempt to overwrite QR record for student ${studentId} by non-dev user rejected.`);
+              return; // Skip this change
+            }
 
             if (status === 'pending') {
               // DELETE record if status returned to pending
@@ -806,11 +853,13 @@ export default function AttendanceHistory() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          {view !== 'students' && view !== 'semesters' && view !== 'courses' && canEdit && (
-            <Button onClick={openAddDialog} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
-              <Plus className="w-4 h-4" /> Tambah {view.slice(0, -1)}
-            </Button>
-          )}
+          {view !== 'students' && view !== 'semesters' && view !== 'courses' && (
+            view === 'classes' ? userRole === 'admin_dev' : canEdit
+          ) && (
+              <Button onClick={openAddDialog} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
+                <Plus className="w-4 h-4" /> Tambah {view === 'classes' ? 'Kelas' : view.slice(0, -1)}
+              </Button>
+            )}
           {view === 'semesters' && userRole === 'admin_dev' && (
             <Button variant="destructive" onClick={handleGlobalWipe} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
               <Trash2 className="w-4 h-4" /> Reset Masal (Global Wipe)
@@ -906,7 +955,7 @@ export default function AttendanceHistory() {
                 className="hover:shadow-teal-200/50 dark:hover:shadow-teal-900/50"
                 onClick={() => handleClassClick(cls.id, cls.name)}
               />
-              {canEdit && (
+              {userRole === 'admin_dev' && (
                 <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button size="icon" variant="ghost" className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700" onClick={(e) => openEditDialog(cls.id, cls.name, e)}>
                     <Pencil className="w-4 h-4 text-blue-500" />
@@ -930,23 +979,30 @@ export default function AttendanceHistory() {
               <span className="text-sm font-normal text-muted-foreground ml-2">({students.length} Total)</span>
             </h2>
             <div className="flex gap-2 items-center flex-wrap">
-              {canEdit && (
+              {userRole === 'admin_dev' && (
                 <Button variant="destructive" onClick={handleResetSession} className="gap-2 h-9">
-                  <Trash2 className="w-4 h-4" /> Reset Status Pertemuan
+                  <RotateCcw className="w-4 h-4" /> Reset Status Pertemuan
                 </Button>
               )}
               {canEdit && (
                 <Button
                   onClick={saveAttendance}
                   disabled={Object.keys(pendingChanges).length === 0 || isLoading}
-                  className={`gap-2 h-9 transition-all ${Object.keys(pendingChanges).length > 0 ? 'bg-indigo-600 hover:bg-indigo-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white animate-pulse shadow-md shadow-indigo-200 dark:shadow-emerald-900/20' : 'bg-muted text-muted-foreground'}`}
+                  className={cn(
+                    "gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
+                    Object.keys(pendingChanges).length > 0
+                      ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white shadow-lg shadow-indigo-500/25 dark:shadow-emerald-500/20 hover:scale-[1.03] active:scale-[0.97]"
+                      : "bg-muted/50 text-muted-foreground cursor-not-allowed border border-dashed border-muted-foreground/20"
+                  )}
                 >
                   {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
                   ) : (
-                    <Save className="w-4 h-4" />
+                    <Save className={cn("w-4 h-4", Object.keys(pendingChanges).length > 0 ? "text-white" : "text-muted-foreground")} />
                   )}
-                  {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
+                  <span className="tracking-tight">
+                    {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
+                  </span>
                 </Button>
               )}
             </div>
@@ -962,11 +1018,15 @@ export default function AttendanceHistory() {
                     <th className="px-6 py-4 font-semibold text-center">Status</th>
                     <th className="px-6 py-4 font-semibold text-center">Metode</th>
                     <th className="px-6 py-4 font-semibold text-center">Waktu Scan</th>
+                    {userRole === 'admin_dev' && <th className="px-6 py-4 font-semibold text-center">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {students.map((student) => (
-                    <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                    <tr key={student.id} className={cn(
+                      "transition-colors",
+                      student.method === 'qr' ? "bg-slate-50/50 dark:bg-slate-900/40 opacity-90" : "hover:bg-muted/30"
+                    )}>
                       <td className="px-6 py-4 font-medium flex items-center gap-3">
                         <div className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-offset-2 ring-offset-background",
@@ -985,11 +1045,11 @@ export default function AttendanceHistory() {
                       <td className="px-6 py-4 text-center">
                         <button
                           onClick={() => toggleAttendance(student.id, student.status)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev')}
                           className={cn(
                             "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all",
                             getStatusBadge(student.status),
-                            canEdit ? "hover:scale-105 active:scale-95 cursor-pointer" : "cursor-default opacity-90"
+                            (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer" : "cursor-default opacity-90"
                           )}
                         >
                           {getStatusIcon(student.status)}
@@ -1012,6 +1072,19 @@ export default function AttendanceHistory() {
                       <td className="px-6 py-4 text-center text-xs text-muted-foreground">
                         {student.scannedAt ? new Date(student.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                       </td>
+                      {userRole === 'admin_dev' && (
+                        <td className="px-6 py-4 text-center">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => handleResetIndividual(student.id, student.name)}
+                            title="Reset Status Individual"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {students.length === 0 && (

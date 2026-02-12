@@ -137,8 +137,8 @@ export default function Repository() {
           .select('role')
           .eq('user_id', user.id);
 
-        // Access restricted strictly to 'admin_dev' as per user request
-        const hasAccess = roles?.some(r => r.role === 'admin_dev') || false;
+        // Access allowed for 'admin_dev' and 'admin_kelas'
+        const hasAccess = roles?.some(r => r.role === 'admin_dev' || r.role === 'admin_kelas') || false;
         setCanManage(hasAccess);
       }
     };
