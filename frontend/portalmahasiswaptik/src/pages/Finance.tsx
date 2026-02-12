@@ -73,7 +73,8 @@ export default function Finance() {
   // --- STATE ---
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
-  const [matrixData, setMatrixData] = useState<StudentPayment[]>([]);
+  const [yearlyDues, setYearlyDues] = useState<any[]>([]);
+  const [students, setStudents] = useState<{ user_id: string, full_name: string }[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualSummary, setManualSummary] = useState<FinanceSummary>({ total_income: 0, total_expense: 0, balance: 0 });
   const [duesTotal, setDuesTotal] = useState<number>(0);
@@ -232,32 +233,40 @@ export default function Finance() {
   }, [isLifetime, selectedMonth, selectedYear, selectedClassId]);
 
   const fetchClassStats = useCallback(async () => {
-    if (!selectedClassId) return;
+    if (!selectedClassId || !session) return;
     try {
       setIsLoadingStats(true);
-      const params = new URLSearchParams();
-      params.append('class_id', selectedClassId);
-      params.append('year', selectedYear.toString());
-      if (!isLifetime) {
-        params.append('month', selectedMonth.toString());
+
+      // ✅ FIX 404: Direct Supabase query instead of backend endpoint
+      let query = supabase.from('transactions')
+        .select('type, amount')
+        .eq('class_id', selectedClassId);
+
+      if (isLifetime) {
+        query = query.gte('transaction_date', `${selectedYear}-01-01`).lte('transaction_date', `${selectedYear}-12-31`);
+      } else {
+        const mStr = String(selectedMonth).padStart(2, '0');
+        const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+        query = query.gte('transaction_date', `${selectedYear}-${mStr}-01`).lte('transaction_date', `${selectedYear}-${mStr}-${lastDay}`);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/finance/transactions/stats?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-        },
-      });
+      const { data, error } = await query;
+      if (error) throw error;
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setClassTransactionStats(result.data);
-        }
-      } else if (response.status === 403) {
-        console.warn("RLS Access Denied for Class Stats");
+      if (data) {
+        const income = data.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const expense = data.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+        setClassTransactionStats({
+          total_income: income,
+          total_expense: expense,
+          balance: income - expense
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gagal fetch class stats:", error);
+      // Fallback to avoid white screen
+      setClassTransactionStats({ total_income: 0, total_expense: 0, balance: 0 });
     } finally {
       setIsLoadingStats(false);
     }
@@ -281,98 +290,20 @@ export default function Finance() {
       setFetchError(null);
 
       const { data: validRoles, error: roleError } = await supabase.from('user_roles').select('user_id').in('role', ['mahasiswa', 'admin_kelas'] as any);
-
-      if (roleError) {
-        if (roleError.code === '42501') throw new Error("Akses ditolak. Anda tidak memiliki izin untuk melihat data kelas ini.");
-        throw roleError;
-      }
-
-      if (!validRoles || validRoles.length === 0) {
-        setMatrixData([]);
-        return;
-      }
+      if (roleError) throw roleError;
+      if (!validRoles || validRoles.length === 0) { setStudents([]); setYearlyDues([]); return; }
       const validUserIds = validRoles.map(r => r.user_id);
 
-      const { data: students, error: profilesError } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).in('user_id', validUserIds).order('full_name');
+      const { data: profileData, error: profilesError } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).in('user_id', validUserIds).order('full_name');
+      if (profilesError) throw profilesError;
+      if (!profileData || profileData.length === 0) { setStudents([]); setYearlyDues([]); return; }
+      setStudents(profileData);
 
-      if (profilesError) {
-        if (profilesError.code === '42501') throw new Error("Akses ditolak. Anda tidak memiliki izin untuk melihat data kelas ini.");
-        throw profilesError;
-      }
+      // FETCH ALL DUES FOR THE YEAR AT ONCE ⚡
+      const { data: dues, error: duesError } = await supabase.from('weekly_dues').select('*').in('student_id', profileData.map(s => s.user_id)).eq('year', selectedYear);
+      if (duesError) throw duesError;
+      setYearlyDues(dues || []);
 
-      if (!students || students.length === 0) {
-        setMatrixData([]);
-        return;
-      }
-      const studentIds = students.map(s => s.user_id);
-
-      if (!isLifetime) {
-        const queryBuilder = supabase.from('weekly_dues');
-        const { data: dues, error: duesError } = await (queryBuilder as any).select('student_id, week_number, status').in('student_id', studentIds).eq('month', selectedMonth).eq('year', selectedYear);
-
-        if (duesError) throw duesError;
-
-        const duesData = dues || [];
-        const mappedData = students.map(student => {
-          const statusList = ["unpaid", "unpaid", "unpaid", "unpaid"];
-          duesData.forEach(due => {
-            if (due.student_id === student.user_id && due.week_number <= 4) statusList[due.week_number - 1] = due.status;
-          });
-          return { name: student.full_name, student_id: student.user_id, payments: statusList };
-        });
-        setMatrixData(mappedData);
-      } else {
-        const queryBuilder = supabase.from('weekly_dues');
-        const { data: dues, error: lDuesError } = await (queryBuilder as any).select('student_id, week_number, month, year, amount').in('student_id', studentIds).eq('status', 'paid').eq('year', selectedYear);
-
-        if (lDuesError) throw lDuesError;
-
-        const studentMap = new Map<string, { totalNominal: number, fullMonths: number, deficiencies: string[], deficiencyAmount: number }>();
-        students.forEach(s => { studentMap.set(s.user_id, { totalNominal: 0, fullMonths: 0, deficiencies: [], deficiencyAmount: 0 }); });
-        const getMonthKey = (y: number, m: number) => `${y}-${m}`;
-        const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-        const aggregation = new Map<string, Map<string, { weeks: Set<number>, amount: number }>>();
-        dues?.forEach(d => {
-          if (!aggregation.has(d.student_id)) aggregation.set(d.student_id, new Map());
-          const monthlyMap = aggregation.get(d.student_id)!;
-          const key = getMonthKey(d.year, d.month);
-          if (!monthlyMap.has(key)) monthlyMap.set(key, { weeks: new Set(), amount: 0 });
-          const entry = monthlyMap.get(key)!;
-          entry.weeks.add(d.week_number);
-          entry.amount += d.amount;
-        });
-        aggregation.forEach((monthsMap, studentId) => {
-          const stats = studentMap.get(studentId)!;
-          monthsMap.forEach((data, timeKey) => {
-            stats.totalNominal += data.amount;
-            const isFull = data.weeks.size >= 4 || data.amount >= 20000;
-            if (isFull) {
-              stats.fullMonths += 1;
-            } else {
-              const [y, m] = timeKey.split('-').map(Number);
-              const missing = 4 - data.weeks.size;
-              const debt = missing * 5000;
-              if (debt > 0) {
-                stats.deficiencies.push(`${monthNames[m]} (-${missing} mg)`);
-                stats.deficiencyAmount += debt;
-              }
-            }
-          });
-        });
-        const mappedData = students.map(student => {
-          const stats = studentMap.get(student.user_id)!;
-          return {
-            name: student.full_name,
-            student_id: student.user_id,
-            payments: [],
-            lifetime_paid_count: stats.fullMonths,
-            lifetime_total: stats.totalNominal,
-            lifetime_deficiency: stats.deficiencies,
-            lifetime_deficiency_amount: stats.deficiencyAmount
-          };
-        });
-        setMatrixData(mappedData);
-      }
     } catch (error: any) {
       console.error("Matrix error:", error);
       setFetchError(error.message || "Gagal memuat data matrix");
@@ -380,7 +311,64 @@ export default function Finance() {
     } finally {
       setIsLoadingMatrix(false);
     }
-  }, [selectedClassId, selectedMonth, selectedYear, isLifetime]);
+  }, [selectedClassId, selectedYear]);
+
+  // Derived Matrix Data (The Mirror Source) 💎
+  const matrixData = useMemo(() => {
+    const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+
+    return students.map(student => {
+      const studentYearlyDues = yearlyDues.filter(d => d.student_id === student.user_id);
+
+      if (!isLifetime) {
+        // Monthly View
+        const statusList = ["unpaid", "unpaid", "unpaid", "unpaid"];
+        studentYearlyDues.filter(d => d.month === selectedMonth).forEach(due => {
+          if (due.week_number <= 4) statusList[due.week_number - 1] = due.status;
+        });
+        return { name: student.full_name, student_id: student.user_id, payments: statusList };
+      } else {
+        // Lifetime View
+        let totalNominal = 0;
+        let fullMonths = 0;
+        let deficiencies: string[] = [];
+        let deficiencyAmount = 0;
+
+        // Group by month for lifetime stats
+        const monthlyGroups = new Map<number, { weeks: Set<number>, amount: number }>();
+        studentYearlyDues.filter(d => d.status === 'paid').forEach(d => {
+          if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
+          const group = monthlyGroups.get(d.month)!;
+          group.weeks.add(d.week_number);
+          group.amount += d.amount;
+        });
+
+        monthlyGroups.forEach((data, month) => {
+          totalNominal += data.amount;
+          if (data.weeks.size >= 4 || data.amount >= 20000) {
+            fullMonths += 1;
+          } else {
+            const missing = 4 - data.weeks.size;
+            const debt = missing * 5000;
+            if (debt > 0) {
+              deficiencies.push(`${monthNames[month]} (-${missing} mg)`);
+              deficiencyAmount += debt;
+            }
+          }
+        });
+
+        return {
+          name: student.full_name,
+          student_id: student.user_id,
+          payments: [],
+          lifetime_paid_count: fullMonths,
+          lifetime_total: totalNominal,
+          lifetime_deficiency: deficiencies,
+          lifetime_deficiency_amount: deficiencyAmount
+        };
+      }
+    });
+  }, [students, yearlyDues, isLifetime, selectedMonth]);
 
   // ✅ RE-IMPLEMENTED: FETCH GLOBAL DATA (Month/Year/Lifetime) - Independent of selectedClassId
   useEffect(() => {
@@ -466,7 +454,7 @@ export default function Finance() {
     setIsLoadingStats(true);
     setIsLoadingMatrix(true);
     setTransactions([]);
-    setMatrixData([]);
+    setYearlyDues([]); // Clear the source instead
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
     setSelectedClassId(newClassId);
@@ -477,7 +465,7 @@ export default function Finance() {
     setIsLoadingStats(true);
     setIsLoadingMatrix(true);
     setTransactions([]);
-    setMatrixData([]);
+    setYearlyDues([]); // Clear the source instead
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
     setSelectedMonth(newMonth);
@@ -487,7 +475,7 @@ export default function Finance() {
     setIsLoadingStats(true);
     setIsLoadingMatrix(true);
     setTransactions([]);
-    setMatrixData([]);
+    setYearlyDues([]); // Clear the source instead
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
     setDuesTotal(0);
@@ -627,7 +615,25 @@ export default function Finance() {
         year: selectedYear
       }, { onConflict: 'student_id, week_number, month, year' });
       if (error) throw error;
-      setMatrixData(prev => prev.map(s => s.student_id === selectedCell.studentId ? { ...s, payments: s.payments.map((p, i) => i === selectedCell.weekIndex - 1 ? newStatus : p) } : s));
+
+      // Update yearlyDues (Source) and matrixData will re-memoize 💎
+      setYearlyDues(prev => {
+        const others = prev.filter(d =>
+          !(d.student_id === selectedCell.studentId &&
+            d.week_number === selectedCell.weekIndex &&
+            d.month === selectedMonth &&
+            d.year === selectedYear)
+        );
+        return [...others, {
+          student_id: selectedCell.studentId,
+          week_number: selectedCell.weekIndex,
+          status: newStatus,
+          amount: 5000,
+          month: selectedMonth,
+          year: selectedYear
+        }];
+      });
+
       fetchDuesTotal();
       toast.success(`Berhasil update jadi ${newStatus}`);
       setIsDialogOpen(false);
@@ -775,21 +781,229 @@ export default function Finance() {
     } catch (err: any) { toast.error(err.message); } finally { setIsUpdating(false); }
   };
 
-  const handleDownloadExcel = () => {
-    if (matrixData.length === 0) return;
-    const title = isLifetime ? `LAPORAN LIFETIME KAS KELAS ${selectedClassName.toUpperCase()}` : `LAPORAN IURAN KAS KELAS ${selectedClassName.toUpperCase()} - ${months.find(m => m.value === selectedMonth)?.label} ${selectedYear}`;
-    const headers = isLifetime ? ["No", "Nama Mahasiswa", "Total Bulan Bayar", "Total Nominal", "Status"] : ["No", "Nama Mahasiswa", "Minggu 1", "Minggu 2", "Minggu 3", "Minggu 4", "Total (Rp)"];
-    const dataRow: any[][] = [[title], [`Angkatan PTIK 2025 - Per Tanggal: ${new Date().toLocaleDateString('id-ID')}`], [], headers];
-    matrixData.forEach((s, i) => {
-      if (isLifetime) { dataRow.push([i + 1, s.name, `${s.lifetime_paid_count || 0}x Bayar`, s.lifetime_total || 0, "Active"]); } else {
-        const total = s.payments.filter(p => p === 'paid').length * 5000;
-        dataRow.push([i + 1, s.name, s.payments[0]?.toUpperCase() || "BELUM", s.payments[1]?.toUpperCase() || "BELUM", s.payments[2]?.toUpperCase() || "BELUM", s.payments[3]?.toUpperCase() || "BELUM", total]);
+  const handleDownloadExcel = async () => {
+    if (students.length === 0) {
+      toast.error("Tidak ada data untuk di-export.");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const toastId = toast.loading("Menyiapkan 13 Sheet Laporan...");
+
+      const wb = XLSX.utils.book_new();
+
+      // --- STYLES (Navy Professional) ---
+      const borderThin = { style: "thin", color: { rgb: "000000" } };
+      const borderThick = { style: "thick", color: { rgb: "000000" } };
+
+      const styles = {
+        title: { font: { bold: true, size: 16, color: { rgb: "1E293B" } }, alignment: { horizontal: "center", vertical: "center" } },
+        header: {
+          font: { bold: true, color: { rgb: "FFFFFF" }, size: 12 },
+          fill: { fgColor: { rgb: "1E293B" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }
+        },
+        cellCenter: { alignment: { horizontal: "center", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin } },
+        cellLeft: { alignment: { horizontal: "left", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin } },
+        paid: {
+          fill: { fgColor: { rgb: "D1FAE5" } },
+          font: { color: { rgb: "064E3B" }, bold: true },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }
+        },
+        unpaid: {
+          fill: { fgColor: { rgb: "FEE2E2" } },
+          font: { color: { rgb: "991B1B" }, bold: true },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }
+        },
+        summaryHeader: { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "334155" } }, alignment: { horizontal: "center", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin } },
+        summaryCell: { font: { bold: true }, alignment: { horizontal: "center", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }, fill: { fgColor: { rgb: "F8FAFC" } } }
+      };
+
+      const applyTableStyles = (ws: any, rowStart: number, rowEnd: number, colEnd: number, isMonthly = false) => {
+        for (let r = rowStart; r <= rowEnd; r++) {
+          for (let c = 0; c <= colEnd; c++) {
+            const cellAddr = XLSX.utils.encode_cell({ r, c });
+            if (!ws[cellAddr]) ws[cellAddr] = { v: "" };
+
+            const isCenterCol = c === 0 || (c >= 2 && c <= 6);
+            let baseStyle = JSON.parse(JSON.stringify(isCenterCol ? styles.cellCenter : (c === 1 ? styles.cellLeft : styles.cellCenter)));
+
+            if (r === rowStart) baseStyle.border.top = borderThick;
+            if (r === rowEnd) baseStyle.border.bottom = borderThick;
+            if (c === 0) baseStyle.border.left = borderThick;
+            if (c === colEnd) baseStyle.border.right = borderThick;
+
+            if (r === rowStart) {
+              baseStyle = { ...baseStyle, ...styles.header };
+              baseStyle.border.top = borderThick;
+              if (c === 0) baseStyle.border.left = borderThick;
+              if (c === colEnd) baseStyle.border.right = borderThick;
+            } else {
+              const val = ws[cellAddr].v?.toString().toUpperCase();
+              if (val?.includes('✓ LUNAS') || val === 'PAID') {
+                baseStyle.fill = styles.paid.fill;
+                baseStyle.font = styles.paid.font;
+              } else if (val?.includes('BELUM BAYAR') || val === 'UNPAID' || (c === 3 && val?.includes('-'))) {
+                baseStyle.fill = styles.unpaid.fill;
+                baseStyle.font = styles.unpaid.font;
+              }
+            }
+            ws[cellAddr].s = baseStyle;
+          }
+        }
+      };
+
+      // --- SHEET 1: REKAP LIFETIME (Kembar Identik UI) ---
+      toast.loading("Memproses Rekap Lifetime...", { id: toastId });
+      const lifetimeData: any[][] = [
+        ["LAPORAN KAS PTIK"],
+        [`Dashboard Keuangan Kelas ${selectedClassName.toUpperCase()}`],
+        [],
+        ["SUMMARY KEUANGAN"],
+        ["Saldo Kas Kelas", "Saldo Kas Angkatan", "Total Pemasukan Lain", "Saldo Bersih Lifetime"],
+        [formatIDR(classDuesTotal), formatIDR(batchNetBalance), formatIDR(totalIncomeTransactions), formatIDR(saldoBersih)],
+        [],
+        ["MATRIX IURAN LIFETIME"],
+        ["No", "Nama Mahasiswa", "Bulan Update", "Nominal Kurang", "Status"]
+      ];
+
+      const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+
+      students.forEach((student, i) => {
+        const studentYearlyDues = yearlyDues.filter(d => d.student_id === student.user_id);
+        let totalNominal = 0;
+        let fullMonths = 0;
+        let deficiencies: string[] = [];
+        let deficiencyAmount = 0;
+
+        const monthlyGroups = new Map<number, { weeks: Set<number>, amount: number }>();
+        studentYearlyDues.filter(d => d.status === 'paid').forEach(d => {
+          if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
+          const group = monthlyGroups.get(d.month)!;
+          group.weeks.add(d.week_number);
+          group.amount += d.amount;
+        });
+
+        monthlyGroups.forEach((data, m) => {
+          totalNominal += data.amount;
+          if (data.weeks.size >= 4 || data.amount >= 20000) fullMonths += 1;
+          else {
+            const missing = 4 - data.weeks.size;
+            const debt = missing * 5000;
+            if (debt > 0) {
+              deficiencies.push(`${monthNames[m]} (-${missing} mg)`);
+              deficiencyAmount += debt;
+            }
+          }
+        });
+
+        const nominalStr = deficiencyAmount > 0 ? `- ${formatIDR(deficiencyAmount)}` : formatIDR(0);
+        let statusText = "✓ LUNAS";
+        if (deficiencies.length > 0) statusText = `BELUM BAYAR (${deficiencies.join(' - ')})`;
+        else if (totalNominal === 0) statusText = "BELUM BAYAR";
+
+        lifetimeData.push([i + 1, student.full_name, `${fullMonths} Bulan`, nominalStr, statusText]);
+      });
+
+      const wsLifetime = XLSX.utils.aoa_to_sheet(lifetimeData);
+      applyTableStyles(wsLifetime, 8, lifetimeData.length - 1, 4, false);
+
+      // Summary Block Styles
+      for (let r = 4; r <= 5; r++) {
+        for (let c = 0; c <= 3; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          if (!wsLifetime[addr]) wsLifetime[addr] = { v: "" };
+          const s = JSON.parse(JSON.stringify(r === 4 ? styles.summaryHeader : styles.summaryCell));
+          if (r === 4) s.border.top = borderThick;
+          if (r === 5) s.border.bottom = borderThick;
+          if (c === 0) s.border.left = borderThick;
+          if (c === 3) s.border.right = borderThick;
+          wsLifetime[addr].s = s;
+        }
       }
-    });
-    const ws = XLSX.utils.aoa_to_sheet(dataRow);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Kas");
-    XLSX.writeFile(wb, `Laporan_Kas_${selectedClassName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+      wsLifetime["A1"].s = styles.title;
+      wsLifetime["A2"].s = styles.title;
+      wsLifetime["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }];
+      wsLifetime["!cols"] = [{ wch: 8 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsLifetime, "LIFETIME");
+
+      // --- SHEET 2-13: BULANAN ---
+      for (let mIdx = 1; mIdx <= 12; mIdx++) {
+        const mLabel = monthNames[mIdx];
+        const monthlyData: any[][] = [
+          ["LAPORAN KAS PTIK"],
+          [`Dashboard Keuangan Kelas ${selectedClassName.toUpperCase()} - ${mLabel} ${selectedYear}`],
+          [],
+          ["No", "Nama Mahasiswa", "W1", "W2", "W3", "W4", "Total"]
+        ];
+
+        students.forEach((s, sIdx) => {
+          const sDues = yearlyDues.filter(d => d.student_id === s.user_id && d.month === mIdx);
+          const w1 = sDues.find(d => d.week_number === 1)?.status || 'unpaid';
+          const w2 = sDues.find(d => d.week_number === 2)?.status || 'unpaid';
+          const w3 = sDues.find(d => d.week_number === 3)?.status || 'unpaid';
+          const w4 = sDues.find(d => d.week_number === 4)?.status || 'unpaid';
+          const paidCount = [w1, w2, w3, w4].filter(st => st === 'paid').length;
+          monthlyData.push([sIdx + 1, s.full_name, w1.toUpperCase(), w2.toUpperCase(), w3.toUpperCase(), w4.toUpperCase(), formatIDR(paidCount * 5000)]);
+        });
+
+        const duesTableEnd = monthlyData.length - 1;
+
+        // Add Transactions per Month
+        monthlyData.push([]);
+        monthlyData.push(["RINGKASAN TRANSAKSI"]);
+        monthlyData.push(["Keterangan", "Tipe", "Tanggal", "Nominal"]);
+        const txHeaderRow = monthlyData.length - 1;
+
+        const mTx = transactions.filter(t => t.class_id === selectedClassId && new Date(t.transaction_date).getMonth() + 1 === mIdx);
+        let tIn = 0; let tOut = 0;
+        mTx.forEach(tx => {
+          monthlyData.push([tx.description || tx.category, tx.type === 'income' ? 'MASUK' : 'KELUAR', tx.transaction_date, formatIDR(tx.amount)]);
+          if (tx.type === 'income') tIn += tx.amount; else tOut += tx.amount;
+        });
+
+        monthlyData.push([]);
+        monthlyData.push(["TOTAL MASUK", "", "", formatIDR(tIn)]);
+        monthlyData.push(["TOTAL KELUAR", "", "", formatIDR(tOut)]);
+        monthlyData.push(["TOTAL SALDO", "", "", formatIDR(tIn - tOut)]);
+
+        const wsMonth = XLSX.utils.aoa_to_sheet(monthlyData);
+        wsMonth["A1"].s = styles.title;
+        wsMonth["A2"].s = styles.title;
+        wsMonth["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }];
+
+        applyTableStyles(wsMonth, 3, duesTableEnd, 6, true);
+        applyTableStyles(wsMonth, txHeaderRow, monthlyData.length - 5, 3, false);
+
+        // Footer Styles
+        for (let r = monthlyData.length - 3; r < monthlyData.length; r++) {
+          for (let c = 0; c <= 3; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            if (!wsMonth[addr]) wsMonth[addr] = { v: "" };
+            wsMonth[addr].s = { ...styles.cellCenter, fill: { fgColor: { rgb: r === monthlyData.length - 1 ? "F1F5F9" : "F8FAFC" } }, font: { bold: true } };
+            if (r === monthlyData.length - 3) wsMonth[addr].s.border.top = borderThick;
+            if (r === monthlyData.length - 1) wsMonth[addr].s.border.bottom = borderThick;
+            if (c === 0) wsMonth[addr].s.border.left = borderThick;
+            if (c === 3) wsMonth[addr].s.border.right = borderThick;
+          }
+        }
+
+        wsMonth["!cols"] = [{ wch: 8 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, wsMonth, mLabel);
+      }
+
+      XLSX.writeFile(wb, `Laporan_Keuangan_Kelas_${selectedClassName}_${selectedYear}.xlsx`);
+      toast.success("Berhasil! 13 Sheet Laporan telah di-generate.", { id: toastId });
+    } catch (err: any) {
+      toast.error("Gagal export: " + err.message);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const displayedTransactions = useMemo(() => {
@@ -949,7 +1163,6 @@ export default function Finance() {
                     <tr key={student.student_id} className="border-b border-border/40 hover:bg-muted/30 transition-colors group">
                       <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
                         <div className="flex items-center justify-between">
-                          <span>{student.name}</span>
                           <span>{student.name}</span>
                           {/* STRICT CHECK: Only admin_dev sees the reset button */}
                           {currentUser?.role === 'admin_dev' && (

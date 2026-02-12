@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import {
   Folder, FolderOpen, Users, ChevronRight, ArrowLeft, Calendar,
   CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2,
-  UserCheck, FileText, Search, Edit, QrCode, RotateCcw
+  UserCheck, FileText, Search, Edit, QrCode, RotateCcw, Download, FileSpreadsheet
 } from 'lucide-react';
+import XLSX from 'xlsx-js-style';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -76,6 +84,8 @@ export default function AttendanceHistory() {
   const [formData, setFormData] = useState({ name: '', code: '' });
   const [editId, setEditId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isMasterExportOpen, setIsMasterExportOpen] = useState(false);
+  const [selectedExportClassId, setSelectedExportClassId] = useState<string>('');
 
   // --- CONFIRMATION MODAL STATE ---
   const [modalConfig, setModalConfig] = useState<{
@@ -134,12 +144,15 @@ export default function AttendanceHistory() {
         else if (isKelas) setUserRole('admin_kelas');
         else if (isDosen) setUserRole('admin_dosen');
 
+        // Role check for export button (anything but 'mahasiswa')
+        const isNotStudent = rolesList.length > 0 && !rolesList.includes('mahasiswa');
         // STRICT ACCESS: 'admin_dev', 'admin_kelas', or 'admin_dosen' can edit
-        setCanEdit(isDev || isKelas || isDosen);
+        setCanEdit(isDev || isKelas || isDosen || isNotStudent); // Inclusive for export
       }
     };
     checkUserRole();
     fetchSemesters();
+    fetchClasses();
   }, []);
 
   // --- FETCH DATA ---
@@ -812,6 +825,244 @@ export default function AttendanceHistory() {
     );
   };
 
+  const handleExportExcel = () => {
+    if (students.length === 0) {
+      toast.info("Tidak ada data untuk diexport");
+      return;
+    }
+
+    // Styles DEFINITION
+    const styleBold = { font: { bold: true } };
+    const styleHeader = {
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "4F46E5" } }, // Indigo-600
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" }
+      }
+    };
+    const styleCell = {
+      border: {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" }
+      }
+    };
+
+    // Prepare metadata rows
+    const ws_data: any[] = [
+      [{ v: "Mata Kuliah:", s: styleBold }, { v: activeId.courseName || '-' }],
+      [{ v: "Kelas:", s: styleBold }, { v: activeId.className || '-' }],
+      [{ v: "Pertemuan Ke:", s: styleBold }, { v: activeId.meetingName || '-' }],
+      [{ v: "Semester:", s: styleBold }, { v: activeId.semesterName || '-' }],
+      [], // Spacer
+      [
+        { v: "No", s: styleHeader },
+        { v: "NIM", s: styleHeader },
+        { v: "Nama Mahasiswa", s: styleHeader },
+        { v: "Status", s: styleHeader },
+        { v: "Metode", s: styleHeader },
+        { v: "Waktu Scan", s: styleHeader }
+      ]
+    ];
+
+    // Add student data rows
+    students.forEach((s, idx) => {
+      const statusStr = s.status.toUpperCase();
+      const methodStr = s.method ? s.method.toUpperCase() : "-";
+
+      // Conditional coloring for Status
+      let statusStyle = { ...styleCell, fill: { fgColor: { rgb: "FFFFFF" } } };
+      if (statusStr === 'HADIR') statusStyle.fill.fgColor.rgb = "C6EFCE"; // Light Green
+      else if (statusStr === 'ALPHA') statusStyle.fill.fgColor.rgb = "FFC7CE"; // Light Red
+      else if (statusStr === 'IZIN') statusStyle.fill.fgColor.rgb = "FFEB9C"; // Light Yellow
+
+      // Conditional coloring for Method
+      let methodStyle = { ...styleCell, font: { color: { rgb: "000000" } } };
+      if (methodStr === 'QR') methodStyle.font.color.rgb = "008000"; // Green text for QR
+      else if (methodStr === 'MANUAL') methodStyle.font.color.rgb = "4682B4"; // SteelBlue for Manual
+
+      ws_data.push([
+        { v: (idx + 1).toString(), s: styleCell },
+        { v: s.nim, s: styleCell },
+        { v: s.name, s: styleCell },
+        { v: statusStr, s: statusStyle },
+        { v: methodStr, s: methodStyle },
+        { v: s.scannedAt ? new Date(s.scannedAt).toLocaleString('id-ID') : "-", s: styleCell }
+      ]);
+    });
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+    // Set Column Widths (Auto-Width approx)
+    const colWidths = [
+      { wch: 5 },  // No
+      { wch: 15 }, // NIM
+      { wch: 35 }, // Nama
+      { wch: 12 }, // Status
+      { wch: 12 }, // Metode
+      { wch: 25 }  // Waktu
+    ];
+    ws['!cols'] = colWidths;
+
+    // Create Workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+
+    // Format safe file name
+    const safeCourse = (activeId.courseName || 'Matkul').replace(/\s+/g, '_');
+    const safeClass = (activeId.className || 'Kelas').replace(/\s+/g, '_');
+    const safeMeeting = (activeId.meetingName || 'Pertemuan').replace(/\s+/g, '_');
+    const fileName = `Absensi_${safeCourse}_${safeClass}_${safeMeeting}.xlsx`;
+
+    // Trigger download
+    XLSX.writeFile(wb, fileName);
+    toast.success("Excel Berwarna berhasil diunduh");
+  };
+
+  const handleDownloadMasterExcel = async () => {
+    if (!selectedExportClassId) {
+      toast.error("Pilih kelas terlebih dahulu.");
+      return;
+    }
+
+    setIsLoading(true);
+    const toastId = toast.loading("Menyiapkan Laporan Master (Semester)...");
+
+    try {
+      // 1. Fetch Dynamic Meetings for this course
+      const { data: allMeetings, error: meetError } = await supabase
+        .from('meetings')
+        .select('*')
+        .eq('subject_id', activeId.course)
+        .order('meeting_number');
+
+      if (meetError) throw meetError;
+      if (!allMeetings || allMeetings.length === 0) {
+        toast.error("Tidak ada data pertemuan untuk matkul ini.");
+        return;
+      }
+
+      // 2. Fetch Students for the selected class
+      const { data: profiles, error: profError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, nim')
+        .eq('class_id', selectedExportClassId)
+        .order('full_name');
+
+      if (profError) throw profError;
+
+      const userIds = profiles.map(p => p.user_id);
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('user_id', userIds);
+      const toExclude = new Set(roles?.filter(r => ['admin_dosen', 'admin_dev'].includes(r.role)).map(r => r.user_id));
+      const filteredStudents = profiles.filter(p => !toExclude.has(p.user_id));
+
+      if (filteredStudents.length === 0) {
+        toast.error("Tidak ada mahasiswa di kelas ini.");
+        return;
+      }
+
+      // 3. Fetch All Sessions & Records for this class and course
+      const { data: sessions, error: sessError } = await supabase
+        .from('attendance_sessions')
+        .select('id, meeting_id')
+        .eq('class_id', selectedExportClassId)
+        .in('meeting_id', allMeetings.map(m => m.id));
+
+      if (sessError) throw sessError;
+
+      const sessionIds = sessions.map(s => s.id);
+      let allRecords: any[] = [];
+      if (sessionIds.length > 0) {
+        const { data: records, error: recError } = await (supabase as any)
+          .from('attendance_records')
+          .select('student_id, status, scanned_at, method, session_id')
+          .in('session_id', sessionIds);
+        if (recError) throw recError;
+        allRecords = records || [];
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      const styleBold = { font: { bold: true } };
+      const styleHeader = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "4F46E5" } },
+        alignment: { horizontal: "center", vertical: "center" },
+        border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
+      };
+      const styleCell = { border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } } };
+
+      allMeetings.forEach((m) => {
+        const sessionId = sessions.find(s => s.meeting_id === m.id)?.id;
+        const meetingRecords = allRecords.filter(r => r.session_id === sessionId);
+
+        const ws_data: any[] = [
+          [{ v: "Mata Kuliah:", s: styleBold }, { v: activeId.courseName }],
+          [{ v: "Kelas:", s: classes.find(c => c.id === selectedExportClassId)?.name || activeId.className }],
+          [{ v: "Pertemuan:", s: styleBold }, { v: `${m.meeting_number} - ${m.topic}` }],
+          [{ v: "Semester:", s: styleBold }, { v: activeId.semesterName }],
+          [],
+          [
+            { v: "No", s: styleHeader },
+            { v: "NIM", s: styleHeader },
+            { v: "Nama Mahasiswa", s: styleHeader },
+            { v: "Status", s: styleHeader },
+            { v: "Metode", s: styleHeader },
+            { v: "Waktu Scan", s: styleHeader }
+          ]
+        ];
+
+        filteredStudents.forEach((s, idx) => {
+          const rec = meetingRecords.find(r => r.student_id === s.user_id);
+          const statusStr = (rec?.status || 'PENDING').toUpperCase();
+          const methodStr = rec?.method ? rec.method.toUpperCase() : "-";
+
+          let statusStyle = { ...styleCell, fill: { fgColor: { rgb: "FFFFFF" } } };
+          if (statusStr === 'HADIR') statusStyle.fill.fgColor.rgb = "C6EFCE";
+          else if (statusStr === 'ALPHA') statusStyle.fill.fgColor.rgb = "FFC7CE";
+          else if (statusStr === 'IZIN') statusStyle.fill.fgColor.rgb = "FFEB9C";
+          else if (statusStr === 'PENDING') statusStyle.fill.fgColor.rgb = "F3F4F6";
+
+          let methodStyle = { ...styleCell, font: { color: { rgb: "000000" } } };
+          if (methodStr === 'QR') methodStyle.font.color.rgb = "008000";
+          else if (methodStr === 'MANUAL') methodStyle.font.color.rgb = "4682B4";
+
+          ws_data.push([
+            { v: (idx + 1).toString(), s: styleCell },
+            { v: s.nim, s: styleCell },
+            { v: s.full_name, s: styleCell },
+            { v: statusStr, s: statusStyle },
+            { v: methodStr, s: methodStyle },
+            { v: rec?.scanned_at ? new Date(rec.scanned_at).toLocaleString('id-ID') : "-", s: styleCell }
+          ]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 25 }];
+
+        const sheetName = `P${m.meeting_number}`.substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      const fileName = `Master_Absensi_${activeId.courseName.replace(/\s+/g, '_')}_${(classes.find(c => c.id === selectedExportClassId)?.name || 'Kelas').replace(/\s+/g, '_')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      toast.success("Laporan Master berhasil diunduh!", { id: toastId });
+      setIsMasterExportOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Gagal export master: " + err.message, { id: toastId });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // --- HELPERS ---
   const getStatusIcon = (status: string) => {
     if (status === 'hadir') return <CheckCircle className="w-5 h-5 text-green-500" />;
@@ -863,6 +1114,14 @@ export default function AttendanceHistory() {
           {view === 'semesters' && userRole === 'admin_dev' && (
             <Button variant="destructive" onClick={handleGlobalWipe} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
               <Trash2 className="w-4 h-4" /> Reset Masal (Global Wipe)
+            </Button>
+          )}
+          {view === 'meetings' && canEdit && (
+            <Button
+              onClick={() => setIsMasterExportOpen(true)}
+              className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <FileSpreadsheet className="w-4 h-4" /> Download Master Excel (Semester)
             </Button>
           )}
         </div>
@@ -985,25 +1244,36 @@ export default function AttendanceHistory() {
                 </Button>
               )}
               {canEdit && (
-                <Button
-                  onClick={saveAttendance}
-                  disabled={Object.keys(pendingChanges).length === 0 || isLoading}
-                  className={cn(
-                    "gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
-                    Object.keys(pendingChanges).length > 0
-                      ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white shadow-lg shadow-indigo-500/25 dark:shadow-emerald-500/20 hover:scale-[1.03] active:scale-[0.97]"
-                      : "bg-muted/50 text-muted-foreground cursor-not-allowed border border-dashed border-muted-foreground/20"
+                <div className="flex gap-2">
+                  {userRole !== 'mahasiswa' && userRole !== null && (
+                    <Button
+                      onClick={handleExportExcel}
+                      className="gap-2 h-10 px-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.03] active:scale-[0.97]"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span className="font-bold">Download Excel</span>
+                    </Button>
                   )}
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <Save className={cn("w-4 h-4", Object.keys(pendingChanges).length > 0 ? "text-white" : "text-muted-foreground")} />
-                  )}
-                  <span className="tracking-tight">
-                    {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
-                  </span>
-                </Button>
+                  <Button
+                    onClick={saveAttendance}
+                    disabled={Object.keys(pendingChanges).length === 0 || isLoading}
+                    className={cn(
+                      "gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
+                      Object.keys(pendingChanges).length > 0
+                        ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white shadow-lg shadow-indigo-500/25 dark:shadow-emerald-500/20 hover:scale-[1.03] active:scale-[0.97]"
+                        : "bg-muted/50 text-muted-foreground cursor-not-allowed border border-dashed border-muted-foreground/20"
+                    )}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <Save className={cn("w-4 h-4", Object.keys(pendingChanges).length > 0 ? "text-white" : "text-muted-foreground")} />
+                    )}
+                    <span className="tracking-tight">
+                      {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
+                    </span>
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -1176,6 +1446,50 @@ export default function AttendanceHistory() {
         confirmText={modalConfig.confirmText}
         isLoading={isLoading}
       />
+      {/* MASTER EXPORT DIALOG */}
+      <Dialog open={isMasterExportOpen} onOpenChange={setIsMasterExportOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+              Download Master Laporan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label>Pilih Kelas</Label>
+              <Select value={selectedExportClassId} onValueChange={setSelectedExportClassId}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Pilih Kelas..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Laporan akan digenerate untuk seluruh pertemuan (Semester-Wide) dalam satu file Excel.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMasterExportOpen(false)} className="rounded-xl">
+              Batal
+            </Button>
+            <Button
+              onClick={handleDownloadMasterExcel}
+              disabled={!selectedExportClassId || isLoading}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Generate & Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
