@@ -635,7 +635,11 @@ export default function Finance() {
   };
 
   const handleResetStudentStatus = async (studentId: string, studentName: string) => {
-    if (!canEdit()) return;
+    // STRICT CHECK: Only admin_dev can reset
+    if (currentUser?.role !== 'admin_dev') {
+      toast.error("Hanya Admin Developer yang bisa mereset data.");
+      return;
+    }
     if (selectedMonth === 0) {
       toast.error("Pilih bulan spesifik dulu untuk me-reset data iuran.");
       return;
@@ -713,7 +717,11 @@ export default function Finance() {
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    if (!canEdit()) return;
+    // STRICT CHECK: Only admin_dev can delete transactions
+    if (currentUser?.role !== 'admin_dev') {
+      toast.error("Hanya Admin Developer yang bisa menghapus transaksi.");
+      return;
+    }
 
     openConfirmation(
       'Hapus Transaksi?',
@@ -942,13 +950,15 @@ export default function Finance() {
                       <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
                         <div className="flex items-center justify-between">
                           <span>{student.name}</span>
-                          {canEdit() && (
+                          <span>{student.name}</span>
+                          {/* STRICT CHECK: Only admin_dev sees the reset button */}
+                          {currentUser?.role === 'admin_dev' && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={() => handleResetStudentStatus(student.student_id, student.name)}
-                              title="Reset Bulan Ini"
+                              title="Reset Bulan Ini (Admin Dev Only)"
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
@@ -1140,10 +1150,15 @@ export default function Finance() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={cn("font-bold text-sm whitespace-nowrap", tx?.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}> {tx?.type === 'income' ? '+' : '-'}{formatIDR(tx?.amount)} </span>
-                      {canEdit() && (currentUser?.role === 'admin_dev' || currentUser?.class_id === tx.class_id) && (
+                      {canEdit() && (
                         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEditClick(tx)}><Pencil className="w-4 h-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteTransaction(tx.id)} disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button>
+                          {(currentUser?.role === 'admin_dev' || currentUser?.class_id === tx.class_id) && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEditClick(tx)}><Pencil className="w-4 h-4" /></Button>
+                          )}
+                          {/* STRICT CHECK: Only admin_dev sees delete transaction */}
+                          {currentUser?.role === 'admin_dev' && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteTransaction(tx.id)} disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1274,7 +1289,18 @@ export default function Finance() {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+
+      {/* CONFIRMATION MODAL - ADDED INTO RENDER */}
+      <ConfirmationModal
+        isOpen={modalConfig.isOpen}
+        onClose={closeModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        description={modalConfig.description}
+        variant={modalConfig.variant}
+        confirmText={modalConfig.confirmText}
+      />
+    </div >
   );
 }
 

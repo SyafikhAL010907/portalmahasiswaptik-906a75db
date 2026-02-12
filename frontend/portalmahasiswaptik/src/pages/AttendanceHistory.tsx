@@ -27,6 +27,7 @@ interface Student {
   nim: string;
   status: 'hadir' | 'izin' | 'alpha' | 'pending';
   scannedAt?: string | null;
+  method?: string | null; // 'qr' or 'manual'
 }
 
 interface Semester {
@@ -50,13 +51,15 @@ type ViewState = 'semesters' | 'courses' | 'meetings' | 'classes' | 'students';
 export default function AttendanceHistory() {
   // --- STATE DATA (DYNAMIC) ---
   const [semesters, setSemesters] = useState<Semester[]>([]);
-
   const [courses, setCourses] = useState<any[]>([]);
   const [meetings, setMeetings] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
+  // NEW: Local state for pending changes
+  const [pendingChanges, setPendingChanges] = useState<{ [studentId: string]: string }>({});
 
   // --- VIEW STATE ---
   const [view, setView] = useState<ViewState>('semesters');
@@ -123,10 +126,16 @@ export default function AttendanceHistory() {
           .eq('user_id', user.id);
 
         const rolesList = roles?.map(r => r.role) || [];
+        const isDev = rolesList.includes('admin_dev');
+        const isKelas = rolesList.includes('admin_kelas');
+        const isDosen = rolesList.includes('admin_dosen');
 
-        // STRICT ACCESS: Only 'admin_dev' (AdminDev) can edit/save manual attendance
-        const hasAccess = rolesList.includes('admin_dev');
-        setCanEdit(hasAccess);
+        if (isDev) setUserRole('admin_dev');
+        else if (isKelas) setUserRole('admin_kelas');
+        else if (isDosen) setUserRole('admin_dosen');
+
+        // STRICT ACCESS: 'admin_dev', 'admin_kelas', or 'admin_dosen' can edit
+        setCanEdit(isDev || isKelas || isDosen);
       }
     };
     checkUserRole();
@@ -136,7 +145,8 @@ export default function AttendanceHistory() {
   // --- FETCH DATA ---
   const fetchSemesters = async () => {
     try {
-      const { data, error } = await supabase.from('semesters').select('*').order('id');
+      // Use (supabase as any) because 'semesters' table types might not be generated yet
+      const { data, error } = await (supabase as any).from('semesters').select('*').order('id');
       if (error) throw error;
       if (data) setSemesters(data);
     } catch (err) {
@@ -202,6 +212,7 @@ export default function AttendanceHistory() {
 
   const fetchStudentsAndAttendance = async (classId: string, meetingId: string) => {
     setIsLoading(true);
+    setPendingChanges({}); // Reset pending changes on fetch
     try {
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
@@ -245,21 +256,21 @@ export default function AttendanceHistory() {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      let recordMap = new Map<string, { status: string, scannedAt: string }>();
+      let recordMap = new Map<string, { status: string, scannedAt: string, method?: string }>();
 
       if (sessions && sessions.length > 0) {
         const sessionId = sessions[0].id;
         setCurrentSessionId(sessionId); // Track active session for Realtime
 
-        const { data: records, error: recordsError } = await supabase
+        const { data: records, error: recordsError } = await (supabase as any)
           .from('attendance_records')
-          .select('student_id, status, scanned_at')
+          .select('student_id, status, scanned_at, method')
           .eq('session_id', sessionId);
 
         if (recordsError) throw recordsError;
 
         if (records) {
-          records.forEach(r => recordMap.set(r.student_id, { status: r.status, scannedAt: r.scanned_at }));
+          records.forEach(r => recordMap.set(r.student_id, { status: r.status, scannedAt: r.scanned_at, method: r.method }));
         }
       } else {
         setCurrentSessionId(null);
@@ -279,7 +290,8 @@ export default function AttendanceHistory() {
           name: p.full_name,
           nim: p.nim,
           status: status,
-          scannedAt: record?.scannedAt
+          scannedAt: record?.scannedAt,
+          method: record?.method
         };
       });
 
@@ -310,6 +322,9 @@ export default function AttendanceHistory() {
           // Update local state immediately
           const newRecord = payload.new as { student_id: string, status: string, scanned_at: string };
 
+          // SKIP Realtime update if we have pending changes for this user to avoid jitter
+          if (pendingChanges[newRecord.student_id]) return;
+
           setStudents(currentStudents =>
             currentStudents.map(s => {
               if (s.id === newRecord.student_id) {
@@ -335,7 +350,7 @@ export default function AttendanceHistory() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentSessionId]);
+  }, [currentSessionId, pendingChanges]); // Added pendingChanges dependency check logic inside
 
   // --- NAVIGATION HANDLERS ---
   const handleSemesterClick = (id: number, name: string) => {
@@ -363,7 +378,10 @@ export default function AttendanceHistory() {
   };
 
   const handleBack = () => {
-    if (view === 'students') setView('classes');
+    if (view === 'students') {
+      setView('classes');
+      setPendingChanges({}); // Clear pending on back
+    }
     else if (view === 'classes') setView('meetings');
     else if (view === 'meetings') setView('courses');
     else if (view === 'courses') setView('semesters');
@@ -485,38 +503,10 @@ export default function AttendanceHistory() {
     const nextStatus = statuses[(statuses.indexOf(current as any) + 1) % statuses.length];
 
     // Optimistic Update (Local)
-    setStudents(students.map(s => s.id === studentId ? { ...s, status: nextStatus } : s));
+    setStudents(students.map(s => s.id === studentId ? { ...s, status: nextStatus, method: 'manual' } : s));
 
-    // Immediate DB Update (Realtime Trigger)
-    if (currentSessionId) {
-      try {
-        if (nextStatus === 'pending') {
-          // If cycling back to pending, remove the record
-          await supabase
-            .from('attendance_records')
-            .delete()
-            .eq('session_id', currentSessionId)
-            .eq('student_id', studentId);
-        } else {
-          // Upsert new status
-          await supabase
-            .from('attendance_records')
-            .upsert({
-              session_id: currentSessionId,
-              student_id: studentId,
-              status: nextStatus,
-              scanned_at: new Date().toISOString()
-            }, { onConflict: 'session_id, student_id' });
-        }
-      } catch (err) {
-        console.error("Failed to sync attendance:", err);
-        toast.error("Gagal sinkronisasi data ke server");
-      }
-    } else {
-      toast("Sesi belum dibuat. Klik 'Simpan Permanen' untuk membuat sesi.", {
-        description: "Perubahan hanya tersimpan lokal untuk saat ini."
-      });
-    }
+    // Store in pendingChanges (Purely Local)
+    setPendingChanges(prev => ({ ...prev, [studentId]: nextStatus }));
   };
 
   const handleResetQr = async (studentId: string, e: React.MouseEvent) => {
@@ -572,7 +562,11 @@ export default function AttendanceHistory() {
   };
 
   const handleGlobalWipe = async () => {
-    if (!canEdit) return;
+    // STRICT: Only admin_dev can wipe
+    if (userRole !== 'admin_dev') {
+      toast.error("Hanya AdminDev yang dapat melakukan Reset Masal!");
+      return;
+    }
 
     openConfirmation(
       'GLOBAL WIPE / RESET TOTAL',
@@ -643,63 +637,132 @@ export default function AttendanceHistory() {
       toast.error("Anda tidak memiliki akses untuk menyimpan absensi");
       return;
     }
-    setIsLoading(true);
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("User tidak terautentikasi");
 
-      // Check existing session
-      const { data: existingSessions } = await supabase
-        .from('attendance_sessions')
-        .select('id')
-        .eq('meeting_id', activeId.meeting)
-        .eq('class_id', activeId.class)
-        .limit(1);
-
-      let sessionId = existingSessions?.[0]?.id;
-
-      if (!sessionId) {
-        // Create new session
-        const { data: newSession, error: createError } = await supabase
-          .from('attendance_sessions')
-          .insert([{
-            meeting_id: activeId.meeting,
-            class_id: activeId.class,
-            lecturer_id: userData.user.id,
-            is_active: true,
-            qr_code: Math.random().toString(36).substring(7),
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          }])
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        sessionId = newSession.id;
-      }
-
-      const recordsToUpsert = students
-        .filter(s => s.status !== 'pending')
-        .map(s => ({
-          session_id: sessionId!,
-          student_id: s.id,
-          status: s.status,
-          scanned_at: s.scannedAt || (s.status === 'hadir' ? new Date().toISOString() : null)
-        }));
-
-      if (recordsToUpsert.length > 0) {
-        const { error: upsertError } = await supabase
-          .from('attendance_records')
-          .upsert(recordsToUpsert, { onConflict: 'session_id, student_id' });
-
-        if (upsertError) throw upsertError;
-      }
-
-      toast.success("Absensi berhasil disimpan permanen!");
-    } catch (err: any) {
-      toast.error("Gagal simpan absensi: " + err.message);
-    } finally {
-      setIsLoading(false);
+    // CHECK IF THERE ARE CHANGES TO SAVE
+    if (Object.keys(pendingChanges).length === 0) {
+      toast.info("Tidak ada perubahan yang perlu disimpan.");
+      return;
     }
+
+    openConfirmation(
+      'Simpan Permanen?',
+      'Yakin ingin menyimpan perubahan status secara permanen?',
+      async () => {
+        setIsLoading(true);
+        console.log("Starting Save Attendance...");
+        console.log("Pending Changes:", pendingChanges);
+        console.log("Active Context:", activeId);
+
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          if (!userData.user) throw new Error("User tidak terautentikasi");
+
+          // Check existing session
+          let sessionId = currentSessionId;
+
+          if (!sessionId) {
+            console.log("No active session ID, checking database...");
+            const { data: existingSessions } = await supabase
+              .from('attendance_sessions')
+              .select('id')
+              .eq('meeting_id', activeId.meeting)
+              .eq('class_id', activeId.class)
+              .limit(1);
+
+            sessionId = existingSessions?.[0]?.id;
+          }
+
+          if (!sessionId) {
+            console.log("Creating new session...");
+            // Create new session
+            const { data: newSession, error: createError } = await supabase
+              .from('attendance_sessions')
+              .insert([{
+                meeting_id: activeId.meeting,
+                class_id: activeId.class,
+                lecturer_id: userData.user.id,
+                is_active: true,
+                qr_code: Math.random().toString(36).substring(7),
+                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+              }])
+              .select()
+              .single();
+
+            if (createError) throw createError;
+            sessionId = newSession.id;
+          }
+          console.log("Using Session ID:", sessionId);
+
+          // Process pending changes
+          const changes = Object.entries(pendingChanges);
+
+          const updatePromises = changes.map(async ([studentId, status]) => {
+            console.log(`Processing student ${studentId} -> ${status}`);
+
+            if (status === 'pending') {
+              // DELETE record if status returned to pending
+              console.log(`Deleting record for ${studentId}`);
+              const { error } = await supabase
+                .from('attendance_records')
+                .delete()
+                .eq('session_id', sessionId!)
+                .eq('student_id', studentId);
+
+              if (error) {
+                console.error(`Error deleting ${studentId}:`, error);
+                throw error;
+              }
+            } else {
+              // UPSERT record
+              // Use current time for scanned_at if it's a manual update, unless strictly preserving old scan time is needed
+              // For manual entry, we treat it as "now" if it wasn't scanned before, or valid status update
+              const payload = {
+                session_id: sessionId!,
+                student_id: studentId,
+                status: status,
+                scanned_at: new Date().toISOString(),
+                method: 'manual',
+                updated_by: userData.user.id
+              };
+              console.log(`Upserting record for ${studentId}:`, payload);
+
+              const { error } = await (supabase as any)
+                .from('attendance_records')
+                .upsert(payload, { onConflict: 'session_id, student_id' });
+
+              if (error) {
+                console.error(`Error upserting ${studentId}:`, error);
+                throw error;
+              }
+            }
+          });
+
+          await Promise.all(updatePromises);
+
+          toast.success("Absensi berhasil disimpan permanen!");
+
+          // Refresh data FIRST
+          await fetchStudentsAndAttendance(activeId.class, activeId.meeting);
+
+          // THEN clear pending changes
+          setPendingChanges({});
+
+        } catch (err: any) {
+          console.error("Save failed:", err);
+          let errorMessage = "Gagal simpan absensi.";
+          if (err.message?.includes('violates row-level security')) {
+            errorMessage = "Akses ditolak (RLS). Pastikan Anda memiliki izin Dosen/Admin untuk menyimpan.";
+          } else if (err.message) {
+            errorMessage += " " + err.message;
+          }
+          toast.error(errorMessage);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      'info',
+      'Simpan Permanen'
+    );
   };
 
   // --- HELPERS ---
@@ -748,7 +811,7 @@ export default function AttendanceHistory() {
               <Plus className="w-4 h-4" /> Tambah {view.slice(0, -1)}
             </Button>
           )}
-          {view === 'semesters' && canEdit && (
+          {view === 'semesters' && userRole === 'admin_dev' && (
             <Button variant="destructive" onClick={handleGlobalWipe} className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4">
               <Trash2 className="w-4 h-4" /> Reset Masal (Global Wipe)
             </Button>
@@ -861,20 +924,29 @@ export default function AttendanceHistory() {
       {/* STUDENT LIST TABLE (Only when view === students) */}
       {view === 'students' && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex justify-between items-center bg-card p-4 rounded-xl border shadow-sm">
+          <div className="flex justify-between items-center bg-card p-4 rounded-xl border shadow-sm flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" /> Daftar Mahasiswa
               <span className="text-sm font-normal text-muted-foreground ml-2">({students.length} Total)</span>
             </h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center flex-wrap">
               {canEdit && (
-                <Button variant="destructive" onClick={handleResetSession} className="gap-2">
+                <Button variant="destructive" onClick={handleResetSession} className="gap-2 h-9">
                   <Trash2 className="w-4 h-4" /> Reset Status Pertemuan
                 </Button>
               )}
               {canEdit && (
-                <Button onClick={saveAttendance} className="gap-2">
-                  <Save className="w-4 h-4" /> Simpan Permanen
+                <Button
+                  onClick={saveAttendance}
+                  disabled={Object.keys(pendingChanges).length === 0 || isLoading}
+                  className={`gap-2 h-9 transition-all ${Object.keys(pendingChanges).length > 0 ? 'bg-indigo-600 hover:bg-indigo-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white animate-pulse shadow-md shadow-indigo-200 dark:shadow-emerald-900/20' : 'bg-muted text-muted-foreground'}`}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
                 </Button>
               )}
             </div>
@@ -888,8 +960,8 @@ export default function AttendanceHistory() {
                     <th className="px-6 py-4 font-semibold">Mahasiswa</th>
                     <th className="px-6 py-4 font-semibold text-center">NIM</th>
                     <th className="px-6 py-4 font-semibold text-center">Status</th>
+                    <th className="px-6 py-4 font-semibold text-center">Metode</th>
                     <th className="px-6 py-4 font-semibold text-center">Waktu Scan</th>
-                    {canEdit && <th className="px-6 py-4 font-semibold text-center">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -924,22 +996,22 @@ export default function AttendanceHistory() {
                           {student.status}
                         </button>
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        {student.method === 'manual' ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            MANUAL
+                          </span>
+                        ) : student.method === 'qr' || student.scannedAt ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                            <QrCode className="w-3 h-3" /> QR CODE
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-center text-xs text-muted-foreground">
                         {student.scannedAt ? new Date(student.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                       </td>
-                      {canEdit && (
-                        <td className="px-6 py-4 text-center">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-muted-foreground hover:text-foreground"
-                            onClick={(e) => handleResetQr(student.id, e)}
-                            title="Reset QR Personal"
-                          >
-                            <QrCode className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      )}
                     </tr>
                   ))}
                   {students.length === 0 && (

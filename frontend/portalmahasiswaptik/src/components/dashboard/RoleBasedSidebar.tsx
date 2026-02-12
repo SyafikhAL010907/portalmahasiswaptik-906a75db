@@ -74,10 +74,10 @@ const getMenuItems = (): MenuItem[] => [
     children: [
       // 🔑 Generator QR sekarang masuk sini (Khusus Dosen & AdminDev)
       { icon: QrCode, label: 'Generator QR', path: '/dashboard/qr-generator', roles: ['admin_dosen', 'admin_dev'] },
-      // Scan QR (Khusus Mahasiswa & AdminDev)
-      { icon: QrCode, label: 'Scan QR', path: '/dashboard/scan-qr', roles: ['mahasiswa', 'admin_dev'] },
+      // Scan QR (Khusus Mahasiswa, AdminDev, & AdminKelas)
+      { icon: QrCode, label: 'Scan QR', path: '/dashboard/scan-qr', roles: ['mahasiswa', 'admin_dev', 'admin_kelas'] },
       // 🔑 Riwayat Kehadiran (Dosen 'admin_dosen' Dibuang dari daftar roles agar tidak muncul)
-      { icon: History, label: 'Riwayat Kehadiran', path: '/dashboard/attendance-history', roles: ['mahasiswa', 'admin_dev', 'admin_kelas'] },
+      { icon: History, label: 'Riwayat Kehadiran', path: '/dashboard/attendance-history', roles: ['mahasiswa', 'admin_dev', 'admin_kelas', 'admin_dosen'] },
     ],
   },
 
