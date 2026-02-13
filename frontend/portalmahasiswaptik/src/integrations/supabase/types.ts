@@ -259,6 +259,10 @@ export type Database = {
           title: string
           updated_at: string
           uploaded_by: string
+          storage_type: 'supabase' | 'google_drive'
+          external_url: string | null
+          category: string | null
+          is_pinned: boolean | null
         }
         Insert: {
           created_at?: string
@@ -272,6 +276,10 @@ export type Database = {
           title: string
           updated_at?: string
           uploaded_by: string
+          storage_type?: 'supabase' | 'google_drive'
+          external_url?: string | null
+          category?: string | null
+          is_pinned?: boolean | null
         }
         Update: {
           created_at?: string
@@ -285,6 +293,10 @@ export type Database = {
           title?: string
           updated_at?: string
           uploaded_by?: string
+          storage_type?: 'supabase' | 'google_drive'
+          external_url?: string | null
+          category?: string | null
+          is_pinned?: boolean | null
         }
         Relationships: [
           {
@@ -295,6 +307,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      semesters: {
+        Row: {
+          id: number
+          name: string
+          created_at: string | null
+          drive_folder_id: string | null
+        }
+        Insert: {
+          id?: number
+          name: string
+          created_at?: string | null
+          drive_folder_id?: string | null
+        }
+        Update: {
+          id?: number
+          name?: string
+          created_at?: string | null
+          drive_folder_id?: string | null
+        }
+        Relationships: []
       }
       meetings: {
         Row: {
@@ -428,6 +461,7 @@ export type Database = {
           name: string
           semester: number
           sks: number
+          drive_folder_id: string | null
         }
         Insert: {
           code: string
@@ -436,6 +470,7 @@ export type Database = {
           name: string
           semester: number
           sks?: number
+          drive_folder_id?: string | null
         }
         Update: {
           code?: string
@@ -444,6 +479,7 @@ export type Database = {
           name?: string
           semester?: number
           sks?: number
+          drive_folder_id?: string | null
         }
         Relationships: []
       }

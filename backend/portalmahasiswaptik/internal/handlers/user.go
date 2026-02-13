@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
@@ -63,7 +67,8 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	query := h.DB.Model(&models.Profile{}).
 		Select("profiles.*, user_roles.role, classes.name as class_name").
 		Joins("LEFT JOIN user_roles ON user_roles.user_id = profiles.user_id").
-		Joins("LEFT JOIN classes ON classes.id = profiles.class_id")
+		Joins("LEFT JOIN classes ON classes.id = profiles.class_id").
+		Order("profiles.nim ASC")
 
 	// AdminKelas can only see their own class
 	if user.Role == models.RoleAdminKelas && user.ClassID != nil {
@@ -94,8 +99,7 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	}
 
 	var profiles []ProfileWithRole
-	query.Order("profiles.full_name ASC").
-		Offset(offset).
+	query.Offset(offset).
 		Limit(limit).
 		Scan(&profiles)
 
@@ -260,10 +264,13 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	}
 
 	type UpdateUserRequest struct {
-		FullName  *string        `json:"full_name"`
-		AvatarURL *string        `json:"avatar_url"`
-		ClassID   *uuid.UUID     `json:"class_id"`
-		Role      *models.AppRole `json:"role"`
+		NIM         *string         `json:"nim"`
+		FullName    *string         `json:"full_name"`
+		WhatsApp    *string         `json:"whatsapp"`
+		AvatarURL   *string         `json:"avatar_url"`
+		ClassID     *uuid.UUID      `json:"class_id"`
+		Role        *models.AppRole `json:"role"`
+		NewPassword *string         `json:"new_password"`
 	}
 
 	var req UpdateUserRequest
@@ -283,10 +290,66 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
+	// Password Reset (AdminDev only)
+	if req.NewPassword != nil && *req.NewPassword != "" {
+		if currentUser.Role != models.RoleAdminDev {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "Only Super Admin can reset user passwords",
+			})
+		}
+
+		// Use Supabase Admin API to update password
+		supabaseURL := os.Getenv("SUPABASE_URL")
+		serviceRoleKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+		if supabaseURL != "" && serviceRoleKey != "" {
+			updateData := map[string]interface{}{
+				"password": *req.NewPassword,
+			}
+			jsonData, _ := json.Marshal(updateData)
+
+			url := fmt.Sprintf("%s/auth/v1/admin/users/%s", supabaseURL, userID)
+			httpReq, err := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonData))
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"error":   "Failed to create request to Supabase Auth",
+				})
+			}
+
+			httpReq.Header.Set("Authorization", "Bearer "+serviceRoleKey)
+			httpReq.Header.Set("Content-Type", "application/json")
+
+			client := &http.Client{}
+			resp, err := client.Do(httpReq)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"error":   "Failed to execute request to Supabase Auth",
+				})
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				return c.Status(resp.StatusCode).JSON(fiber.Map{
+					"success": false,
+					"error":   fmt.Sprintf("Supabase Auth error (status %d)", resp.StatusCode),
+				})
+			}
+		}
+	}
+
 	// Update profile fields
 	updates := make(map[string]interface{})
+	if req.NIM != nil {
+		updates["nim"] = *req.NIM
+	}
 	if req.FullName != nil {
 		updates["full_name"] = *req.FullName
+	}
+	if req.WhatsApp != nil {
+		updates["whatsapp"] = *req.WhatsApp
 	}
 	if req.AvatarURL != nil {
 		updates["avatar_url"] = *req.AvatarURL

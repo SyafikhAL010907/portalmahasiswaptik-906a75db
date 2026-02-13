@@ -1,16 +1,23 @@
 package repository
 
 import (
+	"fmt"
+
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 type RepositoryHandler struct {
-	DB *gorm.DB
+	DB              *gorm.DB
+	SupabaseStorage *storage.SupabaseStorage
 }
 
-func NewRepositoryHandler(db *gorm.DB) *RepositoryHandler {
-	return &RepositoryHandler{DB: db}
+func NewRepositoryHandler(db *gorm.DB, supabaseStorage *storage.SupabaseStorage) *RepositoryHandler {
+	return &RepositoryHandler{
+		DB:              db,
+		SupabaseStorage: supabaseStorage,
+	}
 }
 
 // Mock Data
@@ -26,7 +33,7 @@ var mockSemesters = []Semester{
 	{ID: 2, Name: "Semester 2", Gradient: "from-success/20 to-success/5", Courses: []string{"Struktur Data", "Pemrograman Lanjut", "Kalkulus", "Bahasa Inggris II", "Statistika", "Sistem Digital"}},
 	{ID: 3, Name: "Semester 3", Gradient: "from-warning/20 to-warning/5", Courses: []string{"Basis Data", "Pemrograman Web", "Sistem Operasi", "Jaringan Komputer", "Interaksi Manusia Komputer", "Matematika Diskrit"}},
 	{ID: 4, Name: "Semester 4", Gradient: "from-destructive/20 to-destructive/5", Courses: []string{"Rekayasa Perangkat Lunak", "Pemrograman Mobile", "Keamanan Informasi", "Cloud Computing", "Data Mining", "Kecerdasan Buatan"}},
-	{ID: 5, Name: "Semester 5", Gradient: "from-accent/40 to-accent/10", Courses: []string{"Machine Learning", "Big Data", "Pemrograman IoT", "Manajemen Proyek TI", "Etika Profesi", "Kapita Selekta"}},
+	{ID: 5, Name: "Semester 5", Gradient: "from-accent/40 to-accent/10", Courses: []string{"Machine Learning", "Big Data", "Pemrograman IoT", "Manajemen Proyek TI", "Etika Profesi", "Kapita Slekta"}},
 	{ID: 6, Name: "Semester 6", Gradient: "from-primary/30 to-success/10", Courses: []string{"Deep Learning", "Blockchain", "DevOps", "Cyber Security", "Metodologi Penelitian", "Kerja Praktek"}},
 	{ID: 7, Name: "Semester 7", Gradient: "from-success/30 to-warning/10", Courses: []string{"Skripsi", "Seminar", "Magang Industri", "Pengembangan Karir", "Kewirausahaan Digital", "Proyek Akhir"}},
 }
@@ -67,5 +74,43 @@ func (h *RepositoryHandler) GetFiles(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    mockFiles,
+	})
+}
+
+// UploadToDrive handles file uploads to Supabase Storage (Repository Bucket)
+// POST /api/repository/upload-drive
+func (h *RepositoryHandler) UploadToDrive(c *fiber.Ctx) error {
+	if h.SupabaseStorage == nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Supabase Storage service not initialized"})
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "file is required"})
+	}
+
+	fileContent, err := file.Open()
+	if err != nil {
+		fmt.Printf("❌ Error: Failed to open file: %v\n", err)
+		return c.Status(500).JSON(fiber.Map{"error": "failed to open file"})
+	}
+	defer fileContent.Close()
+
+	fmt.Printf("📤 Starting upload to Supabase Storage: %s\n", file.Filename)
+	publicURL, err := h.SupabaseStorage.UploadFile(file.Filename, file.Header.Get("Content-Type"), fileContent)
+	if err != nil {
+		fmt.Printf("❌ Error: Upload to Supabase Storage failed: %v\n", err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	fmt.Printf("\n🚀 SUCCESS UPLOAD SUPABASE STORAGE!\n")
+	fmt.Printf("📂 Nama File   : %s\n", file.Filename)
+	fmt.Printf("🔗 Public URL   : %s\n\n", publicURL)
+
+	return c.JSON(fiber.Map{
+		"success":      true,
+		"file_name":    file.Filename,
+		"webViewLink":  publicURL, // Keep field name for frontend compatibility
+		"storage_type": "supabase_storage",
 	})
 }

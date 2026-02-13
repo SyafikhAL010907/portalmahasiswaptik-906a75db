@@ -27,7 +27,8 @@ func InitDatabase() (*gorm.DB, error) {
 	// Open database connection
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger:                 gormLogger,
-		SkipDefaultTransaction: true, // Improve performance
+		SkipDefaultTransaction: true,  // Improve performance
+		PrepareStmt:            false, // Required for PgBouncer / Session stability
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)

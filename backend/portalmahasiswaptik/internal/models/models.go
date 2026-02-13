@@ -117,6 +117,7 @@ type AttendanceRecord struct {
 	SessionID uuid.UUID `gorm:"type:uuid;not null" json:"session_id"`
 	StudentID uuid.UUID `gorm:"type:uuid;not null" json:"student_id"`
 	Status    string    `gorm:"type:text;default:'present'" json:"status"`
+	Method    string    `gorm:"type:text;default:'qr'" json:"method"`
 	ScannedAt time.Time `gorm:"default:now()" json:"scanned_at"`
 
 	// Relations

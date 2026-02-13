@@ -23,7 +23,7 @@ func NewAttendanceHandler(db *gorm.DB) *AttendanceHandler {
 
 // Campus location for geolocation validation (Jakarta State University approximate)
 const (
-	CampusLatitude  = -6.1889  // Example: Jakarta State University
+	CampusLatitude  = -6.1889 // Example: Jakarta State University
 	CampusLongitude = 106.8500
 	MaxDistanceKm   = 0.15 // 150 meters
 )
@@ -212,8 +212,8 @@ func (h *AttendanceHandler) ScanQR(c *fiber.Ctx) error {
 	var existingRecord models.AttendanceRecord
 	if err := h.DB.Where("session_id = ? AND student_id = ?", session.ID, user.UserID).First(&existingRecord).Error; err == nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"success":   false,
-			"error":     "You have already marked attendance for this session",
+			"success":    false,
+			"error":      "You have already marked attendance for this session",
 			"scanned_at": existingRecord.ScannedAt,
 		})
 	}
@@ -223,6 +223,7 @@ func (h *AttendanceHandler) ScanQR(c *fiber.Ctx) error {
 		SessionID: session.ID,
 		StudentID: user.UserID,
 		Status:    "present",
+		Method:    "qr",
 		ScannedAt: time.Now(),
 	}
 

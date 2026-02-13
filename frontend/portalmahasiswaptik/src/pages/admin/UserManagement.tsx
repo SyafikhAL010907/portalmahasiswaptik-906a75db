@@ -93,13 +93,13 @@ export default function UserManagement() {
     role: 'mahasiswa' as AppRole,
   });
 
-  // State form Edit
   const [editUserForm, setEditUserForm] = useState({
     nim: '',
     full_name: '',
     whatsapp: '',
     class_id: '',
     role: 'mahasiswa' as AppRole,
+    new_password: '',
   });
 
   // 👇👇👇 DATA KONEKSI NINJA 👇👇👇
@@ -126,7 +126,7 @@ export default function UserManagement() {
       if (classError) throw classError;
       setClasses(classData || []);
 
-      const { data: profileData, error } = await supabase.from('profiles').select('*').order('full_name');
+      const { data: profileData, error } = await supabase.from('profiles').select('*').order('nim');
       if (error) throw error;
 
       const { data: rolesData } = await supabase.from('user_roles').select('user_id, role');
@@ -222,6 +222,7 @@ export default function UserManagement() {
       whatsapp: user.whatsapp || '',
       class_id: user.class_id || '',
       role: user.roles[0] || 'mahasiswa',
+      new_password: '',
     });
     setIsEditDialogOpen(true);
   };
@@ -235,41 +236,32 @@ export default function UserManagement() {
 
     setIsUpdating(true);
     try {
-      const tempSupabase = getNinjaClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sesi tidak ditemukan');
 
-      // Pastikan class_id disimpan jika role adalah admin_kelas
+      // Pastikan class_id disimpan jika role adalah mahasiswa ATAU admin_kelas
       const classIdToSave = (editUserForm.role === 'mahasiswa' || editUserForm.role === 'admin_kelas')
         ? (editUserForm.class_id || null)
         : null;
 
-      const { error: profileError } = await tempSupabase
-        .from('profiles')
-        .update({
+      const response = await fetch(`/api/users/${editingUserId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
           nim: editUserForm.nim,
           full_name: editUserForm.full_name,
           whatsapp: editUserForm.whatsapp || null,
-          class_id: classIdToSave
+          class_id: classIdToSave,
+          role: editUserForm.role,
+          new_password: editUserForm.new_password || undefined
         })
-        .eq('user_id', editingUserId);
+      });
 
-      if (profileError) throw profileError;
-
-      // Update Role (Hapus dulu, baru insert)
-      const { error: deleteError } = await tempSupabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', editingUserId);
-
-      if (deleteError) throw deleteError;
-
-      const { error: roleError } = await tempSupabase
-        .from('user_roles')
-        .insert({
-          user_id: editingUserId,
-          role: editUserForm.role
-        });
-
-      if (roleError) throw roleError;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Gagal memperbarui data pengguna');
 
       toast.success('Data pengguna berhasil diperbarui!');
       setIsEditDialogOpen(false);
@@ -481,6 +473,21 @@ export default function UserManagement() {
                   </Select>
                 </div>
               )}
+
+              {/* ✅ ADMIN-ONLY PASSWORD RESET FIELD */}
+              {isAdminDev() && (
+                <div className="space-y-2 pt-4 border-t border-border mt-4">
+                  <Label className="text-destructive font-bold">Password Baru (Opsional - Khusus Admin)</Label>
+                  <Input
+                    type="password"
+                    placeholder="Kosongkan jika tidak ingin mengubah password"
+                    value={editUserForm.new_password}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, new_password: e.target.value })}
+                    className="border-destructive/30 focus-visible:ring-destructive"
+                  />
+                  <p className="text-[10px] text-muted-foreground italic">Gunakan ini untuk mereset password user yang lupa.</p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Batal</Button>
@@ -678,7 +685,8 @@ export default function UserManagement() {
             </div>
           </TabsContent>
         </Tabs>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 }

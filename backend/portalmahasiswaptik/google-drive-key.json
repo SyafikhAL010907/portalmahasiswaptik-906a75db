@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "web-angkatan-drive",
+  "private_key_id": "05feecd16a46bc6a5189c66dd3b5eddafc1ae244",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDlBqquN2ba2fLu\njFKmclWzJBZXXkwSCgXU9k62EGavrgmLZuvXAOwcMCy35ZLSyyhpxH9tfyoz5TRn\nH5R8g/sqtSOeJvRsw2ol+5Guww7jWYDYdxWGCNJvxigaG620nAeFPh0KgoT4A/BQ\nOfN5/rrkNOdLnes4qH3DcVQZom5Q4iqv9jAVWR/TVrquYm9wEHppl/Ft74Iedpnu\nxlneWVfUOxEEp3ICyJ03ybNlb/khkJnTHpK9I8HHGU0rx2d2scwJGVeEI9KgGI94\nVakxo+g5QA99byDkYtR5RlCGlfYUUcEnMRy2vueZaiSZHOgbtlsvzlBWtZ/BuN/W\nk2t7bepFAgMBAAECggEALaNH9MJ2fQrsVWvh9mgXOsTorM1OJFQZ+GeCpNYc2Eo6\nfaxrN6Nn6XASIS0etmGkcnslF2k9PC0i5Z/N44gbT1XcPKIvl9LS/rGkRKp694P4\n4GnOgLCWWo6mpBk64qArAXqwp8z9eTyzsRDzOy6vCFWgd5mG63nr4bveEeOjzvr6\nHPAyIP4Yzm/omrUtSCkjMuc9ShxIRhy5L+wfL5yyKbecLhhBc7zirzZMWrTws5Z0\nGuBniSZJG10VVJ+rSTnSeQ76dkEh2eBti7VWJ/NaNuAkOuinJQzjqRe0oX51wO4C\nmT6nR5YmHUCkmPOLqPA9bMuVPGBcmbxKK39o+zt64QKBgQDyqCZB2YbOZcY+lRfi\nkoV8SWDJX4499Dsn6F+m2dpuOXYIW8BfIJO5s3JzfRjfRLd+JhqTgr3e3s+FG8xW\nRPiFYs8Tx0NRxZBTrzWKDZHmuOPyQuduuvGKxnSY6EPxDlCIscq8ujEKKIDZ94CP\nmQv7fm020agU9ziTJJVGB2GRUQKBgQDxnqNm6c9ImyznHely9DcEmAmYpYY4K5W4\nIXxjLnKWPws2jiL1cM8OCHZtHu/+Qv5/C3DrpOH8PaTZ75jmMC7MpTkDkG0e1Kpf\nerKk0y4aWl9xzZJFPvSpCTrj/Cf8oDuWMXPP4hoUEMt1lqjtrTcD5zAwzHGQl2tC\nEKbvTuRstQKBgFGSYyH5zQ5vOiBpoFjjJopsZGPtgnSjOIum2xjM3Vf2aw5OQbH4\n0pA3mb7nC8hqYkC+8GosJkXYouw9Nwi9MMouOCyO7Lt9bZIkMRxSiXyFJOOYyBH6\nOB6Nrj6Eveo4BKyfD+c3tCqVCRO81vPu4A9QJciq3BUIMnWMc73R12OxAoGAI5eQ\nznomtLVXGfyIBQ0Ahca3syq+6MtS1LrqDdoruwIybqjlcW5aseCBQXXLOJM51hEj\nYzL4ryWNgSUQSuhSHIdCLMo7qMz/A+2ZHzqUkgE6ChOUNmsds0DO0gK1CTu5S1ih\njL/rw4Tt07aLz+cyMXr+2FFlcT086ZB2Zs4iS/kCgYArqJchm0fr1IlLcx5uNtOV\n8O8/JskNfGIKDfQBV6LG/b850KkQr7C+pSeL7uJqJeFgOjOG6nD6SQIePUbxwVyP\nhjsY9mKRlnp+K+sRJKZ1P+F058Lu1Wak6n2GCGJYI8tibBeYOKHoOicHFJfhyY4s\nt17iwr6TQRMmA1WzwmnGRw==\n-----END PRIVATE KEY-----\n",
+  "client_email": "drive-sync-bot@web-angkatan-drive.iam.gserviceaccount.com",
+  "client_id": "113759484977506822478",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/drive-sync-bot%40web-angkatan-drive.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

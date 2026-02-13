@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical } from 'lucide-react';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Button } from '@/components/ui/button';
@@ -23,9 +23,17 @@ import {
   DialogTitle,
   DialogTrigger, // Added DialogTrigger
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/AuthContext';
-// ✅ WAJIB: Pastikan sudah install 'npm install xlsx-js-style'
-import XLSX from 'xlsx-js-style';
+// ✅ PENTING: XLSX ditiadakan di frontend untuk kestabilan (Error Stream)
+// import XLSX from 'xlsx-js-style'; 
 import { FinancialChart } from '@/components/dashboard/FinancialChart'; // Added FinancialChart
 
 // --- INTERFACES ---
@@ -294,7 +302,7 @@ export default function Finance() {
       if (!validRoles || validRoles.length === 0) { setStudents([]); setYearlyDues([]); return; }
       const validUserIds = validRoles.map(r => r.user_id);
 
-      const { data: profileData, error: profilesError } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).in('user_id', validUserIds).order('full_name');
+      const { data: profileData, error: profilesError } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).in('user_id', validUserIds).order('nim');
       if (profilesError) throw profilesError;
       if (!profileData || profileData.length === 0) { setStudents([]); setYearlyDues([]); return; }
       setStudents(profileData);
@@ -640,44 +648,57 @@ export default function Finance() {
     } catch (error: any) { toast.error("Gagal: " + error.message); } finally { setIsUpdating(false); }
   };
 
-  const handleResetStudentStatus = async (studentId: string, studentName: string) => {
-    // STRICT CHECK: Only admin_dev can reset
+  const handleBulkUpdate = async (studentId: string, studentName: string, targetStatus: 'paid' | 'pending' | 'reset') => {
+    // STRICT CHECK: Only admin_dev can bulk update
     if (currentUser?.role !== 'admin_dev') {
-      toast.error("Hanya Admin Developer yang bisa mereset data.");
+      toast.error("Hanya Admin Developer yang bisa melakukan update massal.");
       return;
     }
     if (selectedMonth === 0) {
-      toast.error("Pilih bulan spesifik dulu untuk me-reset data iuran.");
+      toast.error("Pilih bulan spesifik dulu untuk update massal.");
       return;
     }
 
+    const statusLabel = targetStatus === 'paid' ? 'Lunas' : targetStatus === 'pending' ? 'Pending' : 'Belum Bayar';
     const monthName = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"][selectedMonth];
 
     openConfirmation(
-      'Reset Status Iuran?',
-      `Hapus data iuran ${monthName} untuk ${studentName}? Tindakan ini tidak bisa dibatalkan.`,
+      `Set Massal ${statusLabel}?`,
+      `Apakah Anda yakin ingin mengubah status iuran ${studentName} di bulan ${monthName} menjadi ${statusLabel} secara massal untuk 4 minggu sekaligus?`,
       async () => {
         setIsUpdating(true);
         try {
-          const { error } = await (supabase.from('weekly_dues') as any)
-            .delete()
-            .eq('student_id', studentId)
-            .eq('year', selectedYear)
-            .eq('month', selectedMonth);
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error("Sesi tidak ditemukan");
 
-          if (error) throw error;
+          const response = await fetch('/api/finance/dues/bulk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              student_id: studentId,
+              month: selectedMonth,
+              year: selectedYear,
+              target_status: targetStatus
+            })
+          });
 
-          toast.success(`Status iuran ${studentName} di bulan ${monthName} berhasil direset.`);
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Gagal update massal");
+
+          toast.success(`Berhasil! Status ${studentName} di ${monthName} sekarang ${statusLabel}.`);
           fetchStudentMatrix(); // Refresh matrix
           fetchDuesTotal();
         } catch (error: any) {
-          toast.error("Gagal reset status: " + error.message);
+          toast.error("Gagal update massal: " + error.message);
         } finally {
           setIsUpdating(false);
         }
       },
-      'danger',
-      'Reset Status'
+      targetStatus === 'reset' ? 'danger' : 'info',
+      'Konfirmasi'
     );
   };
   const handleAmountChange = (val: string, isEdit = false) => {
@@ -782,227 +803,41 @@ export default function Finance() {
   };
 
   const handleDownloadExcel = async () => {
-    if (students.length === 0) {
-      toast.error("Tidak ada data untuk di-export.");
-      return;
-    }
-
     try {
-      setIsUpdating(true);
-      const toastId = toast.loading("Menyiapkan 13 Sheet Laporan...");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi tidak ditemukan. Silakan login kembali.");
+        return;
+      }
 
-      const wb = XLSX.utils.book_new();
+      toast.info("Sedang menyiapkan file Excel...");
 
-      // --- STYLES (Navy Professional) ---
-      const borderThin = { style: "thin", color: { rgb: "000000" } };
-      const borderThick = { style: "thick", color: { rgb: "000000" } };
-
-      const styles = {
-        title: { font: { bold: true, size: 16, color: { rgb: "1E293B" } }, alignment: { horizontal: "center", vertical: "center" } },
-        header: {
-          font: { bold: true, color: { rgb: "FFFFFF" }, size: 12 },
-          fill: { fgColor: { rgb: "1E293B" } },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }
-        },
-        cellCenter: { alignment: { horizontal: "center", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin } },
-        cellLeft: { alignment: { horizontal: "left", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin } },
-        paid: {
-          fill: { fgColor: { rgb: "D1FAE5" } },
-          font: { color: { rgb: "064E3B" }, bold: true },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }
-        },
-        unpaid: {
-          fill: { fgColor: { rgb: "FEE2E2" } },
-          font: { color: { rgb: "991B1B" }, bold: true },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }
-        },
-        summaryHeader: { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "334155" } }, alignment: { horizontal: "center", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin } },
-        summaryCell: { font: { bold: true }, alignment: { horizontal: "center", vertical: "center" }, border: { top: borderThin, bottom: borderThin, left: borderThin, right: borderThin }, fill: { fgColor: { rgb: "F8FAFC" } } }
-      };
-
-      const applyTableStyles = (ws: any, rowStart: number, rowEnd: number, colEnd: number, isMonthly = false) => {
-        for (let r = rowStart; r <= rowEnd; r++) {
-          for (let c = 0; c <= colEnd; c++) {
-            const cellAddr = XLSX.utils.encode_cell({ r, c });
-            if (!ws[cellAddr]) ws[cellAddr] = { v: "" };
-
-            const isCenterCol = c === 0 || (c >= 2 && c <= 6);
-            let baseStyle = JSON.parse(JSON.stringify(isCenterCol ? styles.cellCenter : (c === 1 ? styles.cellLeft : styles.cellCenter)));
-
-            if (r === rowStart) baseStyle.border.top = borderThick;
-            if (r === rowEnd) baseStyle.border.bottom = borderThick;
-            if (c === 0) baseStyle.border.left = borderThick;
-            if (c === colEnd) baseStyle.border.right = borderThick;
-
-            if (r === rowStart) {
-              baseStyle = { ...baseStyle, ...styles.header };
-              baseStyle.border.top = borderThick;
-              if (c === 0) baseStyle.border.left = borderThick;
-              if (c === colEnd) baseStyle.border.right = borderThick;
-            } else {
-              const val = ws[cellAddr].v?.toString().toUpperCase();
-              if (val?.includes('✓ LUNAS') || val === 'PAID') {
-                baseStyle.fill = styles.paid.fill;
-                baseStyle.font = styles.paid.font;
-              } else if (val?.includes('BELUM BAYAR') || val === 'UNPAID' || (c === 3 && val?.includes('-'))) {
-                baseStyle.fill = styles.unpaid.fill;
-                baseStyle.font = styles.unpaid.font;
-              }
-            }
-            ws[cellAddr].s = baseStyle;
-          }
+      const response = await fetch(`http://localhost:9000/api/export/finance/excel?class_id=${selectedClassId}&year=${selectedYear}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
         }
-      };
-
-      // --- SHEET 1: REKAP LIFETIME (Kembar Identik UI) ---
-      toast.loading("Memproses Rekap Lifetime...", { id: toastId });
-      const lifetimeData: any[][] = [
-        ["LAPORAN KAS PTIK"],
-        [`Dashboard Keuangan Kelas ${selectedClassName.toUpperCase()}`],
-        [],
-        ["SUMMARY KEUANGAN"],
-        ["Saldo Kas Kelas", "Saldo Kas Angkatan", "Total Pemasukan Lain", "Saldo Bersih Lifetime"],
-        [formatIDR(classDuesTotal), formatIDR(batchNetBalance), formatIDR(totalIncomeTransactions), formatIDR(saldoBersih)],
-        [],
-        ["MATRIX IURAN LIFETIME"],
-        ["No", "Nama Mahasiswa", "Bulan Update", "Nominal Kurang", "Status"]
-      ];
-
-      const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
-
-      students.forEach((student, i) => {
-        const studentYearlyDues = yearlyDues.filter(d => d.student_id === student.user_id);
-        let totalNominal = 0;
-        let fullMonths = 0;
-        let deficiencies: string[] = [];
-        let deficiencyAmount = 0;
-
-        const monthlyGroups = new Map<number, { weeks: Set<number>, amount: number }>();
-        studentYearlyDues.filter(d => d.status === 'paid').forEach(d => {
-          if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
-          const group = monthlyGroups.get(d.month)!;
-          group.weeks.add(d.week_number);
-          group.amount += d.amount;
-        });
-
-        monthlyGroups.forEach((data, m) => {
-          totalNominal += data.amount;
-          if (data.weeks.size >= 4 || data.amount >= 20000) fullMonths += 1;
-          else {
-            const missing = 4 - data.weeks.size;
-            const debt = missing * 5000;
-            if (debt > 0) {
-              deficiencies.push(`${monthNames[m]} (-${missing} mg)`);
-              deficiencyAmount += debt;
-            }
-          }
-        });
-
-        const nominalStr = deficiencyAmount > 0 ? `- ${formatIDR(deficiencyAmount)}` : formatIDR(0);
-        let statusText = "✓ LUNAS";
-        if (deficiencies.length > 0) statusText = `BELUM BAYAR (${deficiencies.join(' - ')})`;
-        else if (totalNominal === 0) statusText = "BELUM BAYAR";
-
-        lifetimeData.push([i + 1, student.full_name, `${fullMonths} Bulan`, nominalStr, statusText]);
       });
 
-      const wsLifetime = XLSX.utils.aoa_to_sheet(lifetimeData);
-      applyTableStyles(wsLifetime, 8, lifetimeData.length - 1, 4, false);
-
-      // Summary Block Styles
-      for (let r = 4; r <= 5; r++) {
-        for (let c = 0; c <= 3; c++) {
-          const addr = XLSX.utils.encode_cell({ r, c });
-          if (!wsLifetime[addr]) wsLifetime[addr] = { v: "" };
-          const s = JSON.parse(JSON.stringify(r === 4 ? styles.summaryHeader : styles.summaryCell));
-          if (r === 4) s.border.top = borderThick;
-          if (r === 5) s.border.bottom = borderThick;
-          if (c === 0) s.border.left = borderThick;
-          if (c === 3) s.border.right = borderThick;
-          wsLifetime[addr].s = s;
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      wsLifetime["A1"].s = styles.title;
-      wsLifetime["A2"].s = styles.title;
-      wsLifetime["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }];
-      wsLifetime["!cols"] = [{ wch: 8 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsLifetime, "LIFETIME");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan_Keuangan_${selectedClassName}_${selectedYear}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
-      // --- SHEET 2-13: BULANAN ---
-      for (let mIdx = 1; mIdx <= 12; mIdx++) {
-        const mLabel = monthNames[mIdx];
-        const monthlyData: any[][] = [
-          ["LAPORAN KAS PTIK"],
-          [`Dashboard Keuangan Kelas ${selectedClassName.toUpperCase()} - ${mLabel} ${selectedYear}`],
-          [],
-          ["No", "Nama Mahasiswa", "W1", "W2", "W3", "W4", "Total"]
-        ];
-
-        students.forEach((s, sIdx) => {
-          const sDues = yearlyDues.filter(d => d.student_id === s.user_id && d.month === mIdx);
-          const w1 = sDues.find(d => d.week_number === 1)?.status || 'unpaid';
-          const w2 = sDues.find(d => d.week_number === 2)?.status || 'unpaid';
-          const w3 = sDues.find(d => d.week_number === 3)?.status || 'unpaid';
-          const w4 = sDues.find(d => d.week_number === 4)?.status || 'unpaid';
-          const paidCount = [w1, w2, w3, w4].filter(st => st === 'paid').length;
-          monthlyData.push([sIdx + 1, s.full_name, w1.toUpperCase(), w2.toUpperCase(), w3.toUpperCase(), w4.toUpperCase(), formatIDR(paidCount * 5000)]);
-        });
-
-        const duesTableEnd = monthlyData.length - 1;
-
-        // Add Transactions per Month
-        monthlyData.push([]);
-        monthlyData.push(["RINGKASAN TRANSAKSI"]);
-        monthlyData.push(["Keterangan", "Tipe", "Tanggal", "Nominal"]);
-        const txHeaderRow = monthlyData.length - 1;
-
-        const mTx = transactions.filter(t => t.class_id === selectedClassId && new Date(t.transaction_date).getMonth() + 1 === mIdx);
-        let tIn = 0; let tOut = 0;
-        mTx.forEach(tx => {
-          monthlyData.push([tx.description || tx.category, tx.type === 'income' ? 'MASUK' : 'KELUAR', tx.transaction_date, formatIDR(tx.amount)]);
-          if (tx.type === 'income') tIn += tx.amount; else tOut += tx.amount;
-        });
-
-        monthlyData.push([]);
-        monthlyData.push(["TOTAL MASUK", "", "", formatIDR(tIn)]);
-        monthlyData.push(["TOTAL KELUAR", "", "", formatIDR(tOut)]);
-        monthlyData.push(["TOTAL SALDO", "", "", formatIDR(tIn - tOut)]);
-
-        const wsMonth = XLSX.utils.aoa_to_sheet(monthlyData);
-        wsMonth["A1"].s = styles.title;
-        wsMonth["A2"].s = styles.title;
-        wsMonth["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }];
-
-        applyTableStyles(wsMonth, 3, duesTableEnd, 6, true);
-        applyTableStyles(wsMonth, txHeaderRow, monthlyData.length - 5, 3, false);
-
-        // Footer Styles
-        for (let r = monthlyData.length - 3; r < monthlyData.length; r++) {
-          for (let c = 0; c <= 3; c++) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            if (!wsMonth[addr]) wsMonth[addr] = { v: "" };
-            wsMonth[addr].s = { ...styles.cellCenter, fill: { fgColor: { rgb: r === monthlyData.length - 1 ? "F1F5F9" : "F8FAFC" } }, font: { bold: true } };
-            if (r === monthlyData.length - 3) wsMonth[addr].s.border.top = borderThick;
-            if (r === monthlyData.length - 1) wsMonth[addr].s.border.bottom = borderThick;
-            if (c === 0) wsMonth[addr].s.border.left = borderThick;
-            if (c === 3) wsMonth[addr].s.border.right = borderThick;
-          }
-        }
-
-        wsMonth["!cols"] = [{ wch: 8 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }];
-        XLSX.utils.book_append_sheet(wb, wsMonth, mLabel);
-      }
-
-      XLSX.writeFile(wb, `Laporan_Keuangan_Kelas_${selectedClassName}_${selectedYear}.xlsx`);
-      toast.success("Berhasil! 13 Sheet Laporan telah di-generate.", { id: toastId });
-    } catch (err: any) {
-      toast.error("Gagal export: " + err.message);
-    } finally {
-      setIsUpdating(false);
+      toast.success("Excel Berhasil diunduh!");
+    } catch (error: any) {
+      console.error("Download failed:", error);
+      toast.error("Gagal mendownload Excel: " + error.message);
     }
   };
 
@@ -1166,15 +1001,33 @@ export default function Finance() {
                           <span>{student.name}</span>
                           {/* STRICT CHECK: Only admin_dev sees the reset button */}
                           {currentUser?.role === 'admin_dev' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleResetStudentStatus(student.student_id, student.name)}
-                              title="Reset Bulan Ini (Admin Dev Only)"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <MoreVertical className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Aksi Cepat Iuran</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'paid')}>
+                                  <Check className="w-4 h-4 mr-2 text-blue-500" />
+                                  Set Semua Lunas (W1-W4)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'pending')}>
+                                  <Clock className="w-4 h-4 mr-2 text-cyan-500" />
+                                  Set Semua Pending (W1-W4)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'reset')}>
+                                  <X className="w-4 h-4 mr-2 text-rose-500" />
+                                  Reset / Belum Bayar (W1-W4)
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
                       </td>{!isLifetime ? (

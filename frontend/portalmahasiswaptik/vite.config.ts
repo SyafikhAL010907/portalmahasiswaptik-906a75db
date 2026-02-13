@@ -12,9 +12,9 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
     proxy: {
-      // ✅ JEMBATAN PENTING: Arahkan /api ke Backend Go (8080)
+      // ✅ JEMBATAN PENTING: Arahkan /api ke Backend Go (8081)
       "/api": {
-        target: "http://localhost:8080",
+        target: "http://localhost:9000",
         changeOrigin: true,
         secure: false,
       },

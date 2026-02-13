@@ -6,6 +6,7 @@ import (
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/config"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/routes"
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -25,8 +26,11 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Ensure Storage Bucket exists
+	// Ensure Storage Buckets exist (avatars, repository)
 	config.InitStorageBucket(db)
+
+	// Initialize Supabase Storage Service
+	storageSrv := storage.NewSupabaseStorage()
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -43,14 +47,16 @@ func main() {
 	// CORS configuration
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:5173,http://localhost:3000"
+		allowedOrigins = "http://localhost:5173,http://127.0.0.1:5173"
 	}
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With",
 		AllowCredentials: true,
+		ExposeHeaders:    "Content-Length",
+		MaxAge:           86400,
 	}))
 
 	// Health check endpoint
@@ -63,16 +69,17 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(app, db)
+	routes.SetupRoutes(app, db, storageSrv)
 
 	// Get port from environment
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "9000"
 	}
 
 	// Start server
 	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("📡 Environment: %s", os.Getenv("APP_ENV"))
 	log.Printf("📚 API Documentation: http://localhost:%s/api/docs", port)
 
 	if err := app.Listen(":" + port); err != nil {

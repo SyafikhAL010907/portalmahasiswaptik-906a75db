@@ -396,6 +396,75 @@ func (h *FinanceHandler) GetWeeklyDuesSummary(c *fiber.Ctx) error {
 	})
 }
 
+// BulkUpdateDuesRequest represents the payload for bulk update
+type BulkUpdateDuesRequest struct {
+	StudentID    uuid.UUID `json:"student_id" validate:"required"`
+	Month        int       `json:"month" validate:"required"`
+	Year         int       `json:"year" validate:"required"`
+	TargetStatus string    `json:"target_status" validate:"required"` // 'paid', 'pending', 'reset'
+}
+
+// BulkUpdateDues updates all 4 weeks for a student and month
+// POST /api/finance/dues/bulk
+func (h *FinanceHandler) BulkUpdateDues(c *fiber.Ctx) error {
+	user := c.Locals("user").(middleware.UserContext)
+
+	// STRICT CHECK: Only admin_dev can bulk update/reset
+	if user.Role != models.RoleAdminDev {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"error":   "Akses ditolak: Hanya Admin Developer yang bisa melakukan update massal",
+		})
+	}
+
+	var req BulkUpdateDuesRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Format request salah",
+		})
+	}
+
+	if req.TargetStatus == "reset" {
+		// Delete all records for this student, month, and year
+		if err := h.DB.Where("student_id = ? AND month = ? AND year = ?", req.StudentID, req.Month, req.Year).
+			Delete(&models.WeeklyDue{}).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"error":   "Gagal menghapus data iuran",
+			})
+		}
+	} else {
+		// Upsert 4 weeks
+		for week := 1; week <= 4; week++ {
+			due := models.WeeklyDue{
+				StudentID:  req.StudentID,
+				Month:      req.Month,
+				Year:       req.Year,
+				WeekNumber: week,
+				Status:     req.TargetStatus,
+				Amount:     5000,
+			}
+
+			// Upsert logic using GORM
+			if err := h.DB.Where("student_id = ? AND month = ? AND year = ? AND week_number = ?",
+				req.StudentID, req.Month, req.Year, week).
+				Assign(models.WeeklyDue{Status: req.TargetStatus, Amount: 5000}).
+				FirstOrCreate(&due).Error; err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"error":   "Gagal memperbarui data iuran minggu ke-" + string(rune(week)),
+				})
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Update massal berhasil dilakukan",
+	})
+}
+
 // ✅ FUNCTION BARU: GetDuesMatrix (Versi Raw SQL - Lebih Stabil & Debugging Ready)
 // GET /api/finance/dues/matrix?class_id=...
 func (h *FinanceHandler) GetDuesMatrix(c *fiber.Ctx) error {
@@ -415,7 +484,7 @@ func (h *FinanceHandler) GetDuesMatrix(c *fiber.Ctx) error {
 
 	var students []StudentResult
 	// Query ini nembak tabel 'profiles' langsung. Pastikan ada data di table ini dengan class_id tersebut
-	if err := h.DB.Raw("SELECT user_id, full_name FROM profiles WHERE class_id = ? ORDER BY full_name ASC", classID).Scan(&students).Error; err != nil {
+	if err := h.DB.Raw("SELECT user_id, full_name FROM profiles WHERE class_id = ? ORDER BY nim ASC", classID).Scan(&students).Error; err != nil {
 		println("ERROR Query Students:", err.Error())
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch students"})
 	}

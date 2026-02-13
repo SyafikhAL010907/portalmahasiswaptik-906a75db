@@ -2,24 +2,31 @@ package routes
 
 import (
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/handlers"
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/handlers/repository"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(app *fiber.App, db *gorm.DB) {
+func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorage) {
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(db)
 	financeHandler := handlers.NewFinanceHandler(db)
 	attendanceHandler := handlers.NewAttendanceHandler(db)
+	automationHandler := handlers.NewAutomationHandler(db)
+	repoHandler := repository.NewRepositoryHandler(db, storageSrv)
 
 	// API v1 group
 	api := app.Group("/api")
 
 	// Public routes (no auth required)
 	api.Get("/config", userHandler.GetSupabaseConfig)
+
+	// Automation Webhook (Secret/Supabase only)
+	api.Post("/webhooks/automation", automationHandler.HandleSupabaseWebhook)
 
 	// API documentation endpoint
 	api.Get("/docs", func(c *fiber.Ctx) error {
@@ -112,6 +119,15 @@ func SetupRoutes(app *fiber.App, db *gorm.DB) {
 	// Get dues summary
 	finance.Get("/dues/summary", financeHandler.GetWeeklyDuesSummary)
 
+	// Bulk update dues (AdminDev only)
+	finance.Post("/dues/bulk",
+		middleware.RequireAdminDev(),
+		financeHandler.BulkUpdateDues,
+	)
+
+	// Get dues matrix (Student payment records)
+	finance.Get("/dues/matrix", financeHandler.GetDuesMatrix)
+
 	// ========================================
 	// ATTENDANCE ROUTES
 	// ========================================
@@ -154,10 +170,15 @@ func SetupRoutes(app *fiber.App, db *gorm.DB) {
 	)
 
 	// ========================================
-	// EXPORT ROUTES (Future Implementation)
+	// REPOSITORY ROUTES
 	// ========================================
-	// export := protected.Group("/export")
-	// export.Get("/finance/excel", financeHandler.ExportToExcel)
-	// export.Get("/finance/pdf", financeHandler.ExportToPDF)
-	// export.Get("/attendance/excel", attendanceHandler.ExportToExcel)
+	repo := protected.Group("/repository")
+	repo.Post("/upload-drive", repoHandler.UploadToDrive)
+
+	// ========================================
+	// EXPORT ROUTES
+	// ========================================
+	export := protected.Group("/export")
+	export.Get("/finance/excel", financeHandler.ExportFinanceExcel)
+	export.Get("/attendance/excel", attendanceHandler.ExportAttendanceExcel)
 }

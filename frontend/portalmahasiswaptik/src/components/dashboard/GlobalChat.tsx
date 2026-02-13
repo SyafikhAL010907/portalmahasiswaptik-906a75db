@@ -726,20 +726,20 @@ export function GlobalChat() {
                                                 localStorage.setItem(LS_GROUP_READ_KEY, new Date().toISOString());
                                                 openRoom({ id: 'public-group', room_id: 'public-group', name: 'Grup Angkatan 2025', type: 'GROUP' });
                                             }}
-                                            className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-100 dark:border-white/5 cursor-pointer"
+                                            className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-100 dark:border-white/5 cursor-pointer overflow-hidden min-w-0"
                                         >
                                             <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
                                                 <Users size={24} />
                                             </div>
-                                            <div className="flex-1 min-w-0 pr-2">
-                                                <div className="flex justify-between items-center mb-0.5">
-                                                    <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight">Grup Angkatan 2025</h4>
+                                            <div className="flex-1 min-w-0 overflow-hidden pr-2">
+                                                <div className="flex justify-between items-center mb-0.5 min-w-0 overflow-hidden">
+                                                    <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight flex-1 pr-2">Grup Angkatan 2025</h4>
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-black">PUBLIC</span>
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex-1">Saluran komunikasi utama angkatan</p>
+                                                <div className="flex justify-between items-center min-w-0 overflow-hidden w-full">
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate block w-full">Saluran komunikasi utama angkatan</p>
                                                     {groupUnreadCount > 0 && (
-                                                        <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-red-500/30 animate-in zoom-in duration-300 ml-2">
+                                                        <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-red-500/30 animate-in zoom-in duration-300 ml-2 shrink-0">
                                                             {groupUnreadCount}
                                                         </div>
                                                     )}
@@ -772,7 +772,7 @@ export function GlobalChat() {
                                                     });
                                                 }}
                                                 className={cn(
-                                                    "w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group cursor-pointer",
+                                                    "w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group cursor-pointer overflow-hidden min-w-0",
                                                     idx !== (searchTerm ? searchResults : recentChats).length - 1 && "border-b border-slate-100 dark:border-white/5"
                                                 )}
                                             >
@@ -784,8 +784,8 @@ export function GlobalChat() {
                                                         </AvatarFallback>
                                                     </Avatar>
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-start mb-0.5">
+                                                <div className="flex-1 min-w-0 overflow-hidden w-0">
+                                                    <div className="flex justify-between items-start mb-0.5 min-w-0 overflow-hidden">
                                                         <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight text-sm leading-tight flex-1 pr-2">
                                                             {member.full_name}
                                                         </h4>
@@ -793,10 +793,10 @@ export function GlobalChat() {
                                                             {member.last_message_at ? format(new Date(member.last_message_at), 'HH:mm') : ''}
                                                         </span>
                                                     </div>
-                                                    <div className="flex justify-between items-end">
-                                                        <div className="flex-1 min-w-0 pr-2">
+                                                    <div className="flex justify-between items-end min-w-0 overflow-hidden w-full">
+                                                        <div className="flex-1 min-w-0 overflow-hidden pr-2">
                                                             <p className={cn(
-                                                                "text-xs truncate text-left transition-colors",
+                                                                "text-xs truncate text-left transition-colors block w-full",
                                                                 (member.unread_count && member.unread_count > 0)
                                                                     ? "text-slate-900 dark:text-slate-200 font-bold"
                                                                     : "text-slate-500 dark:text-slate-500 font-medium"
@@ -951,7 +951,7 @@ export function GlobalChat() {
                                                                 {getRoleBadge(msg.profiles?.role || null)}
                                                             </div>
                                                         )}
-                                                        <p className="text-sm leading-relaxed pr-8 font-medium">{msg.content}</p>
+                                                        <p className="text-sm leading-relaxed pr-8 font-medium break-all break-words">{msg.content}</p>
                                                         <div className="flex items-center gap-1.5 absolute bottom-1.5 right-2">
                                                             <span className={cn("text-[8px] font-bold uppercase", isMe ? "text-white/40" : "text-slate-400 dark:text-slate-500")}>
                                                                 {format(new Date(msg.created_at), 'HH:mm')}

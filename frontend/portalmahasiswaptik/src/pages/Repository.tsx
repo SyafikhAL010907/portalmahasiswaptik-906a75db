@@ -17,18 +17,28 @@ import { toast } from 'sonner';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
+// --- CONSTANTS ---
+const GOOGLE_DRIVE_FOLDER_LINK = 'https://drive.google.com/drive/folders/1Ar_jm913F57k7WcchYkv8o6ZUbX4s3KP';
+const PARENT_FOLDER_ID = '1b4bby3CRLAX9pL1QKD87HU0Os0slKaIi';
+
+// Dynamically determine backend URL - Use relative path /api to leverage Vite proxy
+// This ensures it works on localhost AND local network IPs
+const API_BASE_URL = window.location.origin;
+
 // --- INTERFACES ---
 interface Subject {
   id: string;
   name: string;
   code: string;
   semester: number;
+  drive_folder_id?: string | null;
 }
 
 interface Semester {
   id: number;
   name: string;
   created_at?: string;
+  drive_folder_id?: string | null;
   gradient?: string;
 }
 
@@ -41,6 +51,11 @@ interface Material {
   file_size: number | null;
   uploaded_by: string;
   created_at: string;
+  storage_type: 'supabase' | 'google_drive';
+  external_url: string | null;
+  category: string | null;
+  is_pinned: boolean | null;
+  subject_name?: string; // For UI display
 }
 
 // SOFT PASTEL MODE: Finance Dashboard Style
@@ -82,6 +97,7 @@ export default function Repository() {
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
   const [materialForm, setMaterialForm] = useState({ title: '', description: '' });
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+  const [isFileTooLarge, setIsFileTooLarge] = useState(false);
 
   // Semester Dialog
   const [isSemesterDialogOpen, setIsSemesterDialogOpen] = useState(false);
@@ -341,57 +357,116 @@ export default function Repository() {
 
   // 2. Material Actions
   const handleAddMaterial = async () => {
-    if (!materialForm.title || !fileToUpload || !selectedCourse || !selectedSemester || !userId) {
-      toast.error("Mohon lengkapi form dan pilih file");
+    if (!materialForm.title || !selectedCourse || !selectedSemester || !userId) {
+      toast.error("Mohon lengkapi form");
+      return;
+    }
+
+    if (!fileToUpload) {
+      toast.error("Mohon pilih file");
       return;
     }
 
     setIsLoading(true);
     try {
-      // 1. Upload File
-      const fileExt = fileToUpload.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${selectedSemester.id}/${selectedCourse.code}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('materials')
-        .upload(filePath, fileToUpload);
-
-      if (uploadError) throw uploadError;
-
-      // 2. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('materials')
-        .getPublicUrl(filePath);
-
-      // 3. Determine Type
+      let finalFileUrl = '';
+      let storageType: 'supabase' | 'google_drive' = 'supabase';
       let type = 'other';
-      if (fileToUpload.type.startsWith('image/')) type = 'image';
-      else if (fileToUpload.type.startsWith('video/')) type = 'video';
-      else if (fileToUpload.type.includes('pdf')) type = 'pdf';
+      let fileSize = fileToUpload?.size || null;
+      let category = null;
+      let isPinned = false;
+
+      if (isFileTooLarge) {
+        // --- Automate Server-side Upload to Google Drive ---
+        const driveFolderId = selectedCourse.drive_folder_id || PARENT_FOLDER_ID; // Fallback to parent if not set
+
+        const formData = new FormData();
+        formData.append('file', fileToUpload);
+        formData.append('parent_id', driveFolderId);
+
+        // 1. Refresh & Get Fresh Supabase session token for Auth
+        const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+        if (sessionError) throw new Error('Sesi habis, silakan login ulang');
+
+        const response = await fetch(`${API_BASE_URL}/api/repository/upload-drive`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: formData,
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Gagal upload ke Google Drive');
+
+        storageType = 'google_drive';
+        finalFileUrl = result.webViewLink; // Direct view link from Drive
+        category = 'Umum';
+        isPinned = true;
+      } else if (fileToUpload) {
+        // 1. Upload File to Supabase
+        const fileExt = fileToUpload.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${selectedSemester.id}/${selectedCourse.code}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('materials')
+          .upload(filePath, fileToUpload);
+
+        if (uploadError) throw uploadError;
+
+        // 2. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('materials')
+          .getPublicUrl(filePath);
+
+        finalFileUrl = publicUrl;
+        storageType = 'supabase';
+
+        // 3. Determine Type
+        if (fileToUpload.type.startsWith('image/')) type = 'image';
+        else if (fileToUpload.type.startsWith('video/')) type = 'video';
+        else if (fileToUpload.type.includes('pdf')) type = 'pdf';
+      }
 
       // 4. Insert Record
-      const { error: insertError } = await supabase.from('materials').insert([{
+      const driveFolderId = selectedCourse.drive_folder_id;
+      const folderLink = driveFolderId
+        ? `https://drive.google.com/drive/folders/${driveFolderId}`
+        : GOOGLE_DRIVE_FOLDER_LINK; // Fallback to parent
+
+      const insertData: any = {
         subject_id: selectedCourse.id,
         semester: selectedSemester.id,
         title: materialForm.title,
         description: materialForm.description,
         file_type: type,
-        file_url: publicUrl,
-        file_size: fileToUpload.size,
-        uploaded_by: userId
-      }]);
+        file_url: finalFileUrl,
+        file_size: storageType === 'google_drive' ? null : fileSize,
+        uploaded_by: userId,
+        storage_type: storageType,
+        external_url: storageType === 'google_drive' ? folderLink : null,
+        is_pinned: isPinned
+      };
+
+      // Only add category if storage_type is google_drive to avoid issues if column is missing
+      if (storageType === 'google_drive') {
+        insertData.category = category;
+      }
+
+      const { error: insertError } = await supabase.from('materials').insert([insertData]);
 
       if (insertError) throw insertError;
 
-      toast.success("Materi berhasil diunggah");
+      toast.success("Materi berhasil disimpan");
       setIsAddMaterialOpen(false);
       setFileToUpload(null);
+      setIsFileTooLarge(false);
       setMaterialForm({ title: '', description: '' });
       fetchMaterials(selectedCourse.id);
 
     } catch (err: any) {
-      toast.error("Gagal mengunggah: " + err.message);
+      toast.error("Gagal menyimpan: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -430,6 +505,28 @@ export default function Repository() {
       if (mediaFilter === 'document') return m.file_type === 'pdf';
       return m.file_type === mediaFilter;
     });
+
+  const getGoogleDriveDirectLink = (url: string) => {
+    if (!url.includes('drive.google.com')) return url;
+
+    // Handle standard drive links
+    const fileIdMatch = url.match(/\/file\/d\/([^\/]+)/) || url.match(/id=([^\&]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+      return `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+    }
+    return url;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFileToUpload(file);
+    if (file && file.size > 2 * 1024 * 1024) {
+      setIsFileTooLarge(true);
+      // No warning toast anymore, we handle it automatically via "Full Courier" mode
+    } else {
+      setIsFileTooLarge(false);
+    }
+  };
 
   return (
     <div className="space-y-6 pt-12 md:pt-0 pb-10">
@@ -621,18 +718,30 @@ export default function Repository() {
                       </div>
                       <div className="min-w-0">
                         <h4 className="font-medium text-foreground truncate max-w-[200px] sm:max-w-md">{file.title}</h4>
-                        <div className="flex gap-2 text-xs text-muted-foreground">
-                          {file.file_size && <span>{(file.file_size / 1024 / 1024).toFixed(2)} MB</span>}
-                          <span>•</span>
-                          <span>{new Date(file.created_at).toLocaleDateString()}</span>
-                        </div>
+                        {file.storage_type !== 'google_drive' && (
+                          <div className="flex gap-2 text-xs text-muted-foreground">
+                            {file.file_size && <span>{(file.file_size / 1024 / 1024).toFixed(2)} MB</span>}
+                            <span>•</span>
+                            <span>{new Date(file.created_at).toLocaleDateString()}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-auto">
                       <Button variant="pill" size="sm" asChild>
-                        <a href={file.file_url} target="_blank" rel="noopener noreferrer" download>
+                        <a
+                          href={file.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            if (file.storage_type === 'google_drive') {
+                              // If it's GD, we just open the link (already converted to direct if possible)
+                              return;
+                            }
+                          }}
+                        >
                           <Download className="w-4 h-4 mr-2" />
-                          Download
+                          {file.storage_type === 'google_drive' ? `Buka Folder ${selectedCourse?.name || 'Materi Umum'}` : 'Download'}
                         </a>
                       </Button>
                       {canManage && (
@@ -715,15 +824,32 @@ export default function Repository() {
               <Label>File (PDF, Doc, Image, Video)</Label>
               <Input
                 type="file"
-                onChange={(e) => setFileToUpload(e.target.files ? e.target.files[0] : null)}
+                onChange={handleFileChange}
               />
+              {isFileTooLarge && isLoading && (
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 p-3 rounded-lg mt-2 flex items-center gap-3">
+                  <Loader2 className="animate-spin w-4 h-4 text-blue-600" />
+                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                    Sedang Mengunggah ke Google Drive...
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddMaterialOpen(false)}>Batal</Button>
             <Button onClick={handleAddMaterial} disabled={isLoading}>
-              {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              Upload
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                  {isFileTooLarge ? 'Sabar, Lagi Upload...' : 'Simpan...'}
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Simpan
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
