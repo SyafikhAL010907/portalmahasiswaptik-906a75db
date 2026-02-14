@@ -185,4 +185,16 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	export.Get("/finance/excel", financeHandler.ExportFinanceExcel)
 	export.Get("/attendance/excel", attendanceHandler.ExportAttendanceExcel)
 	export.Get("/attendance/master-excel", attendanceHandler.ExportMasterAttendanceExcel)
+
+	// ========================================
+	// CONFIG ROUTES (V9.0 Global Configs)
+	// ========================================
+	configHandler := handlers.NewConfigHandler(db)
+	configGrp := protected.Group("/config")
+
+	// Get billing range (Authenticated users: Admin, Dosen, Mahasiswa)
+	configGrp.Get("/billing-range", configHandler.GetBillingRange)
+
+	// Save billing range (AdminDev only)
+	configGrp.Post("/save-range", middleware.RequireAdminDev(), configHandler.SaveBillingRange)
 }

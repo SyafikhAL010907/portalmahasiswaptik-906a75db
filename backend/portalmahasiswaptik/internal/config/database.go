@@ -62,7 +62,15 @@ func InitDatabase() (*gorm.DB, error) {
 
 // autoMigrate runs GORM auto-migration for all models
 func autoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	// Force create table if not exists (Safety Check)
+	db.Exec(`CREATE TABLE IF NOT EXISTS global_configs (
+		key VARCHAR(255) PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	)`)
+
+	err := db.AutoMigrate(
+		&models.GlobalConfig{}, // Moved to TOP for priority
 		&models.Class{},
 		&models.Profile{},
 		&models.UserRole{},
@@ -75,4 +83,22 @@ func autoMigrate(db *gorm.DB) error {
 		&models.Announcement{},
 		&models.Material{},
 	)
+
+	if err != nil {
+		return err
+	}
+
+	// Seed default global configs
+	var count int64
+	db.Model(&models.GlobalConfig{}).Where("key = ?", "billing_start_month").Count(&count)
+	if count == 0 {
+		db.Create(&models.GlobalConfig{Key: "billing_start_month", Value: "1"})
+	}
+
+	db.Model(&models.GlobalConfig{}).Where("key = ?", "billing_end_month").Count(&count)
+	if count == 0 {
+		db.Create(&models.GlobalConfig{Key: "billing_end_month", Value: "6"})
+	}
+
+	return nil
 }

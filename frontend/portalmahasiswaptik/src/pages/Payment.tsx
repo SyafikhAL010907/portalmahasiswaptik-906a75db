@@ -44,10 +44,41 @@ export default function Payment() {
     setActivePeriod(null);
 
     // 1. GET BILLING SETTINGS (Saklar Tagihan)
-    const savedStart = localStorage.getItem('billingStart');
-    const savedEnd = localStorage.getItem('billingEnd');
-    const startMonth = savedStart ? Number(savedStart) : 1; // Default Jan
-    const endMonth = savedEnd ? Number(savedEnd) : 6;     // Default Jun
+    // 1. GET BILLING SETTINGS (Global Config via API)
+    // Default fallback
+    // 1. GET BILLING SETTINGS (Global Config via API)
+    // STRICT SYNC: No defaults allowed. System must wait for API.
+    let startMonth: number | null = null;
+    let endMonth: number | null = null;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const headers: any = {};
+      if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+      const baseUrl = `${window.location.protocol}//${window.location.hostname}:9000/api`;
+      const response = await fetch(`${baseUrl}/config/billing-range`, { headers });
+
+      if (response.ok) {
+        const data = await response.json();
+        startMonth = data.start_month;
+        endMonth = data.end_month;
+      } else {
+        throw new Error("Gagal mengambil konfigurasi tagihan.");
+      }
+    } catch (e) {
+      console.error("Failed to fetch global billing config", e);
+      toast.error("Gagal sinkronisasi periode tagihan. Coba refresh.");
+      setIsLoading(false);
+      return; // STOP execution if config fails
+    }
+
+    if (startMonth === null || endMonth === null) {
+      toast.error("Konfigurasi tagihan tidak valid.");
+      setIsLoading(false);
+      return;
+    }
 
     setActivePeriod({ start: startMonth, end: endMonth });
 
