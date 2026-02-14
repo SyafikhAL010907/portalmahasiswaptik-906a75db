@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap, Calendar } from 'lucide-react';
-import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PremiumCard } from '@/components/ui/PremiumCard';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import GlassConfirmationModal from '@/components/ui/GlassConfirmationModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -96,8 +97,15 @@ export default function Finance() {
   const [weeks] = useState(['W1', 'W2', 'W3', 'W4']);
   const [classTransactionStats, setClassTransactionStats] = useState<FinanceSummary>({ total_income: 0, total_expense: 0, balance: 0 });
 
-  // Add Transaction State
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
+
+  // GLASS CONFIRMATION STATE
+  const [isGlassConfirmOpen, setIsGlassConfirmOpen] = useState(false);
+  const [glassConfirmConfig, setGlassConfirmConfig] = useState({
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [displayAmount, setDisplayAmount] = useState('');
   const [selectedTransactionMonth, setSelectedTransactionMonth] = useState<number>(new Date().getMonth() + 1);
@@ -900,30 +908,37 @@ export default function Finance() {
 
   const handleBatchUpdateWeek = async (week: number, status: 'paid' | 'bebas' = 'bebas') => {
     const actionLabel = status === 'paid' ? 'LUNAS' : 'BEBAS KAS';
-    if (!confirm(`Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi ${actionLabel} untuk Minggu ke-${week}?`)) return;
-    setIsLoadingMatrix(true);
-    try {
-      // Loop update for all displayed students
-      const updates = matrixData.map(async (student) => {
-        const { error } = await supabase.from('weekly_dues').upsert({
-          student_id: student.student_id,
-          week_number: week,
-          month: selectedMonth,
-          year: selectedYear,
-          amount: status === 'paid' ? 5000 : 0, // Paid = 5000, Bebas = 0
-          status: status
-        }, { onConflict: 'student_id, week_number, month, year' }); // Upsert by unique constraint
-        if (error) console.error(`Failed to update ${student.name}:`, error);
-      });
-      await Promise.all(updates);
-      toast.success(`Berhasil set ${actionLabel} Minggu ${week} untuk kelas ini!`);
-      fetchStudentMatrix(); // Refresh
-      fetchDuesTotal(); // Refresh totals if paid
-    } catch (err) {
-      toast.error("Gagal melakukan batch update.");
-    } finally {
-      setIsLoadingMatrix(false);
-    }
+
+    setGlassConfirmConfig({
+      title: `Konfirmasi Set ${actionLabel}`,
+      message: `Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi ${actionLabel} untuk Minggu ke-${week}? Tindakan ini tidak dapat dibatalkan dengan mudah.`,
+      onConfirm: async () => {
+        setIsLoadingMatrix(true);
+        try {
+          // Loop update for all displayed students
+          const updates = matrixData.map(async (student) => {
+            const { error } = await supabase.from('weekly_dues').upsert({
+              student_id: student.student_id,
+              week_number: week,
+              month: selectedMonth,
+              year: selectedYear,
+              amount: status === 'paid' ? 5000 : 0, // Paid = 5000, Bebas = 0
+              status: status
+            }, { onConflict: 'student_id, week_number, month, year' }); // Upsert by unique constraint
+            if (error) console.error(`Failed to update ${student.name}:`, error);
+          });
+          await Promise.all(updates);
+          toast.success(`Berhasil set ${actionLabel} Minggu ${week} untuk kelas ini!`);
+          fetchStudentMatrix(); // Refresh
+          fetchDuesTotal(); // Refresh totals if paid
+        } catch (err) {
+          toast.error("Gagal melakukan batch update.");
+        } finally {
+          setIsLoadingMatrix(false);
+        }
+      }
+    });
+    setIsGlassConfirmOpen(true);
   };
 
   const handleBatchUpdateAllWeeks = async (status: 'paid' | 'bebas' = 'bebas') => {
@@ -1588,6 +1603,14 @@ export default function Finance() {
         </DialogContent>
       </Dialog>
       {/* CONFIRMATION MODAL */}
+      {/* NEW GLASS CONFIRMATION MODAL */}
+      <GlassConfirmationModal
+        isOpen={isGlassConfirmOpen}
+        onClose={() => setIsGlassConfirmOpen(false)}
+        onConfirm={glassConfirmConfig.onConfirm}
+        title={glassConfirmConfig.title}
+        message={glassConfirmConfig.message}
+      />
       <ConfirmationModal
         isOpen={modalConfig.isOpen}
         onClose={closeModal}

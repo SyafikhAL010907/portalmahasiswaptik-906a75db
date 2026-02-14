@@ -26,6 +26,7 @@ export default function Payment() {
   const [unpaidWeeks, setUnpaidWeeks] = useState<BillDetail[]>([]);
   const [totalBill, setTotalBill] = useState(0);
   const [showQRIS, setShowQRIS] = useState(false);
+  const [activePeriod, setActivePeriod] = useState<{ start: number, end: number } | null>(null);
 
   const handleCheckBill = async () => {
     const cleanNim = nim.trim();
@@ -40,28 +41,33 @@ export default function Payment() {
     setTotalBill(0);
     setShowQRIS(false);
     setIsBelumBayar(false);
+    setActivePeriod(null);
+
+    // 1. GET BILLING SETTINGS (Saklar Tagihan)
+    const savedStart = localStorage.getItem('billingStart');
+    const savedEnd = localStorage.getItem('billingEnd');
+    const startMonth = savedStart ? Number(savedStart) : 1; // Default Jan
+    const endMonth = savedEnd ? Number(savedEnd) : 6;     // Default Jun
+
+    setActivePeriod({ start: startMonth, end: endMonth });
 
     try {
-      // 1. Fetch profile first (Split query for robustness)
+      // 2. Fetch profile first
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id, full_name, nim, class_id')
         .eq('nim', cleanNim)
         .maybeSingle();
 
-      if (profileError) {
-        console.error("Profile Fetch Error:", profileError);
-        throw profileError;
-      }
-
+      if (profileError) throw profileError;
       if (!profile) {
         toast.error("NIM tidak ditemukan! Pastikan mahasiswa terdaftar di User Management.");
         setIsLoading(false);
         return;
       }
 
-      // 2. Fetch class name if exists
-      let classLetter = 'A'; // Default
+      // 3. Fetch class name (A/B/C)
+      let classLetter = 'A';
       let className = 'Kelas A';
 
       if (profile.class_id) {
@@ -72,7 +78,7 @@ export default function Payment() {
           .maybeSingle();
 
         if (classData?.name) {
-          className = `Kelas ${classData.name} `;
+          className = `Kelas ${classData.name}`;
           classLetter = classData.name.replace('Kelas ', '').trim();
         }
       }
@@ -83,70 +89,64 @@ export default function Payment() {
         classes: { name: className }
       });
 
-      // 3. Fetch all dues records for the current year
+      // 4. FETCH DUES (Mirroring Finance.tsx Logic)
       const currentYear = new Date().getFullYear();
-      const { data: duesData, error: duesError } = await (supabase.from('weekly_dues') as any)
-        .select('month, week_number, status, amount')
+
+      const { data: duesData, error: duesError } = await supabase
+        .from('weekly_dues')
+        .select('*')
         .eq('student_id', profile.user_id)
         .eq('year', currentYear);
 
       if (duesError) throw duesError;
 
-      // 4. Calculate Total Paid and Arrears (Status Based Sync)
-      const paidRecords = duesData?.filter((d: any) => d.status === 'paid') || [];
-      const totalPaidAmount = paidRecords.reduce((sum: number, d: any) => sum + (d.amount || 0), 0);
-
+      // 5. CALCULATE DEBT BASED ON ACTIVE PERIOD (Saklar)
       const arrears: BillDetail[] = [];
+      let totalAccumulated = 0;
 
-      // Logic: Only consider months that have at least ONE 'paid' or 'pending' record.
-      // This eliminates "ghost months" like future months or accidental entries with no status.
-      const activeMonths = Array.from(new Set(duesData?.filter((d: any) => d.status === 'paid' || d.status === 'pending').map((d: any) => d.month as number) || [])) as number[];
+      // Map existing records for O(1) lookup
+      const duesMap = new Map<string, any>();
+      duesData?.forEach((d: any) => {
+        duesMap.set(`${d.month}-${d.week_number}`, d);
+      });
 
-      // CASE: Belum Bayar (0 Paid Records)
-      if (totalPaidAmount === 0 && activeMonths.length === 0) {
-        setIsBelumBayar(true);
-        arrears.push({
-          month: 1, // Default to Januari
-          week: 1,  // Default to Minggu 1
-          status: 'unpaid'
-        });
-      } else {
-        // CASE: Partial Payments or Pending - Filter months with deficiencies
-        activeMonths.forEach((m: number) => {
-          const monthRecords = duesData?.filter((d: any) => d.month === m) || [];
-          const paidInMonth = monthRecords.filter((d: any) => d.status === 'paid').length;
+      // Loop restricted to chosen Billing Range (startMonth to endMonth)
+      for (let m = startMonth; m <= endMonth; m++) {
+        // Standard rule: 4 weeks per month
+        for (let w = 1; w <= 4; w++) {
+          const key = `${m}-${w}`;
+          const record = duesMap.get(key);
+          const status = record?.status;
 
-          // Deficiency found if paid weeks in that month < 4
-          if (paidInMonth < 4) {
-            for (let w = 1; w <= 4; w++) {
-              const record = monthRecords.find((d: any) => d.week_number === w);
-              if (!record || record.status === 'unpaid' || record.status === 'pending') {
-                arrears.push({
-                  month: m,
-                  week: w,
-                  status: record?.status || 'unpaid'
-                });
-              }
-            }
+          // STRICT FINANCE SYNC:
+          // If inside billing range, it IS a debt unless 'paid' or 'bebas'.
+          const isPaid = status === 'paid' || status === 'bebas';
+
+          if (!isPaid) {
+            arrears.push({
+              month: m,
+              week: w,
+              status: status || 'unpaid'
+            });
+            totalAccumulated += 5000;
           }
-        });
+        }
       }
 
-      const sortedArrears = arrears.sort((a, b) => (a.month * 10 + a.week) - (b.month * 10 + b.week));
+      setUnpaidWeeks(arrears);
+      setTotalBill(totalAccumulated);
 
-      setUnpaidWeeks(sortedArrears);
-      setTotalBill(sortedArrears.length * 5000);
-
-      // Success logic: MUST have paid something AND zero deficiencies
-      const isActuallyLunas = totalPaidAmount > 0 && sortedArrears.length === 0;
-
-      if (isActuallyLunas) {
-        toast.success("Gokil! Tagihan lo sudah lunas semua bro!");
+      // Check if completely new user (no payments ever)
+      const hasAnyPayment = duesData?.some((d: any) => d.status === 'paid');
+      if (!hasAnyPayment && arrears.length > 0) {
+        setIsBelumBayar(true);
+      } else if (arrears.length === 0) {
+        toast.success("Gokil! Tagihan lo sudah lunas semua untuk periode ini!");
       }
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Gagal ambil data tagihan: " + (error.message || "Unknown error"));
+      toast.error("Gagal sinkron data: " + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -158,54 +158,57 @@ export default function Payment() {
     setIsPaying(true);
     try {
       const currentYear = new Date().getFullYear();
-      const updates = unpaidWeeks
-        .filter(b => b.status === 'unpaid')
-        .map(bill => ({
-          student_id: studentData.user_id,
-          month: bill.month,
-          week_number: bill.week,
-          status: 'pending',
-          year: currentYear,
-          amount: 5000
-        }));
+      const updates = unpaidWeeks.map(bill => ({
+        student_id: studentData.user_id,
+        month: bill.month,
+        week_number: bill.week,
+        status: 'pending',
+        year: currentYear,
+        amount: 5000
+      }));
 
       if (updates.length > 0) {
-        const { error } = await (supabase.from('weekly_dues') as any)
+        const { error } = await supabase
+          .from('weekly_dues')
           .upsert(updates, { onConflict: 'student_id, month, week_number, year' });
 
         if (error) throw error;
       }
 
-      toast.success("Status pembayaran diubah ke 'Pending'. Segera kirim bukti bayar ya!");
+      toast.success("Tagihan dibuat! Silakan scan QR di bawah.");
       setShowQRIS(true);
 
-      // Refresh local UI to show everything as pending
+      // Optimistic update: Mark all displayed as pending
       setUnpaidWeeks(prev => prev.map(w => ({ ...w, status: 'pending' })));
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Gagal update status pembayaran!");
+      toast.error("Gagal memproses tagihan!");
     } finally {
       setIsPaying(false);
     }
   };
 
   const getQRISImage = (classLetter: string, amount: number) => {
-    const folder = `Qris${classLetter} `;
-    const filename = amount === 5000 ? 'qris-5k.jpg' :
-      amount === 10000 ? 'qris-10k.jpg' :
-        amount === 15000 ? 'qris-15k.jpg' :
-          amount === 20000 ? 'qris-20k.jpg' : 'qris-dana-all-nominal.jpg';
+    // Dynamic QR Logic
+    const sanitizedClass = (classLetter || 'A').toUpperCase();
+    const folder = `Qris${sanitizedClass}`;
 
-    // Path correctly mapped to public folder
-    return `/ Qris${classLetter}/${filename}`;
+    let filename = 'qris-dana-all-nominal.jpg'; // Default
+
+    if (amount === 5000) filename = 'qris-5k.jpg';
+    else if (amount === 10000) filename = 'qris-10k.jpg';
+    else if (amount === 15000) filename = 'qris-15k.jpg';
+    else if (amount === 20000) filename = 'qris-20k.jpg';
+
+    return `/${folder}/${filename}`;
   };
 
   return (
     <div className="space-y-6 pt-12 md:pt-0">
       <div className="animate-in fade-in duration-200">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Bayar iuranTagihan Kas</h1>
-        <p className="text-muted-foreground mt-1">Sesuai data Matrix Iuran Mahasiswa</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Bayar Iuran Kas</h1>
+        <p className="text-muted-foreground mt-1">Sinkronisasi Otomatis dengan Matrix Iuran</p>
       </div>
 
       <div className="glass-card p-6 rounded-2xl border border-border bg-card/50 shadow-sm animate-in fade-in duration-200">
@@ -231,10 +234,8 @@ export default function Payment() {
       </div>
 
       {studentData && (
-        <div
-          key={studentData.user_id}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-200"
-        >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-200">
+          {/* Card 1: Rincian Tagihan */}
           <div className="glass-card p-6 rounded-2xl border border-border bg-card shadow-lg">
             <div className="flex items-center gap-4 mb-6 border-b border-border pb-4">
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
@@ -249,50 +250,52 @@ export default function Payment() {
             <div className="space-y-3 mb-6">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-primary" /> Detail Tagihan
+                  <Calendar className="w-4 h-4 text-primary" /> Rincian Item Mingguan
                 </h4>
                 {unpaidWeeks.length > 0 && (
                   <span className="text-[10px] bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded-full font-bold">
-                    {isBelumBayar ? 0 : unpaidWeeks.length} Item
+                    {unpaidWeeks.filter(w => w.status === 'unpaid').length} Item Belum Lunas
                   </span>
                 )}
               </div>
 
+              {/* Saklar Info */}
+              {activePeriod && (
+                <div className="mb-4 px-3 py-2 bg-muted/30 rounded-lg text-[10px] text-muted-foreground border border-border/50 flex items-center gap-2">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>
+                    Periode Tagihan Aktif: <strong className="text-foreground">{MONTH_NAMES[activePeriod.start]} - {MONTH_NAMES[activePeriod.end]}</strong>
+                  </span>
+                </div>
+              )}
+
               {unpaidWeeks.length > 0 ? (
-                isBelumBayar ? (
-                  <div className="flex flex-col items-center py-10 text-amber-500 bg-amber-500/5 rounded-2xl border border-amber-500/20 animate-in zoom-in duration-300">
-                    <AlertCircle className="w-12 h-12 mb-3 drop-shadow-sm" />
-                    <p className="font-black text-lg text-amber-600">Belum Ada Riwayat Bayar</p>
-                    <p className="text-xs text-muted-foreground mt-1 px-6 text-center">Silakan lakukan pembayaran iuran pertama untuk memulai kontribusi Anda.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                    {unpaidWeeks.map((item) => (
-                      <div key={`${item.month}-${item.week}`} className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/40 rounded-xl border border-border/50 transition-all group">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-semibold group-hover:text-primary transition-colors">
-                            {MONTH_NAMES[item.month]} - Minggu {item.week}
+                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                  {unpaidWeeks.map((item, idx) => (
+                    <div key={`${item.month}-${item.week}-${idx}`} className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/40 rounded-xl border border-border/50 transition-all group">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-semibold group-hover:text-primary transition-colors">
+                          {MONTH_NAMES[item.month]} - Minggu {item.week}
+                        </span>
+                        {item.status === 'pending' ? (
+                          <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
+                            Menunggu Konfirmasi
                           </span>
-                          {item.status === 'pending' ? (
-                            <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
-                              Menunggu Konfirmasi Admin
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md w-fit italic">
-                              Hutang Belum Terbayar
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm font-black text-rose-600">Rp 5.000</span>
+                        ) : (
+                          <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md w-fit italic">
+                            Hutang Belum Terbayar
+                          </span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )
+                      <span className="text-sm font-black text-rose-600">Rp 5.000</span>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="flex flex-col items-center py-10 text-blue-500 bg-blue-500/5 rounded-2xl border border-blue-500/20 animate-in zoom-in duration-300">
                   <CheckCircle2 className="w-12 h-12 mb-3 drop-shadow-sm" />
                   <p className="font-black text-lg">Semua Tagihan Lunas!</p>
-                  <p className="text-xs text-muted-foreground mt-1 px-6 text-center">Terima kasih atas partisipasinya bro. Data Matrix Anda sudah aman!</p>
+                  <p className="text-xs text-muted-foreground mt-1 px-6 text-center">Terima kasih atas partisipasinya bro. Data matrix aman!</p>
                 </div>
               )}
             </div>
@@ -304,23 +307,24 @@ export default function Payment() {
                     <div>
                       <p className="text-[10px] text-primary/70 uppercase font-black tracking-tighter mb-1">Total Akumulasi Tagihan:</p>
                       <p className="text-4xl font-black text-primary tracking-tight">
-                        {isBelumBayar ? "Rp 0" : formatIDR(totalBill)}
+                        {formatIDR(totalBill)}
                       </p>
                     </div>
                   </div>
                   <Button
                     onClick={handlePayNow}
-                    disabled={isPaying || !unpaidWeeks.some(w => w.status === 'unpaid')}
+                    disabled={isPaying || totalBill === 0}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground h-14 rounded-xl font-black text-lg shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.98]"
                   >
                     {isPaying ? <Loader2 className="animate-spin w-6 h-6 mr-2" /> : <CreditCard className="w-6 h-6 mr-2" />}
-                    {isBelumBayar ? "MULAI PEMBAYARAN PERTAMA" : "BAYAR SEKARANG"}
+                    BAYAR SEKARANG
                   </Button>
                 </div>
               </div>
             )}
           </div>
 
+          {/* Card 2: QRIS Result */}
           {showQRIS && totalBill > 0 && (
             <div className="glass-card p-8 rounded-2xl border-2 border-primary/30 bg-card flex flex-col items-center animate-in slide-in-from-right-4 fade-in duration-300 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-5">
@@ -354,10 +358,10 @@ export default function Payment() {
                 </div>
                 <div>
                   <p className="text-xs text-amber-800 font-bold leading-relaxed">
-                    Sistem sudah mencatat status <span className="underline italic">"Menunggu Konfirmasi"</span>.
+                    Sistem sudah mencatat status <span className="underline italic">"Pending"</span>.
                   </p>
                   <p className="text-[10px] text-amber-700/80 mt-1 font-medium">
-                    Jangan lupa kirim screenshot bukti transfer ke WhatsApp Bendahara Kelas untuk validasi cepat!
+                    Mohon segera transfer dan kirim bukti ke Bendahara Kelas agar status berubah menjadi LUNAS.
                   </p>
                 </div>
               </div>
@@ -372,5 +376,6 @@ export default function Payment() {
     </div>
   );
 }
+
 
 // formatRupiah removed and replaced by formatIDR from utils.ts
