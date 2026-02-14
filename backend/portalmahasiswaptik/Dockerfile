@@ -46,12 +46,12 @@ RUN chown -R appuser:appgroup /app
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8080
+# Expose port (Railway will override this, but good for local docker run)
+EXPOSE 9000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-9000}/health || exit 1
 
 # Run the application
 CMD ["./main"]
