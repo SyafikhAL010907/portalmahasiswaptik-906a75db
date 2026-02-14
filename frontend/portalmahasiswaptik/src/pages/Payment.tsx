@@ -39,7 +39,7 @@ export default function Payment() {
         const headers: any = {};
         if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
 
-        const baseUrl = `${window.location.protocol}//${window.location.hostname}:9000/api`;
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9000/api';
         const response = await fetch(`${baseUrl}/config/billing-range`, { headers });
 
         if (response.ok) {
@@ -52,9 +52,14 @@ export default function Payment() {
               return prev;
             });
           }
+        } else {
+          // Fallback V9.7
+          if (isMounted && !activePeriod) setActivePeriod({ start: 1, end: 6 });
         }
       } catch (error) {
         console.error("Polling config failed", error);
+        // Fallback V9.7
+        if (isMounted && !activePeriod) setActivePeriod({ start: 1, end: 6 });
       }
     };
 
