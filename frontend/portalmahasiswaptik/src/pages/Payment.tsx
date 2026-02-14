@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,90 @@ export default function Payment() {
   const [showQRIS, setShowQRIS] = useState(false);
   const [activePeriod, setActivePeriod] = useState<{ start: number, end: number } | null>(null);
 
+  const [rawDues, setRawDues] = useState<any[]>([]);
+
+  // 1. POLLING BILLING CONFIG (REAL-TIME)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchConfig = async (isBackground = false) => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: any = {};
+        if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+        const baseUrl = `${window.location.protocol}//${window.location.hostname}:9000/api`;
+        const response = await fetch(`${baseUrl}/config/billing-range`, { headers });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) {
+            setActivePeriod(prev => {
+              if (!prev || prev.start !== data.start_month || prev.end !== data.end_month) {
+                return { start: data.start_month, end: data.end_month };
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Polling config failed", error);
+      }
+    };
+
+    fetchConfig(); // Initial fetch
+    const interval = setInterval(() => fetchConfig(true), 5000); // Poll every 5s
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // 2. REACTIVE BILL CALCULATION
+  useEffect(() => {
+    if (!activePeriod || rawDues.length === 0) return;
+
+    const { start, end } = activePeriod;
+    const arrears: BillDetail[] = [];
+    let totalAccumulated = 0;
+
+    const duesMap = new Map<string, any>();
+    rawDues.forEach((d: any) => {
+      duesMap.set(`${d.month}-${d.week_number}`, d);
+    });
+
+    for (let m = start; m <= end; m++) {
+      for (let w = 1; w <= 4; w++) {
+        const key = `${m}-${w}`;
+        const record = duesMap.get(key);
+        const status = record?.status;
+        const isPaid = status === 'paid' || status === 'bebas';
+
+        if (!isPaid) {
+          arrears.push({
+            month: m,
+            week: w,
+            status: status || 'unpaid'
+          });
+          totalAccumulated += 5000;
+        }
+      }
+    }
+
+    setUnpaidWeeks(arrears);
+    setTotalBill(totalAccumulated);
+
+    // Auto-update IsBelumBayar status
+    const hasAnyPayment = rawDues.some((d: any) => d.status === 'paid');
+    if (!hasAnyPayment && arrears.length > 0) {
+      setIsBelumBayar(true);
+    } else {
+      setIsBelumBayar(false);
+    }
+
+  }, [activePeriod, rawDues]);
+
+
   const handleCheckBill = async () => {
     const cleanNim = nim.trim();
     if (!cleanNim) {
@@ -37,53 +121,14 @@ export default function Payment() {
 
     setIsLoading(true);
     setStudentData(null);
+    setRawDues([]);
     setUnpaidWeeks([]);
     setTotalBill(0);
     setShowQRIS(false);
     setIsBelumBayar(false);
-    setActivePeriod(null);
-
-    // 1. GET BILLING SETTINGS (Saklar Tagihan)
-    // 1. GET BILLING SETTINGS (Global Config via API)
-    // Default fallback
-    // 1. GET BILLING SETTINGS (Global Config via API)
-    // STRICT SYNC: No defaults allowed. System must wait for API.
-    let startMonth: number | null = null;
-    let endMonth: number | null = null;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const headers: any = {};
-      if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
-
-      const baseUrl = `${window.location.protocol}//${window.location.hostname}:9000/api`;
-      const response = await fetch(`${baseUrl}/config/billing-range`, { headers });
-
-      if (response.ok) {
-        const data = await response.json();
-        startMonth = data.start_month;
-        endMonth = data.end_month;
-      } else {
-        throw new Error("Gagal mengambil konfigurasi tagihan.");
-      }
-    } catch (e) {
-      console.error("Failed to fetch global billing config", e);
-      toast.error("Gagal sinkronisasi periode tagihan. Coba refresh.");
-      setIsLoading(false);
-      return; // STOP execution if config fails
-    }
-
-    if (startMonth === null || endMonth === null) {
-      toast.error("Konfigurasi tagihan tidak valid.");
-      setIsLoading(false);
-      return;
-    }
-
-    setActivePeriod({ start: startMonth, end: endMonth });
-
-    try {
-      // 2. Fetch profile first
+      // 1. Fetch profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id, full_name, nim, class_id')
@@ -92,22 +137,16 @@ export default function Payment() {
 
       if (profileError) throw profileError;
       if (!profile) {
-        toast.error("NIM tidak ditemukan! Pastikan mahasiswa terdaftar di User Management.");
+        toast.error("NIM tidak ditemukan!");
         setIsLoading(false);
         return;
       }
 
-      // 3. Fetch class name (A/B/C)
+      // 2. Fetch class info
       let classLetter = 'A';
       let className = 'Kelas A';
-
       if (profile.class_id) {
-        const { data: classData } = await supabase
-          .from('classes')
-          .select('name')
-          .eq('id', profile.class_id)
-          .maybeSingle();
-
+        const { data: classData } = await supabase.from('classes').select('name').eq('id', profile.class_id).maybeSingle();
         if (classData?.name) {
           className = `Kelas ${classData.name}`;
           classLetter = classData.name.replace('Kelas ', '').trim();
@@ -120,9 +159,8 @@ export default function Payment() {
         classes: { name: className }
       });
 
-      // 4. FETCH DUES (Mirroring Finance.tsx Logic)
+      // 3. Fetch Dues
       const currentYear = new Date().getFullYear();
-
       const { data: duesData, error: duesError } = await supabase
         .from('weekly_dues')
         .select('*')
@@ -131,57 +169,16 @@ export default function Payment() {
 
       if (duesError) throw duesError;
 
-      // 5. CALCULATE DEBT BASED ON ACTIVE PERIOD (Saklar)
-      const arrears: BillDetail[] = [];
-      let totalAccumulated = 0;
-
-      // Map existing records for O(1) lookup
-      const duesMap = new Map<string, any>();
-      duesData?.forEach((d: any) => {
-        duesMap.set(`${d.month}-${d.week_number}`, d);
-      });
-
-      // Loop restricted to chosen Billing Range (startMonth to endMonth)
-      for (let m = startMonth; m <= endMonth; m++) {
-        // Standard rule: 4 weeks per month
-        for (let w = 1; w <= 4; w++) {
-          const key = `${m}-${w}`;
-          const record = duesMap.get(key);
-          const status = record?.status;
-
-          // STRICT FINANCE SYNC:
-          // If inside billing range, it IS a debt unless 'paid' or 'bebas'.
-          const isPaid = status === 'paid' || status === 'bebas';
-
-          if (!isPaid) {
-            arrears.push({
-              month: m,
-              week: w,
-              status: status || 'unpaid'
-            });
-            totalAccumulated += 5000;
-          }
-        }
-      }
-
-      setUnpaidWeeks(arrears);
-      setTotalBill(totalAccumulated);
-
-      // Check if completely new user (no payments ever)
-      const hasAnyPayment = duesData?.some((d: any) => d.status === 'paid');
-      if (!hasAnyPayment && arrears.length > 0) {
-        setIsBelumBayar(true);
-      } else if (arrears.length === 0) {
-        toast.success("Gokil! Tagihan lo sudah lunas semua untuk periode ini!");
-      }
+      setRawDues(duesData || []); // Triggers calculation via useEffect
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Gagal sinkron data: " + error.message);
+      toast.error("Gagal memuat data: " + error.message);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handlePayNow = async () => {
     if (!studentData || unpaidWeeks.length === 0) return;
@@ -209,8 +206,22 @@ export default function Payment() {
       toast.success("Tagihan dibuat! Silakan scan QR di bawah.");
       setShowQRIS(true);
 
-      // Optimistic update: Mark all displayed as pending
+      // Optimistic update
       setUnpaidWeeks(prev => prev.map(w => ({ ...w, status: 'pending' })));
+      // Also update rawDues to reflect pending status if we want to be super correct, 
+      // but for now UI update is enough. 
+      // Ideally we refetch dues or update rawDues state.
+      // Let's update rawDues to keep consistency
+      setRawDues(prev => {
+        const newDues = [...prev];
+        updates.forEach(u => {
+          const idx = newDues.findIndex(d => d.month === u.month && d.week_number === u.week_number);
+          if (idx >= 0) newDues[idx] = { ...newDues[idx], status: 'pending' };
+          else newDues.push(u);
+        });
+        return newDues;
+      });
+
 
     } catch (error: any) {
       console.error(error);

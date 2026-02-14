@@ -105,11 +105,14 @@ export default function Finance() {
   const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-  // FETCH GLOBAL CONFIG ON MOUNT
+  // FETCH GLOBAL CONFIG ON MOUNT & POLLING
   useEffect(() => {
-    const fetchGlobalConfig = async () => {
+    let isMounted = true;
+
+    const fetchGlobalConfig = async (isBackground = false) => {
       try {
-        setIsLoadingConfig(true);
+        if (!isBackground) setIsLoadingConfig(true);
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
@@ -120,25 +123,47 @@ export default function Finance() {
 
         if (response.ok) {
           const data = await response.json();
-          // Solo update if data is valid
-          if (data.start_month) setBillingStart(data.start_month);
-          if (data.end_month) setBillingEnd(data.end_month);
+          if (isMounted) {
+            // Only update state if different to prevent rerenders (React handles this but good practice)
+            setBillingStart(prev => prev !== data.start_month ? data.start_month : prev);
+            setBillingEnd(prev => prev !== data.end_month ? data.end_month : prev);
+          }
         } else {
-          console.warn("Global config fetch failed, using fallback.");
-          setBillingStart(1);
-          setBillingEnd(6);
-          toast.error("Gagal memuat konfigurasi. Mode Darurat: Januari-Juni.");
+          if (!isBackground) {
+            console.warn("Global config fetch failed, using fallback.");
+            if (isMounted) {
+              setBillingStart(1);
+              setBillingEnd(6);
+              toast.error("Gagal memuat konfigurasi. Mode Darurat: Januari-Juni.");
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch global config:", error);
-        setBillingStart(1);
-        setBillingEnd(6);
-        toast.error("Koneksi gagal. Mode Darurat Aktif.");
+        if (!isBackground && isMounted) {
+          setBillingStart(1);
+          setBillingEnd(6);
+          toast.error("Koneksi gagal. Mode Darurat Aktif.");
+        }
       } finally {
-        setIsLoadingConfig(false);
+        if (isMounted && !isBackground) {
+          setIsLoadingConfig(false);
+        }
       }
     };
+
+    // Initial fetch
     fetchGlobalConfig();
+
+    // Polling every 5 seconds
+    const intervalId = setInterval(() => {
+      fetchGlobalConfig(true);
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
   // UPDATE GLOBAL CONFIG
