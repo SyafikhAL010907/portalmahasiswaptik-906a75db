@@ -128,6 +128,9 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// Get dues matrix (Student payment records)
 	finance.Get("/dues/matrix", financeHandler.GetDuesMatrix)
 
+	// Export Finance Data (Excel) - Added for V8.2
+	finance.Get("/export", financeHandler.ExportFinanceExcel)
+
 	// ========================================
 	// ATTENDANCE ROUTES
 	// ========================================

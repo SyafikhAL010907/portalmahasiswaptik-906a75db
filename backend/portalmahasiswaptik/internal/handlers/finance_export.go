@@ -213,18 +213,25 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 		}
 	}
 
+	// Parse Billing Range (V7.1)
+	startMonthIdx, _ := strconv.Atoi(c.Query("start_month"))
+	endMonthIdx, _ := strconv.Atoi(c.Query("end_month"))
+
+	if startMonthIdx == 0 {
+		startMonthIdx = 1
+	}
+	if endMonthIdx == 0 {
+		endMonthIdx = 6
+	} // Default Jun
+
 	// Data Rows
 	for i, s := range students {
-		r := 6 + i + 1
+		rowNum := 6 + i + 1
 
-		// AUTO-PILOT CALCULATION (Strict: March -> Current Month)
-		currentMonth := int(time.Now().Month())
-		startMonth := 3 // March
-
-		// Map to check week status
-		// monthlyGroups contains amounts and weeks count.
-		// But we need to know if a week is 'paid' OR 'free'.
-		// Re-structuring map to store status? Use duesMap directly.
+		// AUTO-PILOT CALCULATION (Strict: Usage of Query Params)
+		// currentMonth := int(time.Now().Month()) // Unused in Strict Logic
+		startMonth := startMonthIdx
+		endMonth := endMonthIdx
 
 		// Reset calculation
 		totalNominal := 0.0
@@ -232,42 +239,48 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 		var deficiencies []string
 		deficiencyAmount := 0.0
 
-		// Logic: Iterate Months (3 -> Current)
-		if currentMonth >= startMonth {
-			for m := startMonth; m <= currentMonth; m++ {
-				// Calculate stats for this month
-				paidWeeksCount := 0
-				weekDeficiency := 0
+		// Logic: Iterate Full Year (Start -> End)
+		for m := startMonth; m <= endMonth; m++ {
+			paidWeeks := 0
 
+			// Check if data exists for this month
+			monthData, monthExists := duesMap[s.UserID][year][m]
+
+			if monthExists && len(monthData) > 0 {
+				// Case 1: Data Exists (Past, Present, OR Future)
+				// If status is "paid", calculate. If "unpaid", it's a debt, even in future.
 				for w := 1; w <= 4; w++ {
-					status := duesMap[s.UserID][year][m][w]
-					switch status {
+					st := monthData[w]
+					switch st {
 					case "paid", "lunas":
-						paidWeeksCount++
-						totalNominal += 5000 // Assume 5000
+						paidWeeks++
+						totalNominal += 5000
 					case "free", "bebas":
-						paidWeeksCount++
-						// No amount added
-					default:
-						// Unpaid / Pending
-						weekDeficiency++
+						paidWeeks++
+						// No amount added for bebas
 					}
 				}
 
-				if paidWeeksCount >= 4 {
+				if paidWeeks >= 4 {
 					fullMonths++
-				}
-				if weekDeficiency > 0 {
-					mName := ""
-					if m >= 1 && m <= 12 {
-						mName = monthNames[m]
+				} else {
+					missing := 4 - paidWeeks
+					debt := float64(missing) * 5000
+					if debt > 0 {
+						deficiencies = append(deficiencies, fmt.Sprintf("%s %d mg", monthNames[m], missing))
+						deficiencyAmount += debt
 					}
-					deficiencies = append(deficiencies, fmt.Sprintf("%s (-%d mg)", mName, weekDeficiency))
-					deficiencyAmount += float64(weekDeficiency * 5000)
 				}
+			} else {
+				// Case 2: Data Missing (Null/Undefined)
+				// STRICT RULE: If inside billing range, it IS a debt.
+				// Valid because loop strictly runs startMonth -> endMonth
+				missing := 4
+				debt := 20000.0
+				deficiencies = append(deficiencies, fmt.Sprintf("%s %d mg", monthNames[m], missing))
+				deficiencyAmount += debt
 			}
 		}
-
 		col6Val := ""
 		col6Style := normalStyle
 		col5Val := "-" + FormatRupiah(deficiencyAmount)
@@ -281,7 +294,7 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 		}
 
 		if len(deficiencies) > 0 {
-			col6Val = strings.Join(deficiencies, " - ")
+			col6Val = strings.Join(deficiencies, " + ")
 			col6Style = redTextStyle
 		} else if totalNominal == 0 {
 			col6Val = "Belum Bayar"
@@ -291,16 +304,16 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 			col6Style = greenStyle
 		}
 
-		f.SetCellValue(sheet, fmt.Sprintf("A%d", r), i+1)
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", r), s.NIM)
-		f.SetCellValue(sheet, fmt.Sprintf("C%d", r), s.FullName)
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", r), fmt.Sprintf("%d Bulan", fullMonths))
-		f.SetCellValue(sheet, fmt.Sprintf("E%d", r), col5Val)
-		f.SetCellStyle(sheet, fmt.Sprintf("E%d", r), fmt.Sprintf("E%d", r), col5Style)
-		f.SetCellValue(sheet, fmt.Sprintf("F%d", r), col6Val)
-		f.SetCellStyle(sheet, fmt.Sprintf("F%d", r), fmt.Sprintf("F%d", r), col6Style)
+		f.SetCellValue(sheet, fmt.Sprintf("A%d", rowNum), i+1)
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", rowNum), s.NIM)
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", rowNum), s.FullName)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", rowNum), fmt.Sprintf("%d Bulan", fullMonths))
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", rowNum), col5Val)
+		f.SetCellStyle(sheet, fmt.Sprintf("E%d", rowNum), fmt.Sprintf("E%d", rowNum), col5Style)
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", rowNum), col6Val)
+		f.SetCellStyle(sheet, fmt.Sprintf("F%d", rowNum), fmt.Sprintf("F%d", rowNum), col6Style)
 
-		f.SetCellStyle(sheet, fmt.Sprintf("A%d", r), fmt.Sprintf("D%d", r), normalStyle)
+		f.SetCellStyle(sheet, fmt.Sprintf("A%d", rowNum), fmt.Sprintf("D%d", rowNum), normalStyle)
 	}
 
 	// ==========================================

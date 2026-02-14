@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap, Calendar } from 'lucide-react';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Button } from '@/components/ui/button';
@@ -158,6 +158,26 @@ export default function Finance() {
   const [selectedMonth, setSelectedMonth] = useState<number>(0);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [transactionFilter, setTransactionFilter] = useState<'all' | 'income' | 'expense'>('all'); // ADDED FILTER STATE
+
+  // V7.1: Universal Billing Trigger States
+  // V7.1: Universal Billing Trigger States (with V7.3 Persistence)
+  const [billingStart, setBillingStart] = useState<number>(() => {
+    const saved = localStorage.getItem('billingStart');
+    return saved ? Number(saved) : 1; // Default Jan
+  });
+  const [billingEnd, setBillingEnd] = useState<number>(() => {
+    const saved = localStorage.getItem('billingEnd');
+    return saved ? Number(saved) : 6; // Default Jun
+  });
+
+  // V7.3: Persist Billing Range
+  useEffect(() => {
+    localStorage.setItem('billingStart', String(billingStart));
+  }, [billingStart]);
+
+  useEffect(() => {
+    localStorage.setItem('billingEnd', String(billingEnd));
+  }, [billingEnd]);
 
   const months = [
     { value: 0, label: 'Lifetime' },
@@ -345,36 +365,50 @@ export default function Finance() {
         // Group by month for lifetime stats
         const monthlyGroups = new Map<number, { weeks: Set<number>, amount: number }>();
         studentYearlyDues.forEach(d => {
+          // Fix V6.1: Always initialize group if data exists, regardless of status.
+          // This ensures "Future Unpaid" detects as "Data Exists" instead of "Missing Data".
+          if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
+
           if (d.status === 'paid' || d.status === 'bebas') {
-            if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
             const group = monthlyGroups.get(d.month)!;
             group.weeks.add(d.week_number);
             if (d.status === 'paid') group.amount += d.amount; // Only add amount if paid
           }
         });
 
-        // NOW CALCULATE DEFICIENCY based on Auto-Pilot
-        const currentMonth = new Date().getMonth() + 1;
-        const startMonth = 3; // March
+        // NOW CALCULATE DEFICIENCY based on Auto-Pilot (V7.1 Universal Trigger)
+        // Loop restricted to chosen Billing Range
+        const startMonth = billingStart;
+        const endMonth = billingEnd;
+        // Current month check for "Future" logic is relative to Real Time?
+        // User said: "Di dalam rentang tersebut... OTOMATIS hitung sebagai hutang".
+        // "Jika di luar rentang... abaikan".
+        // Use Strict Rule within Range.
 
-        // We must iterate through ALL months from Start to Current
-        if (currentMonth >= startMonth) {
-          for (let m = startMonth; m <= currentMonth; m++) {
-            const group = monthlyGroups.get(m) || { weeks: new Set(), amount: 0 };
+        for (let m = startMonth; m <= endMonth; m++) {
+          const group = monthlyGroups.get(m);
+
+          if (group) {
             totalNominal += group.amount;
-
-            // Full Month logic: 4 weeks paid/bebas OR amount >= 20000 (if paid)
-            // Actually, if 'bebas' exists, amount might be 0 but weeks might be 4.
+            // Case 1: Data Exists
             if (group.weeks.size >= 4 || group.amount >= 20000) {
               fullMonths += 1;
             } else {
               const missing = 4 - group.weeks.size;
               const debt = missing * 5000;
               if (debt > 0) {
-                deficiencies.push(`${monthNames[m]} (-${missing} mg)`);
+                // V7.1 Format: "Jan 4 mg" (Positive Integer)
+                deficiencies.push(`${monthNames[m]} ${missing} mg`);
                 deficiencyAmount += debt;
               }
             }
+          } else {
+            // Case 2: Data Missing
+            // STRICT RULE: If inside billing range, it IS a debt.
+            const missing = 4;
+            const debt = 20000;
+            deficiencies.push(`${monthNames[m]} ${missing} mg`);
+            deficiencyAmount += debt;
           }
         }
 
@@ -389,7 +423,7 @@ export default function Finance() {
         };
       }
     });
-  }, [students, yearlyDues, isLifetime, selectedMonth]);
+  }, [students, yearlyDues, isLifetime, selectedMonth, billingStart, billingEnd]);
 
   // ✅ RE-IMPLEMENTED: FETCH GLOBAL DATA (Month/Year/Lifetime) - Independent of selectedClassId
   useEffect(() => {
@@ -824,37 +858,49 @@ export default function Finance() {
 
       toast.info("Sedang menyiapkan file Excel...");
 
-      const response = await fetch(`http://localhost:9000/api/export/finance/excel?class_id=${selectedClassId}&year=${selectedYear}`, {
+      // V8.2: Forced Dynamic URL (LAN/WiFi Friendly)
+      const baseUrl = `${window.location.protocol}//${window.location.hostname}:9000/api`;
+      const exportUrl = `${baseUrl}/finance/export?class_id=${selectedClassId}&year=${selectedYear}&start_month=${billingStart}&end_month=${billingEnd}`;
+
+      console.log("Export URL (Dynamic + Auth):", exportUrl);
+
+      // USE FETCH WITH AUTH HEADER
+      const response = await fetch(exportUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Server Error: ${response.status} - ${errorText}`);
       }
 
+      // HANDLE BLOB DOWNLOAD
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Laporan_Keuangan_${selectedClassName}_${selectedYear}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `Laporan_Keuangan_${selectedClassName || 'Angkatan'}_${selectedYear}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
 
-      toast.success("Excel Berhasil diunduh!");
+      // CLEANUP
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success("Excel berhasil didownload!");
+
     } catch (error: any) {
       console.error("Download failed:", error);
       toast.error("Gagal mendownload Excel: " + error.message);
     }
   };
 
-  const handleBatchUpdateWeek = async (week: number) => {
-    if (!confirm(`Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi BEBAS KAS untuk Minggu ke-${week}?`)) return;
+  const handleBatchUpdateWeek = async (week: number, status: 'paid' | 'bebas' = 'bebas') => {
+    const actionLabel = status === 'paid' ? 'LUNAS' : 'BEBAS KAS';
+    if (!confirm(`Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi ${actionLabel} untuk Minggu ke-${week}?`)) return;
     setIsLoadingMatrix(true);
     try {
       // Loop update for all displayed students
@@ -864,16 +910,50 @@ export default function Finance() {
           week_number: week,
           month: selectedMonth,
           year: selectedYear,
-          amount: 0,
-          status: 'bebas'
+          amount: status === 'paid' ? 5000 : 0, // Paid = 5000, Bebas = 0
+          status: status
         }, { onConflict: 'student_id, week_number, month, year' }); // Upsert by unique constraint
         if (error) console.error(`Failed to update ${student.name}:`, error);
       });
       await Promise.all(updates);
-      toast.success(`Berhasil set Bebas Kas Minggu ${week} untuk kelas ini!`);
+      toast.success(`Berhasil set ${actionLabel} Minggu ${week} untuk kelas ini!`);
       fetchStudentMatrix(); // Refresh
+      fetchDuesTotal(); // Refresh totals if paid
     } catch (err) {
       toast.error("Gagal melakukan batch update.");
+    } finally {
+      setIsLoadingMatrix(false);
+    }
+  };
+
+  const handleBatchUpdateAllWeeks = async (status: 'paid' | 'bebas' = 'bebas') => {
+    const actionLabel = status === 'paid' ? 'LUNAS' : 'BEBAS KAS';
+    if (!confirm(`Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi ${actionLabel} untuk SEMUA MINGGU (W1-W4)?`)) return;
+    setIsLoadingMatrix(true);
+    try {
+      // Loop update for all displayed students AND all weeks
+      const updates = [];
+      const weeks = [1, 2, 3, 4];
+
+      for (const student of matrixData) {
+        for (const week of weeks) {
+          updates.push(supabase.from('weekly_dues').upsert({
+            student_id: student.student_id,
+            week_number: week,
+            month: selectedMonth,
+            year: selectedYear,
+            amount: status === 'paid' ? 5000 : 0,
+            status: status
+          }, { onConflict: 'student_id, week_number, month, year' }));
+        }
+      }
+
+      await Promise.all(updates);
+      toast.success(`Berhasil set ${actionLabel} Semua Minggu (W1-W4) untuk kelas ini!`);
+      fetchStudentMatrix(); // Refresh
+      fetchDuesTotal(); // Refresh totals if paid
+    } catch (err) {
+      toast.error("Gagal melakukan batch update all weeks.");
     } finally {
       setIsLoadingMatrix(false);
     }
@@ -961,42 +1041,129 @@ export default function Finance() {
           </div>
         )}
 
-        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">Matrix Iuran {isLifetime ? 'Lifetime' : 'Bulanan'}</h2>
-            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full lg:w-auto">
-              <Select
-                value={selectedMonth.toString()}
-                onValueChange={(val) => handleMonthChange(Number(val))}
-              >
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Pilih Periode" />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map(m => (
-                    <SelectItem key={m.value} value={m.value.toString()}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
-                {classes.map((cls) => (
-                  <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => handleClassChange(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground whitespace-nowrap font-bold' : 'whitespace-nowrap font-semibold'}> Kelas {cls.name} </Button>
-                ))}
+        {/* V8.2: TWO-TIER PROFESSIONAL HEADER */}
+        <div className="rounded-2xl overflow-hidden border border-border shadow-sm mb-6 bg-card">
+
+          {/* TIER 1: BRANDING BAR (Dark Mode Style) */}
+          <div className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-emerald-400" />
+                Management Kas Angkatan
+              </h2>
+              <p className="text-slate-400 text-xs mt-0.5">Control Panel Keuangan Terpusat</p>
+            </div>
+            <div className="hidden md:block">
+              <span className="text-xs font-mono text-slate-500 bg-slate-800 px-2 py-1 rounded">V8.2 Stable</span>
+            </div>
+          </div>
+
+          {/* TIER 2: CONTROL BAR (Lighter Control Panel) */}
+          <div className="bg-white dark:bg-slate-950 px-6 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+
+            {/* LEFT: FILTER GROUP */}
+            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full md:w-auto">
+
+              {/* Period Selector */}
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+                <Select
+                  value={selectedMonth.toString()}
+                  onValueChange={(val) => handleMonthChange(Number(val))}
+                >
+                  <SelectTrigger className="w-full sm:w-[160px] pl-9 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Pilih Periode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map(m => (
+                      <SelectItem key={m.value} value={m.value.toString()}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
+
+              {/* V7.1 Billing Range Controls (Visible Only in Lifetime) */}
+              {isLifetime && (
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-md border border-slate-200 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
+                  <Select value={String(billingStart)} onValueChange={(v) => setBillingStart(Number(v))}>
+                    <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.slice(1).map(m => (
+                        <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mx-1">Sampai</span>
+                  <Select value={String(billingEnd)} onValueChange={(v) => setBillingEnd(Number(v))}>
+                    <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.slice(1).map(m => (
+                        <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Class Selector (Unified Dropdown for All Views) */}
+              <div className="relative">
+                <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+                <Select value={selectedClassId} onValueChange={(val) => handleClassChange(val)}>
+                  <SelectTrigger className="w-full sm:w-[150px] pl-9 font-medium bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                    <SelectValue placeholder="Pilih Kelas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id} className="font-medium">
+                        Kelas {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* RIGHT: ACTION GROUP */}
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              {/* V8.0: Class Actions (Visible ONLY in Monthly View) */}
+              {!isLifetime && ['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full sm:w-auto gap-2">
-                      <Zap className="w-4 h-4 text-amber-500" /> Aksi Kelas
+                    <Button variant="outline" className="gap-2 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50">
+                      <Zap className="w-4 h-4" /> Aksi Kelas
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Set Bebas Kas Mingguan</DropdownMenuLabel>
+                    <DropdownMenuLabel>Set Lunas Mingguan (Rp 5.000)</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleBatchUpdateAllWeeks('paid')}>
+                      <Check className="w-4 h-4 mr-2 text-blue-500" />
+                      Set Semua Lunas (W1-W4)
+                    </DropdownMenuItem>
                     {[1, 2, 3, 4].map(w => (
-                      <DropdownMenuItem key={w} onClick={() => handleBatchUpdateWeek(w)}>
+                      <DropdownMenuItem key={`paid-${w}`} onClick={() => handleBatchUpdateWeek(w, 'paid')}>
+                        <Check className="w-4 h-4 mr-2 text-blue-500" />
+                        Set Lunas (Minggu {w})
+                      </DropdownMenuItem>
+                    ))}
+
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Set Bebas Kas Mingguan (Rp 0)</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleBatchUpdateAllWeeks('bebas')}>
+                      <Unlock className="w-4 h-4 mr-2 text-slate-500" />
+                      Set Semua Bebas Kas (W1-W4)
+                    </DropdownMenuItem>
+                    {[1, 2, 3, 4].map(w => (
+                      <DropdownMenuItem key={`bebas-${w}`} onClick={() => handleBatchUpdateWeek(w, 'bebas')}>
                         <Unlock className="w-4 h-4 mr-2 text-slate-500" />
                         Set Bebas Kas (Minggu {w})
                       </DropdownMenuItem>
@@ -1004,417 +1171,423 @@ export default function Finance() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-              <Button variant="outline" size="sm" className="w-full sm:w-auto gap-2" onClick={handleDownloadExcel}><Download className="w-4 h-4" /> Export Excel</Button>
+
+              <Button onClick={handleDownloadExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all">
+                <Download className="w-4 h-4" /> Export Excel
+              </Button>
             </div>
+
           </div>
-          <div className="overflow-x-auto">
-            {isLoadingMatrix ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground animate-pulse">Memuat data matrix...</p>
+        </div>
+        <div className="overflow-x-auto">
+          {isLoadingMatrix ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground animate-pulse">Memuat data matrix...</p>
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3 bg-destructive/5 rounded-xl border border-destructive/20 mb-6">
+              <AlertCircle className="w-10 h-10 text-destructive" />
+              <h3 className="text-lg font-semibold text-destructive">Gagal Memuat Data</h3>
+              <p className="text-sm text-muted-foreground max-w-md">{fetchError}</p>
+              <Button variant="outline" size="sm" onClick={() => fetchStudentMatrix()} className="mt-2">
+                Coba Lagi
+              </Button>
+            </div>
+          ) : matrixData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center gap-4 bg-muted/20 rounded-xl border border-dashed border-border mb-6">
+              {/* V7.1: Billing Range Controls */}
+              {/* Billing Range Controls moved to Top Toolbar per User Request */}
+
+              <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <Folder className="w-10 h-10 text-muted-foreground opacity-50" />
               </div>
-            ) : fetchError ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-3 bg-destructive/5 rounded-xl border border-destructive/20 mb-6">
-                <AlertCircle className="w-10 h-10 text-destructive" />
-                <h3 className="text-lg font-semibold text-destructive">Gagal Memuat Data</h3>
-                <p className="text-sm text-muted-foreground max-w-md">{fetchError}</p>
-                <Button variant="outline" size="sm" onClick={() => fetchStudentMatrix()} className="mt-2">
-                  Coba Lagi
-                </Button>
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold text-foreground">Data Tidak Ditemukan</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Belum ada data mahasiswa atau transaksi di kelas ini untuk periode yang dipilih.
+                </p>
               </div>
-            ) : matrixData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 px-4 text-center gap-4 bg-muted/20 rounded-xl border border-dashed border-border mb-6">
-                <div className="p-4 bg-background rounded-full shadow-sm">
-                  <Folder className="w-10 h-10 text-muted-foreground opacity-50" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-lg font-semibold text-foreground">Data Tidak Ditemukan</h3>
-                  <p className="text-sm text-muted-foreground max-w-sm">
-                    Belum ada data mahasiswa atau transaksi di kelas ini untuk periode yang dipilih.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border/50">
-                    <th className="text-left py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Nama Mahasiswa</th>
-                    {!isLifetime ? (
-                      weeks.map((week) => (<th key={week} className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">{week}</th>))
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/50">
+                  <th className="text-left py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Nama Mahasiswa</th>
+                  {!isLifetime ? (
+                    weeks.map((week) => (<th key={week} className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">{week}</th>))
+                  ) : (
+                    <>
+                      <th className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Total Bulan Update</th>
+                      <th className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Total Nominal Kurang</th>
+                      <th className="text-center py-4 px-4 text-sm font-bold text-slate700 dark:text-slate-300">Status</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {matrixData.map((student) => (
+                  <tr key={student.student_id} className="border-b border-border/40 hover:bg-muted/30 transition-colors group">
+                    <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>{student.name}</span>
+                        {/* STRICT CHECK: admin_dev and admin_class (own class) */}
+                        {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="w-3 h-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Aksi Cepat Iuran</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'paid')}>
+                                <Check className="w-4 h-4 mr-2 text-blue-500" />
+                                Set Semua Lunas (W1-W4)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'pending')}>
+                                <Clock className="w-4 h-4 mr-2 text-cyan-500" />
+                                Set Semua Pending (W1-W4)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'reset')}>
+                                <X className="w-4 h-4 mr-2 text-rose-500" />
+                                Reset / Belum Bayar (W1-W4)
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </td>{!isLifetime ? (
+                      student.payments.map((status, weekIdx) => (
+                        <td key={weekIdx} className="py-3 px-4 text-center">
+                          <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-blue-500/10 text-blue-600 border-blue-200" : status === 'pending' ? "bg-cyan-500/10 text-cyan-600 border-cyan-200" : status === 'bebas' ? "bg-slate-500/10 text-slate-600 border-slate-200" : "bg-rose-500/10 text-rose-600 border-rose-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
+                        </td>
+                      ))
                     ) : (
                       <>
-                        <th className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Total Bulan Update</th>
-                        <th className="text-center py-4 px-4 text-sm font-bold text-slate-700 dark:text-slate-300">Total Nominal Kurang</th>
-                        <th className="text-center py-4 px-4 text-sm font-bold text-slate700 dark:text-slate-300">Status</th>
+                        <td className="py-3 px-4 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">{student.lifetime_paid_count} Bulan</td>
+                        <td className="py-3 px-4 text-center text-sm">
+                          {(student.lifetime_deficiency_amount || 0) > 0 ? (
+                            <span className="font-bold text-red-600 dark:text-red-400 text-sm">- {formatIDR(student?.lifetime_deficiency_amount || 0)}</span>
+                          ) : (
+                            <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{formatIDR(0)}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center text-sm">
+                          {student.lifetime_deficiency && student.lifetime_deficiency.length > 0 ? (
+                            <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 text-xs font-bold inline-block">
+                              {student.lifetime_deficiency.map((msg, idx) => msg).join(' + ')}
+                            </span>
+                          ) : (student.lifetime_total || 0) === 0 ? (
+                            <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 text-xs font-bold inline-block">Belum Bayar</span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-bold inline-block">✓ Lunas</span>
+                          )}
+                        </td>
                       </>
                     )}
                   </tr>
-                </thead>
-                <tbody>
-                  {matrixData.map((student) => (
-                    <tr key={student.student_id} className="border-b border-border/40 hover:bg-muted/30 transition-colors group">
-                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span>{student.name}</span>
-                          {/* STRICT CHECK: admin_dev and admin_class (own class) */}
-                          {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <MoreVertical className="w-3 h-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Aksi Cepat Iuran</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'paid')}>
-                                  <Check className="w-4 h-4 mr-2 text-blue-500" />
-                                  Set Semua Lunas (W1-W4)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'pending')}>
-                                  <Clock className="w-4 h-4 mr-2 text-cyan-500" />
-                                  Set Semua Pending (W1-W4)
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleBulkUpdate(student.student_id, student.name, 'reset')}>
-                                  <X className="w-4 h-4 mr-2 text-rose-500" />
-                                  Reset / Belum Bayar (W1-W4)
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                      </td>{!isLifetime ? (
-                        student.payments.map((status, weekIdx) => (
-                          <td key={weekIdx} className="py-3 px-4 text-center">
-                            <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-blue-500/10 text-blue-600 border-blue-200" : status === 'pending' ? "bg-cyan-500/10 text-cyan-600 border-cyan-200" : status === 'bebas' ? "bg-slate-500/10 text-slate-600 border-slate-200" : "bg-rose-500/10 text-rose-600 border-rose-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
-                          </td>
-                        ))
-                      ) : (
-                        <>
-                          <td className="py-3 px-4 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">{student.lifetime_paid_count} Bulan</td>
-                          <td className="py-3 px-4 text-center text-sm">
-                            {(student.lifetime_deficiency_amount || 0) > 0 ? (
-                              <span className="font-bold text-red-600 dark:text-red-400 text-sm">- {formatIDR(student?.lifetime_deficiency_amount || 0)}</span>
-                            ) : (
-                              <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{formatIDR(0)}</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center text-sm">
-                            {student.lifetime_deficiency && student.lifetime_deficiency.length > 0 ? (
-                              <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 text-xs font-bold inline-block">
-                                {student.lifetime_deficiency.map((msg, idx) => msg.replace('(-', '').replace(' mg)', ' mg')).join(' - ')}
-                              </span>
-                            ) : (student.lifetime_total || 0) === 0 ? (
-                              <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 text-xs font-bold inline-block">Belum Bayar</span>
-                            ) : (
-                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-bold inline-block">✓ Lunas</span>
-                            )}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
+      </div>
 
-        {/* ✅ LOGIKA BARU: Sembunyikan Tabel Transaksi jika di mode Lifetime */}
-        {!isLifetime && (
-          <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-              <h2 className="text-lg font-semibold text-foreground">{isLifetime ? "Data Transaksi Angkatan" : "Transaksi Terakhir"}</h2>
-              <div className="flex gap-2 w-full md:w-auto">
-                <div className="flex gap-1 bg-muted/50 p-1 rounded-lg flex-1 md:flex-initial">
-                  {['all', 'income', 'expense'].map((f) => (
-                    <button key={f} onClick={() => setTransactionFilter(f as any)} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", transactionFilter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}> {f === 'all' ? 'Semua' : f === 'income' ? 'Masuk' : 'Keluar'} </button>
-                  ))}
-                </div>
-                {canEdit() && (
-                  <Dialog open={isAddTxOpen} onOpenChange={setIsAddTxOpen}>
-                    <DialogTrigger asChild><Button className="primary-gradient gap-2 h-10 px-5 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all"><Plus className="w-4 h-4" /> Tambah Transaksi</Button></DialogTrigger>
-                    <DialogContent className="glass-card border-border sm:max-w-[425px]">
-                      <DialogHeader><DialogTitle className="text-xl font-bold text-foreground">Catat Transaksi Angkatan</DialogTitle></DialogHeader>
-                      <div className="space-y-5 py-4">
-                        <div className="flex gap-2 p-1 bg-muted/50 rounded-xl">
-                          <Button variant={newTx.type === 'income' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'income' && "bg-blue-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'income', category: 'hibah' })}>Pemasukan</Button>
-                          <Button variant={newTx.type === 'expense' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'expense' && "bg-rose-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'expense', category: 'Umum' })}>Pengeluaran</Button>
+      {/* ✅ LOGIKA BARU: Sembunyikan Tabel Transaksi jika di mode Lifetime */}
+      {!isLifetime && (
+        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+            <h2 className="text-lg font-semibold text-foreground">{isLifetime ? "Data Transaksi Angkatan" : "Transaksi Terakhir"}</h2>
+            <div className="flex gap-2 w-full md:w-auto">
+              <div className="flex gap-1 bg-muted/50 p-1 rounded-lg flex-1 md:flex-initial">
+                {['all', 'income', 'expense'].map((f) => (
+                  <button key={f} onClick={() => setTransactionFilter(f as any)} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", transactionFilter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}> {f === 'all' ? 'Semua' : f === 'income' ? 'Masuk' : 'Keluar'} </button>
+                ))}
+              </div>
+              {canEdit() && (
+                <Dialog open={isAddTxOpen} onOpenChange={setIsAddTxOpen}>
+                  <DialogTrigger asChild><Button className="primary-gradient gap-2 h-10 px-5 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all"><Plus className="w-4 h-4" /> Tambah Transaksi</Button></DialogTrigger>
+                  <DialogContent className="glass-card border-border sm:max-w-[425px]">
+                    <DialogHeader><DialogTitle className="text-xl font-bold text-foreground">Catat Transaksi Angkatan</DialogTitle></DialogHeader>
+                    <div className="space-y-5 py-4">
+                      <div className="flex gap-2 p-1 bg-muted/50 rounded-xl">
+                        <Button variant={newTx.type === 'income' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'income' && "bg-blue-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'income', category: 'hibah' })}>Pemasukan</Button>
+                        <Button variant={newTx.type === 'expense' ? 'default' : 'ghost'} className={cn("flex-1 h-9", newTx.type === 'expense' && "bg-rose-600 text-white")} onClick={() => setNewTx({ ...newTx, type: 'expense', category: 'Umum' })}>Pengeluaran</Button>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Keterangan / Deskripsi</label>
+                        <Input placeholder="Contoh: Sewa Sound System" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={newTx.description} onChange={e => setNewTx({ ...newTx, description: e.target.value })} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2 col-span-2">
+                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nominal (Rp)</label>
+                          <Input type="text" placeholder="0" className="bg-background/50 h-11 rounded-xl border-input font-bold text-primary shadow-sm focus:ring-2 focus:ring-primary/20" value={displayAmount} onChange={e => handleAmountChange(e.target.value)} />
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Keterangan / Deskripsi</label>
-                          <Input placeholder="Contoh: Sewa Sound System" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={newTx.description} onChange={e => setNewTx({ ...newTx, description: e.target.value })} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        {/* ✅ LOGIKA BARU: Jika Lifetime, Kategori di-set otomatis 'General' dan di-hide */}
+                        {isLifetime ? (
                           <div className="space-y-2 col-span-2">
-                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nominal (Rp)</label>
-                            <Input type="text" placeholder="0" className="bg-background/50 h-11 rounded-xl border-input font-bold text-primary shadow-sm focus:ring-2 focus:ring-primary/20" value={displayAmount} onChange={e => handleAmountChange(e.target.value)} />
-                          </div>
-                          {/* ✅ LOGIKA BARU: Jika Lifetime, Kategori di-set otomatis 'General' dan di-hide */}
-                          {isLifetime ? (
-                            <div className="space-y-2 col-span-2">
-                              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori (Otomatis)</label>
-                              <div className="flex h-11 w-full rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm text-foreground items-center font-bold">
-                                General / Angkatan
-                              </div>
+                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori (Otomatis)</label>
+                            <div className="flex h-11 w-full rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm text-foreground items-center font-bold">
+                              General / Angkatan
                             </div>
-                          ) : (
-                            newTx.type === 'expense' && (
-                              <div className="space-y-2 col-span-2">
-                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori</label>
-                                <Select
-                                  value={newTx.category}
-                                  onValueChange={(val) => setNewTx({ ...newTx, category: val })}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Pilih Kategori" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Umum">Umum</SelectItem>
-                                    <SelectItem value="Event">Event</SelectItem>
-                                    <SelectItem value="Perlengkapan">Perlengkapan</SelectItem>
-                                    <SelectItem value="Konsumsi">Konsumsi</SelectItem>
-                                    <SelectItem value="Admin">Admin</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            )
-                          )}
-                          {isLifetime && (
-                            <><div className="space-y-2 col-span-2">
-                              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Target Dana / Kelas</label>
+                          </div>
+                        ) : (
+                          newTx.type === 'expense' && (
+                            <div className="space-y-2 col-span-2">
+                              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori</label>
                               <Select
-                                value={newTx.class_id || ''}
-                                onValueChange={(val) => setNewTx({ ...newTx, class_id: val || undefined })}
+                                value={newTx.category}
+                                onValueChange={(val) => setNewTx({ ...newTx, category: val })}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Pilih Target Dana" />
+                                  <SelectValue placeholder="Pilih Kategori" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">Angkatan (General)</SelectItem>
-                                  {classes.map(cls => (
-                                    <SelectItem key={cls.id} value={cls.id}>
-                                      Kelas {cls.name}
-                                    </SelectItem>
-                                  ))}
+                                  <SelectItem value="Umum">Umum</SelectItem>
+                                  <SelectItem value="Event">Event</SelectItem>
+                                  <SelectItem value="Perlengkapan">Perlengkapan</SelectItem>
+                                  <SelectItem value="Konsumsi">Konsumsi</SelectItem>
+                                  <SelectItem value="Admin">Admin</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                              {newTx.class_id && (
-                                <div className="space-y-2 col-span-2">
-                                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Bulan Transaksi</label>
-                                  <Select
-                                    value={selectedTransactionMonth.toString()}
-                                    onValueChange={(val) => setSelectedTransactionMonth(Number(val))}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Pilih Bulan" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {transactionMonths.map(m => (
-                                        <SelectItem key={m.value} value={m.value.toString()}>
-                                          {m.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              )}</>
-                          )}
-                          {!isLifetime && (
-                            <div className="col-span-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/30">
-                              <span className="font-semibold">Konteks otomatis:</span> {selectedClassName} • {months.find(m => m.value === selectedMonth)?.label}
-                            </div>
-                          )}
-                        </div>
-                        <Button className="w-full primary-gradient h-12 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95" onClick={handleAddTransaction} disabled={isSubmitting}>
-                          {isSubmitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Transaksi
-                        </Button>
+                          )
+                        )}
+                        {isLifetime && (
+                          <><div className="space-y-2 col-span-2">
+                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Target Dana / Kelas</label>
+                            <Select
+                              value={newTx.class_id || ''}
+                              onValueChange={(val) => setNewTx({ ...newTx, class_id: val || undefined })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih Target Dana" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">Angkatan (General)</SelectItem>
+                                {classes.map(cls => (
+                                  <SelectItem key={cls.id} value={cls.id}>
+                                    Kelas {cls.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                            {newTx.class_id && (
+                              <div className="space-y-2 col-span-2">
+                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Bulan Transaksi</label>
+                                <Select
+                                  value={selectedTransactionMonth.toString()}
+                                  onValueChange={(val) => setSelectedTransactionMonth(Number(val))}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Pilih Bulan" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {transactionMonths.map(m => (
+                                      <SelectItem key={m.value} value={m.value.toString()}>
+                                        {m.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}</>
+                        )}
+                        {!isLifetime && (
+                          <div className="col-span-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg border border-border/30">
+                            <span className="font-semibold">Konteks otomatis:</span> {selectedClassName} • {months.find(m => m.value === selectedMonth)?.label}
+                          </div>
+                        )}
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </div>
-            </div>
-            <div className="space-y-3">
-              {isLoadingStats ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground animate-pulse">Memuat riwayat transaksi...</p>
-                </div>
-              ) : displayedTransactions.length > 0 ? (
-                displayedTransactions.slice(0, 50).map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50 group">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tx.type === 'income' ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">{tx.description || tx.category}</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold">{tx.transaction_date}</span>
-                          <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
-                            tx.category === 'hibah' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
-                              tx.type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                          )}>{tx.category}</span>
-                          {/* ✅ KOLOM BARU: Status Kelas */}
-                          <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
-                            tx.class_id ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          )}>
-                            {tx.class_id ? `Kelas ${classes.find(c => c.id === tx.class_id)?.name || '...'}` : 'Angkatan/General'}
-                          </span>
-                        </div>
-                      </div>
+                      <Button className="w-full primary-gradient h-12 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95" onClick={handleAddTransaction} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Transaksi
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className={cn("font-bold text-sm whitespace-nowrap", tx?.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}> {tx?.type === 'income' ? '+' : '-'}{formatIDR(tx?.amount)} </span>
-                      {canEdit() && (
-                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          {(currentUser?.role === 'admin_dev' || currentUser?.class_id === tx.class_id) && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEditClick(tx)}><Pencil className="w-4 h-4" /></Button>
-                          )}
-                          {/* STRICT CHECK: Only admin_dev sees delete transaction */}
-                          {currentUser?.role === 'admin_dev' && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteTransaction(tx.id)} disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-3 bg-muted/10 rounded-xl border border-dashed border-border">
-                  <AlertCircle className="w-8 h-8 text-muted-foreground opacity-30" />
-                  <p className="text-sm text-muted-foreground">Tidak ada riwayat transaksi pada filter ini.</p>
-                </div>
-              )}
-            </div>
-            <div className="mt-6 pt-4 border-t border-border">
-              {transactionFilter === 'all' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pemasukan</div><div className="font-bold text-blue-500">{formatIDR(totalDisplayedIncome)}</div></div>
-                  <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pengeluaran</div><div className="font-bold text-rose-500">{formatIDR(totalDisplayedExpense)}</div></div>
-                  <div className="flex justify-between items-center sm:block sm:text-center p-2 rounded-lg bg-muted/20 border border-border/50"><div className="text-xs text-muted-foreground mb-1">Saldo Akhir (Validasi)</div><div className={cn("font-bold", (totalDisplayedIncome - totalDisplayedExpense) < 0 ? "text-rose-500" : "text-foreground")}>{formatIDR(totalDisplayedIncome - totalDisplayedExpense)}</div></div>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">{transactionFilter === 'income' ? 'Total Pemasukan' : 'Total Pengeluaran'}</span><span className={cn("text-lg font-bold", transactionFilter === 'income' ? 'text-blue-500' : 'text-rose-500')}>{formatIDR(transactionFilter === 'income' ? totalDisplayedIncome : totalDisplayedExpense)}</span></div>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           </div>
-        )}
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
-              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-blue-500/10 border-blue-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-blue-600" /><span className="text-sm font-medium text-blue-600">Lunas</span></Button>
-              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600" /><span className="text-sm font-medium text-yellow-600">Pending</span></Button>
-              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600" /><span className="text-sm font-medium text-red-600">Belum</span></Button>
-              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-slate-500/10 border-slate-200" onClick={() => handleUpdateStatus('bebas')} disabled={isUpdating}><Unlock className="w-6 h-6 text-slate-600" /><span className="text-sm font-medium text-slate-600">Bebas Kas</span></Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={isEditTxOpen} onOpenChange={setIsEditTxOpen}>
-          <DialogContent className="glass-card border-border sm:max-w-[425px]">
-            {editingTx ? (
-              <>
-                {console.log('DEBUG_MODAL_RENDER:', editingTx)}
-                <DialogHeader><DialogTitle className="text-xl font-bold text-foreground">Update Transaksi</DialogTitle></DialogHeader>
-                <div className="space-y-5 py-4">
-                  <div className="flex gap-2 p-1 bg-muted/50 rounded-xl">
-                    <Button variant={editingTx.type === 'income' ? 'default' : 'ghost'} className={cn("flex-1 h-9", editingTx.type === 'income' && "bg-blue-600 text-white")} onClick={() => setEditingTx(prev => prev ? { ...prev, type: 'income' } : null)}>Pemasukan</Button>
-                    <Button variant={editingTx.type === 'expense' ? 'default' : 'ghost'} className={cn("flex-1 h-9", editingTx.type === 'expense' && "bg-rose-600 text-white")} onClick={() => setEditingTx(prev => prev ? { ...prev, type: 'expense' } : null)}>Pengeluaran</Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Keterangan / Deskripsi</label>
-                    <Input placeholder="Contoh: Sewa Sound System" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={editingTx.description} onChange={e => setEditingTx(prev => prev ? { ...prev, description: e.target.value } : null)} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2 col-span-2">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nominal (Rp)</label>
-                      <Input
-                        type="text"
-                        placeholder="0"
-                        className="bg-background/50 h-11 rounded-xl border-input font-bold text-primary shadow-sm focus:ring-2 focus:ring-primary/20"
-                        value={editingTx?.amount ? new Intl.NumberFormat('id-ID').format(editingTx.amount) : '0'}
-                        onChange={e => handleAmountChange(e.target.value, true)}
-                      />
-                    </div>
-
-                    <div className="space-y-2 col-span-2 text-left">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori</label>
-                      <Select
-                        value={editingTx.category || undefined}
-                        onValueChange={(val) => setEditingTx(prev => prev ? { ...prev, category: val } : null)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih Kategori" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="hibah">Hibah/Donasi</SelectItem>
-                          <SelectItem value="iuran">Iuran Kas</SelectItem>
-                          <SelectItem value="kegiatan">Dana Kegiatan</SelectItem>
-                          <SelectItem value="lainnya">Lainnya</SelectItem>
-                          <SelectItem value="operasional">Operasional</SelectItem>
-                          <SelectItem value="konsumsi">Konsumsi</SelectItem>
-                          <SelectItem value="perlengkapan">Perlengkapan</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2 col-span-2">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tanggal</label>
-                      <Input type="date" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={editingTx.transaction_date} onChange={e => setEditingTx(prev => prev ? { ...prev, transaction_date: e.target.value } : null)} />
-                    </div>
-
-                    <div className="space-y-2 col-span-2">
-                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Target Kelas</label>
-                      <Select
-                        value={editingTx.class_id || "general"}
-                        onValueChange={(val) => setEditingTx(prev => prev ? { ...prev, class_id: val === "general" ? undefined : val } : null)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih Target Kelas" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">-- Angkatan (General) --</SelectItem>
-                          {classes.map(cls => (
-                            <SelectItem key={cls.id} value={cls.id}>
-                              Kelas {cls.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+          <div className="space-y-3">
+            {isLoadingStats ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground animate-pulse">Memuat riwayat transaksi...</p>
+              </div>
+            ) : displayedTransactions.length > 0 ? (
+              displayedTransactions.slice(0, 50).map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50 group">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tx.type === 'income' ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600')}> {tx.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />} </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate">{tx.description || tx.category}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold">{tx.transaction_date}</span>
+                        <span className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
+                          tx.category === 'hibah' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                            tx.type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                              'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        )}>{tx.category}</span>
+                        {/* ✅ KOLOM BARU: Status Kelas */}
+                        <span className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
+                          tx.class_id ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        )}>
+                          {tx.class_id ? `Kelas ${classes.find(c => c.id === tx.class_id)?.name || '...'}` : 'Angkatan/General'}
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <Button type="button" variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setIsEditTxOpen(false)}>Batal</Button>
-                    <Button className="flex-[2] primary-gradient h-12 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95" onClick={handleUpdateTransaction} disabled={isUpdating}>
-                      {isUpdating ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Perubahan
-                    </Button>
+                  <div className="flex items-center gap-3">
+                    <span className={cn("font-bold text-sm whitespace-nowrap", tx?.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}> {tx?.type === 'income' ? '+' : '-'}{formatIDR(tx?.amount)} </span>
+                    {canEdit() && (
+                      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        {(currentUser?.role === 'admin_dev' || currentUser?.class_id === tx.class_id) && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEditClick(tx)}><Pencil className="w-4 h-4" /></Button>
+                        )}
+                        {/* STRICT CHECK: Only admin_dev sees delete transaction */}
+                        {currentUser?.role === 'admin_dev' && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteTransaction(tx.id)} disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </>
+              ))
             ) : (
-              <div className="flex flex-col items-center justify-center p-12 text-center gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground font-semibold">Menyiapkan modal transaksi...</p>
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-3 bg-muted/10 rounded-xl border border-dashed border-border">
+                <AlertCircle className="w-8 h-8 text-muted-foreground opacity-30" />
+                <p className="text-sm text-muted-foreground">Tidak ada riwayat transaksi pada filter ini.</p>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
-      </div>
+          </div>
+          <div className="mt-6 pt-4 border-t border-border">
+            {transactionFilter === 'all' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pemasukan</div><div className="font-bold text-blue-500">{formatIDR(totalDisplayedIncome)}</div></div>
+                <div className="flex justify-between items-center sm:block sm:text-center"><div className="text-xs text-muted-foreground mb-1">Total Pengeluaran</div><div className="font-bold text-rose-500">{formatIDR(totalDisplayedExpense)}</div></div>
+                <div className="flex justify-between items-center sm:block sm:text-center p-2 rounded-lg bg-muted/20 border border-border/50"><div className="text-xs text-muted-foreground mb-1">Saldo Akhir (Validasi)</div><div className={cn("font-bold", (totalDisplayedIncome - totalDisplayedExpense) < 0 ? "text-rose-500" : "text-foreground")}>{formatIDR(totalDisplayedIncome - totalDisplayedExpense)}</div></div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">{transactionFilter === 'income' ? 'Total Pemasukan' : 'Total Pengeluaran'}</span><span className={cn("text-lg font-bold", transactionFilter === 'income' ? 'text-blue-500' : 'text-rose-500')}>{formatIDR(transactionFilter === 'income' ? totalDisplayedIncome : totalDisplayedExpense)}</span></div>
+            )}
+          </div>
+        </div>
+      )}
 
-      {/* CONFIRMATION MODAL - ADDED INTO RENDER */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-blue-500/10 border-blue-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-blue-600" /><span className="text-sm font-medium text-blue-600">Lunas</span></Button>
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600" /><span className="text-sm font-medium text-yellow-600">Pending</span></Button>
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600" /><span className="text-sm font-medium text-red-600">Belum</span></Button>
+            <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-slate-500/10 border-slate-200" onClick={() => handleUpdateStatus('bebas')} disabled={isUpdating}><Unlock className="w-6 h-6 text-slate-600" /><span className="text-sm font-medium text-slate-600">Bebas Kas</span></Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditTxOpen} onOpenChange={setIsEditTxOpen}>
+        <DialogContent className="glass-card border-border sm:max-w-[425px]">
+          {editingTx ? (
+            <>
+              {console.log('DEBUG_MODAL_RENDER:', editingTx)}
+              <DialogHeader><DialogTitle className="text-xl font-bold text-foreground">Update Transaksi</DialogTitle></DialogHeader>
+              <div className="space-y-5 py-4">
+                <div className="flex gap-2 p-1 bg-muted/50 rounded-xl">
+                  <Button variant={editingTx.type === 'income' ? 'default' : 'ghost'} className={cn("flex-1 h-9", editingTx.type === 'income' && "bg-blue-600 text-white")} onClick={() => setEditingTx(prev => prev ? { ...prev, type: 'income' } : null)}>Pemasukan</Button>
+                  <Button variant={editingTx.type === 'expense' ? 'default' : 'ghost'} className={cn("flex-1 h-9", editingTx.type === 'expense' && "bg-rose-600 text-white")} onClick={() => setEditingTx(prev => prev ? { ...prev, type: 'expense' } : null)}>Pengeluaran</Button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Keterangan / Deskripsi</label>
+                  <Input placeholder="Contoh: Sewa Sound System" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={editingTx.description} onChange={e => setEditingTx(prev => prev ? { ...prev, description: e.target.value } : null)} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 col-span-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nominal (Rp)</label>
+                    <Input
+                      type="text"
+                      placeholder="0"
+                      className="bg-background/50 h-11 rounded-xl border-input font-bold text-primary shadow-sm focus:ring-2 focus:ring-primary/20"
+                      value={editingTx?.amount ? new Intl.NumberFormat('id-ID').format(editingTx.amount) : '0'}
+                      onChange={e => handleAmountChange(e.target.value, true)}
+                    />
+                  </div>
+
+                  <div className="space-y-2 col-span-2 text-left">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori</label>
+                    <Select
+                      value={editingTx.category || undefined}
+                      onValueChange={(val) => setEditingTx(prev => prev ? { ...prev, category: val } : null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Kategori" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hibah">Hibah/Donasi</SelectItem>
+                        <SelectItem value="iuran">Iuran Kas</SelectItem>
+                        <SelectItem value="kegiatan">Dana Kegiatan</SelectItem>
+                        <SelectItem value="lainnya">Lainnya</SelectItem>
+                        <SelectItem value="operasional">Operasional</SelectItem>
+                        <SelectItem value="konsumsi">Konsumsi</SelectItem>
+                        <SelectItem value="perlengkapan">Perlengkapan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2 col-span-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tanggal</label>
+                    <Input type="date" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={editingTx.transaction_date} onChange={e => setEditingTx(prev => prev ? { ...prev, transaction_date: e.target.value } : null)} />
+                  </div>
+
+                  <div className="space-y-2 col-span-2">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Target Kelas</label>
+                    <Select
+                      value={editingTx.class_id || "general"}
+                      onValueChange={(val) => setEditingTx(prev => prev ? { ...prev, class_id: val === "general" ? undefined : val } : null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Target Kelas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">-- Angkatan (General) --</SelectItem>
+                        {classes.map(cls => (
+                          <SelectItem key={cls.id} value={cls.id}>
+                            Kelas {cls.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button type="button" variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setIsEditTxOpen(false)}>Batal</Button>
+                  <Button className="flex-[2] primary-gradient h-12 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95" onClick={handleUpdateTransaction} disabled={isUpdating}>
+                    {isUpdating ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Perubahan
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-12 text-center gap-4">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground font-semibold">Menyiapkan modal transaksi...</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      {/* CONFIRMATION MODAL */}
       <ConfirmationModal
         isOpen={modalConfig.isOpen}
         onClose={closeModal}
@@ -1424,8 +1597,6 @@ export default function Finance() {
         variant={modalConfig.variant}
         confirmText={modalConfig.confirmText}
       />
-    </div >
+    </div>
   );
 }
-
-
