@@ -195,6 +195,6 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// Get billing range (Authenticated users: Admin, Dosen, Mahasiswa)
 	configGrp.Get("/billing-range", configHandler.GetBillingRange)
 
-	// Save billing range (AdminDev only)
-	configGrp.Post("/save-range", middleware.RequireAdminDev(), configHandler.SaveBillingRange)
+	// Save billing range (Admin & AdminDev)
+	configGrp.Post("/save-range", middleware.RequireAdmin(), configHandler.SaveBillingRange)
 }

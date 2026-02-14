@@ -3,8 +3,10 @@ package handlers
 import (
 	"strconv"
 
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -55,8 +57,32 @@ func (h *ConfigHandler) GetBillingRange(c *fiber.Ctx) error {
 }
 
 // SaveBillingRange handles POST /api/config/save-range
+// SaveBillingRange handles POST /api/config/save-range
 func (h *ConfigHandler) SaveBillingRange(c *fiber.Ctx) error {
-	var req SaveBillingRangeRequest
+	// 1. Strict Role Check (Double Security)
+	userVal := c.Locals("user")
+	var role string
+
+	// Handle both possible types (JWT Token or UserContext struct) depending on middleware version
+	if u, ok := userVal.(middleware.UserContext); ok {
+		role = string(u.Role)
+	} else if u, ok := userVal.(*jwt.Token); ok {
+		claims := u.Claims.(jwt.MapClaims)
+		role = claims["role"].(string)
+	} else {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	// Allow admin_dev and admin_kelas
+	if role != "admin_dev" && role != "admin_kelas" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden: Only Admin Dev or Class Admin can change billing settings"})
+	}
+
+	var req struct {
+		StartMonth int `json:"start_month"`
+		EndMonth   int `json:"end_month"`
+	}
+
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}

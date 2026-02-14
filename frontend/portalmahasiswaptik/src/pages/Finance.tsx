@@ -1202,9 +1202,9 @@ export default function Finance() {
                 </Select>
               </div>
 
-              {/* V7.1 Billing Range Controls (Visible Only in Lifetime) */}
-              {isLifetime && (
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-md border border-slate-200 dark:border-slate-800">
+              {/* V9.6 Exclusive Admin Control: Only AdminDev & AdminKelas can see this */}
+              {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && isLifetime && (
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-md border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-300">
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
                   {isLoadingConfig || billingStart === null ? (
                     <Skeleton className="w-[100px] h-8" />
