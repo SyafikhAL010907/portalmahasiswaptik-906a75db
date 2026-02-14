@@ -181,4 +181,5 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	export := protected.Group("/export")
 	export.Get("/finance/excel", financeHandler.ExportFinanceExcel)
 	export.Get("/attendance/excel", attendanceHandler.ExportAttendanceExcel)
+	export.Get("/attendance/master-excel", attendanceHandler.ExportMasterAttendanceExcel)
 }

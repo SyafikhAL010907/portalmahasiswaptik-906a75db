@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap } from 'lucide-react';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import { Button } from '@/components/ui/button';
@@ -344,26 +344,39 @@ export default function Finance() {
 
         // Group by month for lifetime stats
         const monthlyGroups = new Map<number, { weeks: Set<number>, amount: number }>();
-        studentYearlyDues.filter(d => d.status === 'paid').forEach(d => {
-          if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
-          const group = monthlyGroups.get(d.month)!;
-          group.weeks.add(d.week_number);
-          group.amount += d.amount;
-        });
-
-        monthlyGroups.forEach((data, month) => {
-          totalNominal += data.amount;
-          if (data.weeks.size >= 4 || data.amount >= 20000) {
-            fullMonths += 1;
-          } else {
-            const missing = 4 - data.weeks.size;
-            const debt = missing * 5000;
-            if (debt > 0) {
-              deficiencies.push(`${monthNames[month]} (-${missing} mg)`);
-              deficiencyAmount += debt;
-            }
+        studentYearlyDues.forEach(d => {
+          if (d.status === 'paid' || d.status === 'bebas') {
+            if (!monthlyGroups.has(d.month)) monthlyGroups.set(d.month, { weeks: new Set(), amount: 0 });
+            const group = monthlyGroups.get(d.month)!;
+            group.weeks.add(d.week_number);
+            if (d.status === 'paid') group.amount += d.amount; // Only add amount if paid
           }
         });
+
+        // NOW CALCULATE DEFICIENCY based on Auto-Pilot
+        const currentMonth = new Date().getMonth() + 1;
+        const startMonth = 3; // March
+
+        // We must iterate through ALL months from Start to Current
+        if (currentMonth >= startMonth) {
+          for (let m = startMonth; m <= currentMonth; m++) {
+            const group = monthlyGroups.get(m) || { weeks: new Set(), amount: 0 };
+            totalNominal += group.amount;
+
+            // Full Month logic: 4 weeks paid/bebas OR amount >= 20000 (if paid)
+            // Actually, if 'bebas' exists, amount might be 0 but weeks might be 4.
+            if (group.weeks.size >= 4 || group.amount >= 20000) {
+              fullMonths += 1;
+            } else {
+              const missing = 4 - group.weeks.size;
+              const debt = missing * 5000;
+              if (debt > 0) {
+                deficiencies.push(`${monthNames[m]} (-${missing} mg)`);
+                deficiencyAmount += debt;
+              }
+            }
+          }
+        }
 
         return {
           name: student.full_name,
@@ -533,10 +546,9 @@ export default function Finance() {
     ).reduce((sum, tx) => sum + tx.amount, 0);
   }, [isLifetime, transactions, selectedMonth, selectedYear]);
 
-  const danaHibahClassSpecific = useMemo(() => {
-    // ✅ LOCAL: Tetap saring berdasarkan selectedClassId untuk kartu kecil
+  const classSpecificTotalIncome = useMemo(() => {
+    // ✅ LOCAL: Validasi Pemasukan Kelas Spesifik (Strict Class ID)
     let filtered = transactions.filter(tx =>
-      tx.category === 'hibah' &&
       tx.type === 'income' &&
       tx.class_id === selectedClassId
     );
@@ -551,7 +563,7 @@ export default function Finance() {
     return filtered.reduce((sum, tx) => sum + tx.amount, 0);
   }, [isLifetime, transactions, selectedClassId, selectedMonth, selectedYear]);
 
-  const totalPemasukan = useMemo(() => classDuesTotal + danaHibahClassSpecific, [classDuesTotal, danaHibahClassSpecific]);
+  const totalPemasukan = useMemo(() => classDuesTotal + classSpecificTotalIncome, [classDuesTotal, classSpecificTotalIncome]);
 
   const totalBatchExpenses = useMemo(() => {
     // ✅ GLOBAL: Pengeluaran seluruh angkatan
@@ -841,6 +853,32 @@ export default function Finance() {
     }
   };
 
+  const handleBatchUpdateWeek = async (week: number) => {
+    if (!confirm(`Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi BEBAS KAS untuk Minggu ke-${week}?`)) return;
+    setIsLoadingMatrix(true);
+    try {
+      // Loop update for all displayed students
+      const updates = matrixData.map(async (student) => {
+        const { error } = await supabase.from('weekly_dues').upsert({
+          student_id: student.student_id,
+          week_number: week,
+          month: selectedMonth,
+          year: selectedYear,
+          amount: 0,
+          status: 'bebas'
+        }, { onConflict: 'student_id, week_number, month, year' }); // Upsert by unique constraint
+        if (error) console.error(`Failed to update ${student.name}:`, error);
+      });
+      await Promise.all(updates);
+      toast.success(`Berhasil set Bebas Kas Minggu ${week} untuk kelas ini!`);
+      fetchStudentMatrix(); // Refresh
+    } catch (err) {
+      toast.error("Gagal melakukan batch update.");
+    } finally {
+      setIsLoadingMatrix(false);
+    }
+  };
+
   const displayedTransactions = useMemo(() => {
     return transactions.filter(tx => {
       if (transactionFilter !== 'all' && tx.type !== transactionFilter) return false;
@@ -853,7 +891,7 @@ export default function Finance() {
   const totalDisplayedIncome = useMemo(() => displayedTransactions.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0), [displayedTransactions]);
   const totalDisplayedExpense = useMemo(() => displayedTransactions.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0), [displayedTransactions]);
 
-  const getStatusIcon = (status: string) => { switch (status) { case 'paid': return <Check className="w-4 h-4" />; case 'pending': return <Clock className="w-4 h-4" />; case 'unpaid': return <X className="w-4 h-4" />; default: return <span className="text-xs">-</span>; } };
+  const getStatusIcon = (status: string) => { switch (status) { case 'paid': return <Check className="w-4 h-4" />; case 'pending': return <Clock className="w-4 h-4" />; case 'bebas': return <Unlock className="w-4 h-4" />; case 'unpaid': return <X className="w-4 h-4" />; default: return <span className="text-xs">-</span>; } };
 
   return (
     <div className="space-y-6 pt-12 md:pt-0">
@@ -892,9 +930,9 @@ export default function Finance() {
           />
           <PremiumCard
             icon={Wallet}
-            title="Saldo Kas Angkatan"
-            subtitle={isLifetime ? "Total Saldo Bersih seluruh angkatan (Iuran+Hibah-Keluar)" : "Total Saldo Bersih angkatan bulan ini"}
-            value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-blue-500/10" /> : formatIDR(batchNetBalance)}
+            title="Total Kas Angkatan"
+            subtitle={isLifetime ? "Total iuran terbayar dari seluruh kelas (A, B, C, D)" : "Total iuran terbayar seluruh kelas bulan ini"}
+            value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-blue-500/10" /> : formatIDR(totalKasAngkatan)}
             gradient="from-blue-500/20 to-blue-500/5"
             iconClassName="bg-blue-500/10 text-blue-600"
           />
@@ -902,7 +940,7 @@ export default function Finance() {
             icon={Gift}
             title={isLifetime ? "Total Pemasukan Lain" : `Hibah/Pemasukan ${selectedClassName}`}
             subtitle={isLifetime ? "Pemasukan Angkatan di luar iuran" : "Hibah/Donasi masuk bulan ini"}
-            value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-orange-500/10" /> : formatIDR(totalIncomeTransactions)}
+            value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-orange-500/10" /> : formatIDR(classSpecificTotalIncome)}
             gradient="from-orange-500/20 to-orange-500/5"
             iconClassName="bg-orange-500/10 text-orange-600"
           />
@@ -947,6 +985,25 @@ export default function Finance() {
                   <Button key={cls.id} variant={selectedClassId === cls.id ? 'default' : 'outline'} size="sm" onClick={() => handleClassChange(cls.id)} className={selectedClassId === cls.id ? 'bg-primary text-primary-foreground whitespace-nowrap font-bold' : 'whitespace-nowrap font-semibold'}> Kelas {cls.name} </Button>
                 ))}
               </div>
+              {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full sm:w-auto gap-2">
+                      <Zap className="w-4 h-4 text-amber-500" /> Aksi Kelas
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Set Bebas Kas Mingguan</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {[1, 2, 3, 4].map(w => (
+                      <DropdownMenuItem key={w} onClick={() => handleBatchUpdateWeek(w)}>
+                        <Unlock className="w-4 h-4 mr-2 text-slate-500" />
+                        Set Bebas Kas (Minggu {w})
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <Button variant="outline" size="sm" className="w-full sm:w-auto gap-2" onClick={handleDownloadExcel}><Download className="w-4 h-4" /> Export Excel</Button>
             </div>
           </div>
@@ -999,8 +1056,8 @@ export default function Finance() {
                       <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
                         <div className="flex items-center justify-between">
                           <span>{student.name}</span>
-                          {/* STRICT CHECK: Only admin_dev sees the reset button */}
-                          {currentUser?.role === 'admin_dev' && (
+                          {/* STRICT CHECK: admin_dev and admin_class (own class) */}
+                          {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -1033,7 +1090,7 @@ export default function Finance() {
                       </td>{!isLifetime ? (
                         student.payments.map((status, weekIdx) => (
                           <td key={weekIdx} className="py-3 px-4 text-center">
-                            <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-blue-500/10 text-blue-600 border-blue-200" : status === 'pending' ? "bg-cyan-500/10 text-cyan-600 border-cyan-200" : "bg-rose-500/10 text-rose-600 border-rose-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
+                            <div onClick={() => handleCellClick(student.student_id, student.name, weekIdx)} className={cn("w-9 h-9 rounded-lg flex items-center justify-center mx-auto border transition-all", status === 'paid' ? "bg-blue-500/10 text-blue-600 border-blue-200" : status === 'pending' ? "bg-cyan-500/10 text-cyan-600 border-cyan-200" : status === 'bebas' ? "bg-slate-500/10 text-slate-600 border-slate-200" : "bg-rose-500/10 text-rose-600 border-rose-200", canEdit() ? "cursor-pointer hover:scale-110 shadow-sm" : "cursor-not-allowed opacity-80")}> {getStatusIcon(status)} </div>
                           </td>
                         ))
                       ) : (
@@ -1254,10 +1311,11 @@ export default function Finance() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-3 gap-4 py-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
               <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-blue-500/10 border-blue-200" onClick={() => handleUpdateStatus('paid')} disabled={isUpdating}><Check className="w-6 h-6 text-blue-600" /><span className="text-sm font-medium text-blue-600">Lunas</span></Button>
               <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-yellow-500/10 border-yellow-200" onClick={() => handleUpdateStatus('pending')} disabled={isUpdating}><Clock className="w-6 h-6 text-yellow-600" /><span className="text-sm font-medium text-yellow-600">Pending</span></Button>
               <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-red-500/10 border-red-200" onClick={() => handleUpdateStatus('unpaid')} disabled={isUpdating}><X className="w-6 h-6 text-red-600" /><span className="text-sm font-medium text-red-600">Belum</span></Button>
+              <Button variant="outline" className="flex flex-col h-20 gap-2 hover:bg-slate-500/10 border-slate-200" onClick={() => handleUpdateStatus('bebas')} disabled={isUpdating}><Unlock className="w-6 h-6 text-slate-600" /><span className="text-sm font-medium text-slate-600">Bebas Kas</span></Button>
             </div>
           </DialogContent>
         </Dialog>

@@ -875,10 +875,56 @@ export default function AttendanceHistory() {
   };
 
   const handleDownloadMasterExcel = async () => {
-    toast.error("Fitur Export Master Excel dinonaktifkan sementara.");
-    /*
-    // ... rest of the code ...
-    */
+    if (!selectedExportClassId) {
+      toast.error("Pilih kelas terlebih dahulu");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi tidak ditemukan");
+        return;
+      }
+
+      toast.info("Sedang generate Master Excel...");
+
+      const response = await fetch(`http://localhost:9000/api/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${selectedExportClassId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Gagal download: " + response.statusText);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      const className = classes.find(c => c.id === selectedExportClassId)?.name || 'Kelas';
+      const safeSubject = (activeId.courseName || 'Subject').replace(/\s+/g, '_');
+      const safeClass = className.replace(/\s+/g, '_');
+
+      a.download = `Master_Absensi_${safeSubject}_${safeClass}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Master Excel berhasil diunduh!");
+      setIsMasterExportOpen(false);
+
+    } catch (error: any) {
+      console.error("Master Export Error:", error);
+      toast.error("Gagal export master: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // --- HELPERS ---
