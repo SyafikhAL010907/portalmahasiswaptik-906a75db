@@ -1192,9 +1192,11 @@ export default function Finance() {
                 </DropdownMenu>
               )}
 
-              <Button onClick={handleDownloadExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all">
-                <Download className="w-4 h-4" /> Export Excel
-              </Button>
+              {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && (
+                <Button onClick={handleDownloadExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all">
+                  <Download className="w-4 h-4" /> Export Excel
+                </Button>
+              )}
             </div>
 
           </div>
