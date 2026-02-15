@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar } from 'lucide-react';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn, formatIDR } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,6 +29,12 @@ export default function Payment() {
   const [totalBill, setTotalBill] = useState(0);
   const [showQRIS, setShowQRIS] = useState(false);
   const [rawDues, setRawDues] = useState<any[]>([]);
+  const [selectedWeeks, setSelectedWeeks] = useState<string[]>([]);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+
+  // Auto-Revert Logic States
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [pendingVerifyItems, setPendingVerifyItems] = useState<any[]>([]); // Items currently being paid
 
   // 1. POLLING BILLING CONFIG (REAL-TIME) - Using Hook
   const { billingStart, billingEnd } = useBillingConfig();
@@ -41,7 +48,59 @@ export default function Payment() {
     }
   }, [billingStart, billingEnd]);
 
-  // 2. REACTIVE BILL CALCULATION
+  // 2. RESTORE SESSION FROM LOCAL STORAGE ON MOUNT
+  useEffect(() => {
+    const restoreSession = async () => {
+      const savedSession = localStorage.getItem('payment_session');
+      if (savedSession) {
+        try {
+          const session = JSON.parse(savedSession);
+          // Calculate remaining time
+          const elapsedSeconds = Math.floor((Date.now() - session.startTime) / 1000);
+          const remaining = 60 - elapsedSeconds;
+
+          if (remaining > 0) {
+            // Restore state IMMEDIATELY
+            setPendingVerifyItems(session.items);
+            setPaymentAmount(session.amount);
+            setTimeLeft(remaining);
+            setNim(session.nim);
+
+            // Restore student data immediately for UI
+            setStudentData(session.studentData);
+
+            // Background Sync: Update data without resetting critical state
+            if (session.nim) {
+              await fetchStudentData(session.nim, false); // false = NO RESET
+            }
+
+            setShowQRIS(true);
+            toast.info("Sesi pembayaran dikembalikan. Waktu terus berjalan!");
+          } else {
+            // Expired while away
+            handleCleanupExpiredSession(session.items);
+          }
+        } catch (e) {
+          console.error("Failed to restore session", e);
+          localStorage.removeItem('payment_session');
+        }
+      }
+    };
+    restoreSession();
+  }, []);
+
+  // Helper to clean up expired session immediately on load
+  const handleCleanupExpiredSession = async (items: any[]) => {
+    localStorage.removeItem('payment_session');
+    if (items && items.length > 0) {
+      // Revert logic
+      await revertItems(items);
+      toast.error("Waktu pembayaran habis! Status pending telah dibatalkan otomatis.");
+    }
+  };
+
+
+  // 3. REACTIVE BILL CALCULATION
   useEffect(() => {
     if (!activePeriod || rawDues.length === 0) return;
 
@@ -85,34 +144,242 @@ export default function Payment() {
 
   }, [activePeriod, rawDues]);
 
+  // 4. STRICT TIMER LOGIC
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
 
-  const handleCheckBill = async () => {
-    const cleanNim = nim.trim();
-    if (!cleanNim) {
-      toast.error("Masukkan NIM dulu bro!");
+    if (showQRIS) {
+      interval = setInterval(() => {
+        const savedSession = localStorage.getItem('payment_session');
+        if (savedSession) {
+          const session = JSON.parse(savedSession);
+          const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+          const remaining = 60 - elapsed;
+
+          if (remaining <= 0) {
+            setTimeLeft(0);
+            clearInterval(interval);
+            handleAutoCancel(); // Trigger cancel
+          } else {
+            setTimeLeft(remaining);
+          }
+        } else {
+          // Fallback
+          if (timeLeft > 0) setTimeLeft(prev => prev - 1);
+        }
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [showQRIS]);
+
+  // 5. AUTO-SUCCESS CHECK (POLLING)
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+
+    const checkPaymentStatus = async () => {
+      // Get items from state or localStorage
+      let itemsToCheck = pendingVerifyItems;
+      if (itemsToCheck.length === 0) {
+        const savedSession = localStorage.getItem('payment_session');
+        if (savedSession) {
+          itemsToCheck = JSON.parse(savedSession).items;
+        }
+      }
+
+      if (!itemsToCheck || itemsToCheck.length === 0) return;
+
+      const studentId = itemsToCheck[0].student_id;
+      const currentYear = new Date().getFullYear();
+
+      try {
+        const { data, error } = await supabase
+          .from('weekly_dues')
+          .select('month, week_number, status')
+          .eq('student_id', studentId)
+          .eq('year', currentYear)
+          .in('status', ['paid']);
+
+        if (error) {
+          console.error("Polling check failed:", error);
+          return;
+        }
+
+        // Check if ALL pending items are now in the 'paid' list
+        // Note: 'data' contains only PAID items from the query
+        const paidItems = (data as any[]) || [];
+
+        const allPaid = itemsToCheck.every(pending =>
+          paidItems.some(paid => paid.month === pending.month && paid.week_number === pending.week_number)
+        );
+
+        if (allPaid && itemsToCheck.length > 0) {
+          clearInterval(pollInterval);
+          handlePaymentSuccess();
+        }
+
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    };
+
+    if (showQRIS) {
+      // Initial check immediately
+      checkPaymentStatus();
+
+      // Poll every 5 seconds
+      pollInterval = setInterval(checkPaymentStatus, 5000);
+    }
+
+    return () => clearInterval(pollInterval);
+  }, [showQRIS, pendingVerifyItems]);
+
+  const handlePaymentSuccess = () => {
+    setShowQRIS(false);
+    localStorage.removeItem('payment_session');
+
+    // Play sound or just show success toast
+    toast.dismiss(); // Dismiss any loading toasts
+    toast.success("Pembayaran LUNAS! Terima kasih sudah membayar.", {
+      duration: 5000,
+      icon: <CheckCircle2 className="w-5 h-5 text-green-500" />
+    });
+
+    // Refresh UI
+    if (nim) fetchStudentData(nim, true);
+  };
+
+  // Revert Logic refactored to be reusable
+  const revertItems = async (items: any[]) => {
+    if (!items || items.length === 0) return;
+
+    const studentId = items[0].student_id;
+
+    // 1. Check if ALREADY PAID before reverting
+    const { data, error: fetchError } = await supabase
+      .from('weekly_dues')
+      .select('*')
+      .eq('student_id', studentId)
+      .in('status', ['paid', 'pending']);
+
+    const latestDues = data as any[];
+
+    if (fetchError) {
+      console.error("Error checking status:", fetchError);
       return;
     }
 
-    setIsLoading(true);
-    setStudentData(null);
-    setRawDues([]);
-    setUnpaidWeeks([]);
-    setTotalBill(0);
+    // Check if any of our pending items are now PAID
+    const actuallyPaidItems = latestDues?.filter(d =>
+      items.some(p => p.month === d.month && p.week_number === d.week_number && d.status === 'paid')
+    ) || [];
+
+    if (actuallyPaidItems.length === items.length) {
+      // Success!
+      return true; // Indicates success
+    }
+
+    // Revert valid items
+    const itemsToRevert = items.filter(p => {
+      const latest = latestDues?.find(d => d.month === p.month && d.week_number === p.week_number);
+      // Restore if it is still pending or missing (invalid state)
+      return !latest || latest.status === 'pending';
+    });
+
+    if (itemsToRevert.length > 0) {
+      const updates = itemsToRevert.map(curr => ({
+        student_id: curr.student_id,
+        month: curr.month,
+        week_number: curr.week_number,
+        year: curr.year,
+        status: 'unpaid',
+        amount: 5000
+      }));
+
+      const { error: revertError } = await supabase
+        .from('weekly_dues')
+        .upsert(updates, { onConflict: 'student_id, month, week_number, year' });
+
+      if (revertError) throw revertError;
+      return false; // Indicates reverted
+    }
+    return true; // Nothing to revert (maybe partial?)
+  };
+
+  const handleAutoCancel = async () => {
+    // Read from state OR localStorage to be safe
+    let itemsToProcess = pendingVerifyItems;
+
+    if (itemsToProcess.length === 0) {
+      const savedSession = localStorage.getItem('payment_session');
+      if (savedSession) {
+        itemsToProcess = JSON.parse(savedSession).items;
+      }
+    }
+
+    if (itemsToProcess.length === 0) {
+      setShowQRIS(false);
+      localStorage.removeItem('payment_session');
+      return;
+    }
+
+    const toastId = toast.loading("Waktu habis! Memverifikasi status pembayaran...");
+
+    try {
+      const isSuccess = await revertItems(itemsToProcess);
+
+      if (isSuccess) {
+        toast.dismiss(toastId);
+        toast.success("Pembayaran berhasil dikonfirmasi tepat waktu!");
+      } else {
+        toast.dismiss(toastId);
+        toast.error("Waktu pembayaran habis! Status pending telah dibatalkan otomatis.");
+      }
+
+    } catch (error: any) {
+      console.error("Auto-revert error:", error);
+      toast.error("Gagal sinkronisasi data: " + error.message);
+    } finally {
+      setShowQRIS(false);
+      localStorage.removeItem('payment_session'); // STRICT CLEANUP
+
+      // Refresh UI by re-fetching
+      if (nim) fetchStudentData(nim, true);
+    }
+  };
+
+  const handleManualClose = () => {
+    // User clicked "Selesai / Tutup Panel"
     setShowQRIS(false);
-    setIsBelumBayar(false);
+    localStorage.removeItem('payment_session');
+    if (nim) fetchStudentData(nim, true);
+  };
+
+  // Separated Fetch Logic
+  async function fetchStudentData(nimToFetch: string, shouldReset: boolean = true) {
+    setIsLoading(true);
+
+    if (shouldReset) {
+      setStudentData(null);
+      setRawDues([]);
+      setUnpaidWeeks([]);
+      setTotalBill(0);
+      setIsBelumBayar(false);
+      setSelectedWeeks([]);
+      // Do NOT reset showQRIS here, handled by caller
+    }
 
     try {
       // 1. Fetch profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id, full_name, nim, class_id')
-        .eq('nim', cleanNim)
+        .eq('nim', nimToFetch)
         .maybeSingle();
 
       if (profileError) throw profileError;
       if (!profile) {
-        toast.error("NIM tidak ditemukan!");
-        setIsLoading(false);
+        if (shouldReset) toast.error("NIM tidak ditemukan!");
         return;
       }
 
@@ -127,15 +394,17 @@ export default function Payment() {
         }
       }
 
-      setStudentData({
+      const newStudentData = {
         ...profile,
         classLetter,
         classes: { name: className }
-      });
+      };
+
+      setStudentData(newStudentData);
 
       // 3. Fetch Dues
       const currentYear = new Date().getFullYear();
-      const { data: duesData, error: duesError } = await supabase
+      const { data, error: duesError } = await supabase
         .from('weekly_dues')
         .select('*')
         .eq('student_id', profile.user_id)
@@ -143,24 +412,66 @@ export default function Payment() {
 
       if (duesError) throw duesError;
 
-      setRawDues(duesData || []); // Triggers calculation via useEffect
+      setRawDues(data || []);
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Gagal memuat data: " + error.message);
+      if (shouldReset) toast.error("Gagal memuat data: " + error.message);
     } finally {
       setIsLoading(false);
     }
+  }
+
+
+  async function handleCheckBill() {
+    const cleanNim = nim.trim();
+    if (!cleanNim) {
+      toast.error("Masukkan NIM dulu bro!");
+      return;
+    }
+    // Force close QRIS on manual check if active? Maybe not needed if logic handles valid flow.
+    // If user manually checks another NIM, we should probably reset session?
+    // STRICT: Only reset session if user explicitly closed or time ran out. 
+    // BUT if check bill is clicked, it implies new search.
+    // Let's assume manual check implies "Start Over".
+    setShowQRIS(false);
+    // localStorage.removeItem('payment_session'); // Maybe? Or keep it? 
+    // Requirement says "User tidak boleh menutup panel... kecuali tombol Selesai". 
+    // Check Bill button is "outside" panel. 
+    // If panel is open, user can't click Check Bill easily (modal overlay).
+
+    await fetchStudentData(cleanNim, true);
   };
 
 
+  const handleToggleWeek = (id: string) => {
+    setSelectedWeeks(prev =>
+      prev.includes(id)
+        ? prev.filter(item => item !== id)
+        : [...prev, id]
+    );
+  };
+
+  const selectedTotal = selectedWeeks.length * 5000;
+
   const handlePayNow = async () => {
-    if (!studentData || unpaidWeeks.length === 0) return;
+    // 1. Validasi
+    if (!studentData || selectedWeeks.length === 0 || selectedTotal === 0) {
+      toast.error("Silakan pilih minimal satu minggu yang ingin dibayar terlebih dahulu!");
+      return;
+    }
 
     setIsPaying(true);
+    setPaymentAmount(selectedTotal);
     try {
       const currentYear = new Date().getFullYear();
-      const updates = unpaidWeeks.map(bill => ({
+
+      // Filter only selected weeks
+      const selectedItems = unpaidWeeks.filter(bill =>
+        selectedWeeks.includes(`${bill.month}-${bill.week}`)
+      );
+
+      const updates = selectedItems.map(bill => ({
         student_id: studentData.user_id,
         month: bill.month,
         week_number: bill.week,
@@ -178,14 +489,28 @@ export default function Payment() {
       }
 
       toast.success("Tagihan dibuat! Silakan scan QR di bawah.");
+
+      // Setup Strict Session & Timer
+      const sessionData = {
+        startTime: Date.now(),
+        items: updates,
+        amount: selectedTotal,
+        studentData: studentData,
+        nim: nim
+      };
+      localStorage.setItem('payment_session', JSON.stringify(sessionData));
+
+      setPendingVerifyItems(updates);
+      setTimeLeft(60);
       setShowQRIS(true);
 
-      // Optimistic update
-      setUnpaidWeeks(prev => prev.map(w => ({ ...w, status: 'pending' })));
-      // Also update rawDues to reflect pending status if we want to be super correct, 
-      // but for now UI update is enough. 
-      // Ideally we refetch dues or update rawDues state.
-      // Let's update rawDues to keep consistency
+      setSelectedWeeks([]);
+
+      setUnpaidWeeks(prev => prev.map(w =>
+        selectedWeeks.includes(`${w.month}-${w.week}`) ? { ...w, status: 'pending' } : w
+      ));
+
+      // Local update for immediate feedback
       setRawDues(prev => {
         const newDues = [...prev];
         updates.forEach(u => {
@@ -206,11 +531,10 @@ export default function Payment() {
   };
 
   const getQRISImage = (classLetter: string, amount: number) => {
-    // Dynamic QR Logic
     const sanitizedClass = (classLetter || 'A').toUpperCase();
     const folder = `Qris${sanitizedClass}`;
 
-    let filename = 'qris-dana-all-nominal.jpg'; // Default
+    let filename = 'qris-dana-all-nominal.jpg';
 
     if (amount === 5000) filename = 'qris-5k.jpg';
     else if (amount === 10000) filename = 'qris-10k.jpg';
@@ -287,25 +611,46 @@ export default function Payment() {
 
               {unpaidWeeks.length > 0 ? (
                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                  {unpaidWeeks.map((item, idx) => (
-                    <div key={`${item.month}-${item.week}-${idx}`} className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/40 rounded-xl border border-border/50 transition-all group">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-semibold group-hover:text-primary transition-colors">
-                          {MONTH_NAMES[item.month]} - Minggu {item.week}
-                        </span>
-                        {item.status === 'pending' ? (
-                          <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
-                            Menunggu Konfirmasi
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md w-fit italic">
-                            Hutang Belum Terbayar
-                          </span>
-                        )}
+                  {unpaidWeeks.map((item, idx) => {
+                    const uniqueId = `${item.month}-${item.week}`;
+                    const isDisabled = item.status === 'pending';
+
+                    return (
+                      <div key={`${item.month}-${item.week}-${idx}`} className="flex justify-between items-center p-4 bg-muted/20 hover:bg-muted/40 rounded-xl border border-border/50 transition-all group">
+                        <div className="flex items-center gap-4">
+                          {!isDisabled && (
+                            <Checkbox
+                              id={`cb-${uniqueId}`}
+                              checked={selectedWeeks.includes(uniqueId)}
+                              onCheckedChange={() => handleToggleWeek(uniqueId)}
+                              className="w-5 h-5 border-2 border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                          )}
+                          <div className="flex flex-col gap-0.5">
+                            <label
+                              htmlFor={`cb-${uniqueId}`}
+                              className={cn(
+                                "text-sm font-semibold transition-colors cursor-pointer",
+                                isDisabled ? "opacity-50 cursor-not-allowed" : "group-hover:text-primary"
+                              )}
+                            >
+                              {MONTH_NAMES[item.month]} - Minggu {item.week}
+                            </label>
+                            {item.status === 'pending' ? (
+                              <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
+                                Menunggu Konfirmasi
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md w-fit italic">
+                                Hutang Belum Terbayar
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-sm font-black text-rose-600">Rp 5.000</span>
                       </div>
-                      <span className="text-sm font-black text-rose-600">Rp 5.000</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center py-10 text-blue-500 bg-blue-500/5 rounded-2xl border border-blue-500/20 animate-in zoom-in duration-300">
@@ -321,15 +666,15 @@ export default function Payment() {
                 <div className="flex flex-col space-y-4">
                   <div className="flex justify-between items-end bg-primary/5 p-4 rounded-xl border border-primary/10">
                     <div>
-                      <p className="text-[10px] text-primary/70 uppercase font-black tracking-tighter mb-1">Total Akumulasi Tagihan:</p>
+                      <p className="text-[10px] text-primary/70 uppercase font-black tracking-tighter mb-1">Total Yang Dipilih:</p>
                       <p className="text-4xl font-black text-primary tracking-tight">
-                        {formatIDR(totalBill)}
+                        {formatIDR(selectedTotal)}
                       </p>
                     </div>
                   </div>
                   <Button
                     onClick={handlePayNow}
-                    disabled={isPaying || totalBill === 0}
+                    disabled={isPaying || selectedTotal === 0}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground h-14 rounded-xl font-black text-lg shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.98]"
                   >
                     {isPaying ? <Loader2 className="animate-spin w-6 h-6 mr-2" /> : <CreditCard className="w-6 h-6 mr-2" />}
@@ -341,7 +686,7 @@ export default function Payment() {
           </div>
 
           {/* Card 2: QRIS Result */}
-          {showQRIS && totalBill > 0 && (
+          {showQRIS && (
             <div className="glass-card p-8 rounded-2xl border-2 border-primary/30 bg-card flex flex-col items-center animate-in slide-in-from-right-4 fade-in duration-300 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-5">
                 <Wallet className="w-32 h-32" />
@@ -357,12 +702,12 @@ export default function Payment() {
 
               <div className="text-center mb-8 z-10">
                 <p className="text-sm font-bold text-muted-foreground">Silakan Scan & Bayar Sejumlah</p>
-                <p className="text-4xl font-black text-foreground tracking-tighter mt-1">{formatIDR(totalBill)}</p>
+                <p className="text-4xl font-black text-foreground tracking-tighter mt-1">{formatIDR(paymentAmount)}</p>
               </div>
 
               <div className="bg-white p-5 rounded-3xl shadow-2xl mb-8 border-8 border-primary/5 relative group transition-transform hover:scale-[1.02] duration-500">
                 <img
-                  src={getQRISImage(studentData.classLetter, totalBill)}
+                  src={getQRISImage(studentData.classLetter, paymentAmount)}
                   alt="QRIS"
                   className="w-64 h-64 object-contain"
                 />
@@ -382,14 +727,27 @@ export default function Payment() {
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground font-bold transition-all h-12 rounded-xl" onClick={() => setShowQRIS(false)}>
+
+
+              {/* Countdown Timer & Warning */}
+              <div className="w-full text-center space-y-2 mb-6 animate-pulse">
+                <p className="text-rose-500 font-black text-lg">
+                  Sisa Waktu: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Segera lakukan pembayaran dan lapor bendahara! <br />
+                  Jika waktu habis, status pending akan <span className="text-rose-500 font-bold">dibatalkan otomatis</span>.
+                </p>
+              </div>
+
+              <Button variant="outline" className="w-full border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground font-bold transition-all h-12 rounded-xl" onClick={handleManualClose}>
                 Selesai / Tutup Panel
               </Button>
             </div>
           )}
         </div>
       )}
-    </div>
+    </div >
   );
 }
 
