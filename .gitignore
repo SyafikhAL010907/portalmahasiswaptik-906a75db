@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# Keamanan: Jangan biarkan kunci rahasia bocor!
+.env
+.env.development
+.env.production
