@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { cn, formatIDR } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PaymentNotificationCenter } from '@/components/dashboard/PaymentNotificationCenter';
 
 interface BillDetail {
   month: number;
@@ -546,6 +547,7 @@ export default function Payment() {
 
   return (
     <div className="space-y-6 pt-12 md:pt-0">
+      <PaymentNotificationCenter />
       <div className="animate-in fade-in duration-200">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Bayar Iuran Kas</h1>
         <p className="text-muted-foreground mt-1">Sinkronisasi Otomatis dengan Matrix Iuran</p>
