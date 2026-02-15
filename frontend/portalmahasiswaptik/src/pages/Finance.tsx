@@ -36,6 +36,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // ✅ PENTING: XLSX ditiadakan di frontend untuk kestabilan (Error Stream)
 // import XLSX from 'xlsx-js-style'; 
 import { FinancialChart } from '@/components/dashboard/FinancialChart'; // Added FinancialChart
+import { useBillingConfig } from '@/hooks/useBillingConfig';
 
 // --- INTERFACES ---
 interface StudentPayment {
@@ -100,118 +101,7 @@ export default function Finance() {
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
 
   // BILLING RANGE STATE (Global Config) - Permanent Sync
-  const [billingStart, setBillingStart] = useState<number | null>(null);
-  const [billingEnd, setBillingEnd] = useState<number | null>(null);
-  const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
-  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
-
-  // FETCH GLOBAL CONFIG ON MOUNT & POLLING
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchGlobalConfig = async (isBackground = false) => {
-      try {
-        if (!isBackground) setIsLoadingConfig(true);
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const baseUrl = import.meta.env.VITE_API_URL;
-        const response = await fetch(`${baseUrl}/config/billing-range`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (isMounted) {
-            // Only update state if different to prevent rerenders (React handles this but good practice)
-            setBillingStart(prev => prev !== data.start_month ? data.start_month : prev);
-            setBillingEnd(prev => prev !== data.end_month ? data.end_month : prev);
-          }
-        } else {
-          if (!isBackground) {
-            console.warn("Global config fetch failed, using fallback.");
-            if (isMounted) {
-              setBillingStart(1);
-              setBillingEnd(6);
-              toast.error("Gagal memuat konfigurasi. Mode Darurat: Januari-Juni.");
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch global config:", error);
-        if (!isBackground && isMounted) {
-          setBillingStart(1);
-          setBillingEnd(6);
-          toast.error("Koneksi gagal. Mode Darurat Aktif.");
-        }
-      } finally {
-        if (isMounted && !isBackground) {
-          setIsLoadingConfig(false);
-        }
-      }
-    };
-
-    // Initial fetch
-    fetchGlobalConfig();
-
-    // Polling every 5 seconds
-    const intervalId = setInterval(() => {
-      fetchGlobalConfig(true);
-    }, 5000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, []);
-
-  // UPDATE GLOBAL CONFIG
-  const updateBillingRange = async (start: number, end: number) => {
-    // Optimistic Update
-    setBillingStart(start);
-    setBillingEnd(end);
-
-    setIsUpdatingConfig(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const baseUrl = import.meta.env.VITE_API_URL;
-      const response = await fetch(`${baseUrl}/config/save-range`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ start_month: start, end_month: end })
-      });
-
-      if (!response.ok) throw new Error("Failed to save config");
-
-      toast.success("Rentang tagihan berhasil diperbarui (Global Sync)!");
-
-      // Trigger refresh if needed
-      if (selectedTransactionMonth === 99 || (typeof selectedMonth !== 'undefined' && selectedMonth === 99)) {
-        // If we are in lifetime view, we might want to refresh matrix
-        // But fetchStudentMatrix might not be available here if it's defined later.
-        // However, function declarations are hoisted. 
-        // If fetchStudentMatrix is a const (arrow function), it's not hoisted.
-        // Given the code structure, it's likely a const.
-        // So we can't call it here if it's defined later.
-        // We'll rely on Optimistic Update and maybe force a re-render or user manually refreshes.
-        // Or we can add billingStart/End as dependency to the matrix fetch effect?
-        // If matrix fetch effect depends on billingStart, it will auto refresh!
-        // Let's check Finance.tsx effect dependencies later.
-      }
-
-    } catch (error) {
-      console.error("Failed to update config:", error);
-      toast.error("Gagal menyimpan konfigurasi global.");
-    } finally {
-      setIsUpdatingConfig(false);
-    }
-  };
+  const { billingStart, billingEnd, isUpdatingConfig, isLoadingConfig, updateBillingRange } = useBillingConfig();
 
   // GLASS CONFIRMATION STATE
   const [isGlassConfirmOpen, setIsGlassConfirmOpen] = useState(false);
@@ -970,7 +860,7 @@ export default function Finance() {
       toast.info("Sedang menyiapkan file Excel...");
 
       // V8.2: Forced Dynamic URL (LAN/WiFi Friendly)
-      const baseUrl = `${window.location.protocol}//${window.location.hostname}:9000/api`;
+      const baseUrl = import.meta.env.VITE_API_URL;
       const exportUrl = `${baseUrl}/finance/export?class_id=${selectedClassId}&year=${selectedYear}&start_month=${billingStart}&end_month=${billingEnd}`;
 
       console.log("Export URL (Dynamic + Auth):", exportUrl);

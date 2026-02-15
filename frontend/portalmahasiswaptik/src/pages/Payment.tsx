@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar } from 'lucide-react';
+import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, formatIDR } from '@/lib/utils';
@@ -26,51 +27,19 @@ export default function Payment() {
   const [unpaidWeeks, setUnpaidWeeks] = useState<BillDetail[]>([]);
   const [totalBill, setTotalBill] = useState(0);
   const [showQRIS, setShowQRIS] = useState(false);
-  const [activePeriod, setActivePeriod] = useState<{ start: number, end: number } | null>(null);
-
   const [rawDues, setRawDues] = useState<any[]>([]);
 
-  // 1. POLLING BILLING CONFIG (REAL-TIME)
+  // 1. POLLING BILLING CONFIG (REAL-TIME) - Using Hook
+  const { billingStart, billingEnd } = useBillingConfig();
+
+  // Create activePeriod derived state wrapper for compatibility with existing code
+  const [activePeriod, setActivePeriod] = useState<{ start: number, end: number } | null>(null);
+
   useEffect(() => {
-    let isMounted = true;
-    const fetchConfig = async (isBackground = false) => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers: any = {};
-        if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
-
-        const baseUrl = import.meta.env.VITE_API_URL;
-        const response = await fetch(`${baseUrl}/config/billing-range`, { headers });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (isMounted) {
-            setActivePeriod(prev => {
-              if (!prev || prev.start !== data.start_month || prev.end !== data.end_month) {
-                return { start: data.start_month, end: data.end_month };
-              }
-              return prev;
-            });
-          }
-        } else {
-          // Fallback V9.7
-          if (isMounted && !activePeriod) setActivePeriod({ start: 1, end: 6 });
-        }
-      } catch (error) {
-        console.error("Polling config failed", error);
-        // Fallback V9.7
-        if (isMounted && !activePeriod) setActivePeriod({ start: 1, end: 6 });
-      }
-    };
-
-    fetchConfig(); // Initial fetch
-    const interval = setInterval(() => fetchConfig(true), 5000); // Poll every 5s
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+    if (billingStart && billingEnd) {
+      setActivePeriod({ start: billingStart, end: billingEnd });
+    }
+  }, [billingStart, billingEnd]);
 
   // 2. REACTIVE BILL CALCULATION
   useEffect(() => {
