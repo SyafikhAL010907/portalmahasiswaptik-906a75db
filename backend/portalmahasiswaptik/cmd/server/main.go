@@ -38,6 +38,11 @@ func main() {
 		ErrorHandler: customErrorHandler,
 	})
 
+	// Root Health Check
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.Status(200).SendString("Backend PTIK is Running!")
+	})
+
 	// Middleware
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
@@ -102,4 +107,5 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 		"error":   message,
 		"code":    code,
 	})
+
 }
