@@ -39,7 +39,7 @@ export default function Payment() {
         const headers: any = {};
         if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
 
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9000/api';
+        const baseUrl = import.meta.env.VITE_API_URL;
         const response = await fetch(`${baseUrl}/config/billing-range`, { headers });
 
         if (response.ok) {

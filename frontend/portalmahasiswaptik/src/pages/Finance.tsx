@@ -116,7 +116,7 @@ export default function Finance() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9000/api';
+        const baseUrl = import.meta.env.VITE_API_URL;
         const response = await fetch(`${baseUrl}/config/billing-range`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
@@ -177,7 +177,7 @@ export default function Finance() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9000/api';
+      const baseUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${baseUrl}/config/save-range`, {
         method: 'POST',
         headers: {

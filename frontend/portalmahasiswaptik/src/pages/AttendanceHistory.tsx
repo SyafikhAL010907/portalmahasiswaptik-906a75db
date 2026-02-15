@@ -840,7 +840,7 @@ export default function AttendanceHistory() {
 
       toast.info("Sedang menyiapkan laporan presensi...");
 
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9000/api';
+      const baseUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${baseUrl}/export/attendance/excel?session_id=${currentSessionId}`, {
         method: 'GET',
         headers: {
@@ -891,7 +891,7 @@ export default function AttendanceHistory() {
 
       toast.info("Sedang generate Master Excel...");
 
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9000/api';
+      const baseUrl = import.meta.env.VITE_API_URL;
       const response = await fetch(`${baseUrl}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${selectedExportClassId}`, {
         method: 'GET',
         headers: {
