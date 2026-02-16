@@ -396,7 +396,7 @@ export default function UserManagement() {
         isLoading={isDeleting}
       />
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Users className="w-7 h-7 text-primary" />
@@ -408,42 +408,62 @@ export default function UserManagement() {
         {/* DIALOG CREATE */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 w-full md:w-auto md:self-end">
               <UserPlus className="w-4 h-4" /> Tambah Pengguna
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Buat Pengguna Baru</DialogTitle>
-              <DialogDescription>Tambahkan akun baru</DialogDescription>
+          <DialogContent className="w-[95%] max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-2 border-white/20 shadow-2xl p-6">
+            <DialogHeader className="bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 -mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-3xl mb-4">
+              <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Buat Pengguna Baru</DialogTitle>
+              <DialogDescription className="text-slate-600 dark:text-slate-400">Tambahkan akun baru ke sistem</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="nim">NIM / ID</Label>
-                <Input id="nim" placeholder="Contoh: 1512625001" value={newUser.nim} onChange={(e) => setNewUser({ ...newUser, nim: e.target.value })} />
+                <Label htmlFor="nim" className="text-sm font-semibold text-slate-700 dark:text-slate-300">NIM / ID</Label>
+                <Input
+                  id="nim"
+                  placeholder="Contoh: 1512625001"
+                  value={newUser.nim}
+                  onChange={(e) => setNewUser({ ...newUser, nim: e.target.value })}
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-name">Nama Lengkap</Label>
-                <Input id="create-name" value={newUser.full_name} onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })} placeholder="Nama Lengkap" />
+                <Label htmlFor="create-name" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nama Lengkap</Label>
+                <Input
+                  id="create-name"
+                  value={newUser.full_name}
+                  onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                  placeholder="Nama Lengkap"
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-whatsapp">Nomor WhatsApp</Label>
+                <Label htmlFor="create-whatsapp" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nomor WhatsApp</Label>
                 <Input
                   id="create-whatsapp"
                   value={newUser.whatsapp}
                   onChange={(e) => setNewUser({ ...newUser, whatsapp: e.target.value })}
                   placeholder="Contoh: 08123456789"
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="Minimal 6 karakter" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+                <Label htmlFor="password" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Minimal 6 karakter"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="role" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Role</Label>
                 <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value as AppRole })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih role" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"><SelectValue placeholder="Pilih role" /></SelectTrigger>
+                  <SelectContent className="rounded-xl">
                     {Object.entries(roleLabels).map(([key, label]) => (
                       <SelectItem key={key} value={key}>{label}</SelectItem>
                     ))}
@@ -453,10 +473,10 @@ export default function UserManagement() {
               {/* ✅ LOGIKA BARU: Munculkan pilihan kelas untuk Mahasiswa DAN Admin Kelas */}
               {(newUser.role === 'mahasiswa' || newUser.role === 'admin_kelas') && (
                 <div className="space-y-2">
-                  <Label htmlFor="class">Kelas (Wajib untuk Mahasiswa & Admin Kelas)</Label>
+                  <Label htmlFor="class" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Kelas (Wajib untuk Mahasiswa & Admin Kelas)</Label>
                   <Select value={newUser.class_id} onValueChange={(value) => setNewUser({ ...newUser, class_id: value })}>
-                    <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id}>
                           Kelas {cls.name}
@@ -467,9 +487,19 @@ export default function UserManagement() {
                 </div>
               )}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Batal</Button>
-              <Button onClick={handleCreateUser} disabled={isCreating}>
+            <DialogFooter className="gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+                className="rounded-xl border-2 bg-transparent hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleCreateUser}
+                disabled={isCreating}
+                className="rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg shadow-purple-500/50"
+              >
                 {isCreating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Membuat...</> : 'Buat Pengguna'}
               </Button>
             </DialogFooter>
@@ -478,33 +508,42 @@ export default function UserManagement() {
 
         {/* DIALOG EDIT */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Pengguna</DialogTitle>
-              <DialogDescription>Perbarui informasi pengguna ini.</DialogDescription>
+          <DialogContent className="w-[95%] max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-2 border-white/20 shadow-2xl p-6">
+            <DialogHeader className="bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 -mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-3xl mb-4">
+              <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Edit Pengguna</DialogTitle>
+              <DialogDescription className="text-slate-600 dark:text-slate-400">Perbarui informasi pengguna ini</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label>NIM / ID</Label>
-                <Input value={editUserForm.nim} onChange={(e) => setEditUserForm({ ...editUserForm, nim: e.target.value })} />
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">NIM / ID</Label>
+                <Input
+                  value={editUserForm.nim}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, nim: e.target.value })}
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
+                />
               </div>
               <div className="space-y-2">
-                <Label>Nama Lengkap</Label>
-                <Input value={editUserForm.full_name} onChange={(e) => setEditUserForm({ ...editUserForm, full_name: e.target.value })} />
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nama Lengkap</Label>
+                <Input
+                  value={editUserForm.full_name}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, full_name: e.target.value })}
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
+                />
               </div>
               <div className="space-y-2">
-                <Label>Nomor WhatsApp</Label>
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nomor WhatsApp</Label>
                 <Input
                   placeholder="Contoh: 08123456789"
                   value={editUserForm.whatsapp}
                   onChange={(e) => setEditUserForm({ ...editUserForm, whatsapp: e.target.value })}
+                  className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Role</Label>
                 <Select value={editUserForm.role} onValueChange={(value) => setEditUserForm({ ...editUserForm, role: value as AppRole })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih role" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"><SelectValue placeholder="Pilih role" /></SelectTrigger>
+                  <SelectContent className="rounded-xl">
                     {Object.entries(roleLabels).map(([key, label]) => (
                       <SelectItem key={key} value={key}>{label}</SelectItem>
                     ))}
@@ -514,10 +553,10 @@ export default function UserManagement() {
               {/* ✅ LOGIKA EDIT: Jika Mahasiswa atau Admin Kelas, BISA EDIT KELAS */}
               {(editUserForm.role === 'mahasiswa' || editUserForm.role === 'admin_kelas') && (
                 <div className="space-y-2">
-                  <Label>Kelas</Label>
+                  <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Kelas</Label>
                   <Select value={editUserForm.class_id} onValueChange={(value) => setEditUserForm({ ...editUserForm, class_id: value })}>
-                    <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="rounded-xl bg-slate-100/50 dark:bg-slate-800/50 border-slate-300/50 focus:ring-purple-400 focus:border-purple-400"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id}>
                           Kelas {cls.name}
@@ -530,22 +569,32 @@ export default function UserManagement() {
 
               {/* ✅ ADMIN-ONLY PASSWORD RESET FIELD */}
               {isAdminDev() && (
-                <div className="space-y-2 pt-4 border-t border-border mt-4">
-                  <Label className="text-destructive font-bold">Password Baru (Opsional - Khusus Admin)</Label>
+                <div className="space-y-2 pt-4 border-t border-purple-200/50 dark:border-purple-800/50 mt-4">
+                  <Label className="text-sm font-bold text-red-600 dark:text-red-400">Password Baru (Opsional - Khusus Admin)</Label>
                   <Input
                     type="password"
                     placeholder="Kosongkan jika tidak ingin mengubah password"
                     value={editUserForm.new_password}
                     onChange={(e) => setEditUserForm({ ...editUserForm, new_password: e.target.value })}
-                    className="border-destructive/30 focus-visible:ring-destructive"
+                    className="rounded-xl bg-red-50/50 dark:bg-red-950/20 border-red-300/50 focus:ring-red-400 focus:border-red-400"
                   />
-                  <p className="text-[10px] text-muted-foreground italic">Gunakan ini untuk mereset password user yang lupa.</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">Gunakan ini untuk mereset password user yang lupa.</p>
                 </div>
               )}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Batal</Button>
-              <Button onClick={handleUpdateUser} disabled={isUpdating}>
+            <DialogFooter className="gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                className="rounded-xl border-2 bg-transparent hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleUpdateUser}
+                disabled={isUpdating}
+                className="rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg shadow-purple-500/50"
+              >
                 {isUpdating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Perubahan'}
               </Button>
             </DialogFooter>
@@ -556,20 +605,20 @@ export default function UserManagement() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative md:col-span-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Cari NIM atau nama..." className="pl-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
             <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="w-full md:w-40"><SelectValue placeholder="Filter Kelas" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Filter Kelas" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Kelas</SelectItem>
                 {classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>Kelas {cls.name}</SelectItem>))}
               </SelectContent>
             </Select>
             <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="w-full md:w-40"><SelectValue placeholder="Filter Role" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Filter Role" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Role</SelectItem>
                 {Object.entries(roleLabels).map(([key, label]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}
@@ -584,56 +633,71 @@ export default function UserManagement() {
         <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       ) : (
         <Tabs defaultValue="all" className="space-y-4">
-          <TabsList className="bg-card border border-border">
-            <TabsTrigger value="all">Semua ({filteredUsers.length})</TabsTrigger>
-            <TabsTrigger value="admin_dev">Admin Dev</TabsTrigger>
-            <TabsTrigger value="admin_kelas">Admin Kelas</TabsTrigger>
-            <TabsTrigger value="admin_dosen">Dosen</TabsTrigger>
-            <TabsTrigger value="mahasiswa">Mahasiswa</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto scrollbar-hide">
+            <TabsList className="bg-card border border-border inline-flex w-auto min-w-full">
+              <TabsTrigger value="all" className="whitespace-nowrap">Semua ({filteredUsers.length})</TabsTrigger>
+              <TabsTrigger value="admin_dev" className="whitespace-nowrap">Admin Dev</TabsTrigger>
+              <TabsTrigger value="admin_kelas" className="whitespace-nowrap">Admin Kelas</TabsTrigger>
+              <TabsTrigger value="admin_dosen" className="whitespace-nowrap">Dosen</TabsTrigger>
+              <TabsTrigger value="mahasiswa" className="whitespace-nowrap">Mahasiswa</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="all">
-            <Card>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {filteredUsers.length === 0 ? (
-                    <div className="py-12 text-center text-muted-foreground">Tidak ada pengguna ditemukan</div>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <GraduationCap className="w-5 h-5 text-primary" />
+            <div className="space-y-3">
+              {filteredUsers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center text-muted-foreground">Tidak ada pengguna ditemukan</div>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredUsers.map((user) => (
+                  <Card key={user.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      {/* Mobile Card Layout */}
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        {/* User Info Section */}
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <GraduationCap className="w-6 h-6 text-primary" />
                           </div>
-                          <div>
-                            <p className="font-medium">{user.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{user.nim}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-base">{user.full_name}</p>
+                            <p className="text-sm text-muted-foreground font-medium">{user.nim}</p>
+                            {/* Badges - Mobile Friendly */}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {user.roles.includes('mahasiswa') && user.class_name !== '-' && (
+                                <Badge variant="outline" className="text-xs">Kelas {user.class_name}</Badge>
+                              )}
+                              {user.roles.map((role) => (
+                                <Badge key={role} className={`${roleColors[role]} text-xs`}>
+                                  {role === 'admin_kelas' && user.class_name !== '-'
+                                    ? `Admin Kelas ${user.class_name}`
+                                    : roleLabels[role]}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          {user.roles.includes('mahasiswa') && user.class_name !== '-' && (
-                            <Badge variant="outline">Kelas {user.class_name}</Badge>
-                          )}
-                          {user.roles.map((role) => (
-                            <Badge key={role} className={roleColors[role]}>
-                              {role === 'admin_kelas' && user.class_name !== '-'
-                                ? `Admin Kelas ${user.class_name}`
-                                : roleLabels[role]}
-                            </Badge>
-                          ))}
-                          <Button variant="ghost" size="icon" onClick={() => handleEditClick(user)}>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 ml-auto md:ml-0">
+                          <Button variant="outline" size="sm" onClick={() => handleEditClick(user)} className="gap-2">
                             <Edit className="w-4 h-4" />
+                            <span className="hidden sm:inline">Edit</span>
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(user.user_id)}>
+                          <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(user.user_id)}>
                             <Trash2 className="w-4 h-4" />
+                            <span className="hidden sm:inline">Hapus</span>
                           </Button>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="admin_dev">

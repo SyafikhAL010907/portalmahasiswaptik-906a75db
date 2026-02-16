@@ -1072,18 +1072,47 @@ export default function Finance() {
         <div className="rounded-2xl overflow-hidden border border-border shadow-sm mb-6 bg-card">
 
           {/* TIER 1: BRANDING BAR (Dark Mode Style) */}
-          <div className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-emerald-400" />
-                Management Kas Angkatan
-              </h2>
-              <p className="text-slate-400 text-xs mt-0.5">Control Panel Keuangan Terpusat</p>
-            </div>
-            <div className="hidden md:block">
-              <span className="text-xs font-mono text-slate-500 bg-slate-800 px-2 py-1 rounded">V8.2 Stable</span>
-            </div>
-          </div>
+          <div className="relative px-6 py-6 border-b flex justify-between items-center transition-all duration-500 overflow-hidden
+    /* Background Dasar: Putih Bersih di Light, Hitam Deep di Dark */
+    bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-900">
+  
+  {/* LAYER GRADASI LIGHT MODE (Paling Pas - Blue 200, Purple 200, Emerald 100) */}
+  <div className="absolute inset-0 opacity-100 dark:opacity-0 pointer-events-none 
+      bg-gradient-to-br from-blue-200 via-purple-200 to-emerald-100"></div>
+  
+  {/* LAYER GRADASI DARK MODE (Deep & Muted - Tidak Keterangan) 
+      Menggunakan Opacity rendah agar warna pastelnya tetap 'kereng' tapi gelap */}
+  <div className="absolute inset-0 opacity-0 dark:opacity-100 pointer-events-none 
+      bg-gradient-to-br from-blue-950/90 via-indigo-950/60 to-emerald-950/40"></div>
+
+  {/* Soft White Gloss (Hanya aktif di Light Mode agar tidak silau di Dark) */}
+  <div className="absolute top-0 left-0 w-full h-full opacity-30 dark:opacity-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.8),transparent_60%)]"></div>
+
+  <div className="relative z-10 flex flex-col">
+    <h2 className="text-xl md:text-2xl font-black tracking-tight flex items-center gap-3
+        /* Adaptive Text: Hitam Pekat di Light, Putih Bersih di Dark */
+        text-slate-950 dark:text-white">
+      <div className="p-2 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-md border border-white/40 dark:border-white/10 shadow-sm">
+        <Wallet className="w-6 h-6 text-slate-900 dark:text-white" />
+      </div>
+      Management Kas Angkatan
+    </h2>
+    <p className="text-xs md:text-sm mt-1 font-bold
+        /* Adaptive Subtitle: Slate di Light, Slate Redup di Dark */
+        text-slate-700 dark:text-slate-400">
+      Control Panel Keuangan Terpusat
+    </p>
+  </div>
+
+  <div className="hidden md:block relative z-10">
+    <span className="text-[10px] font-black tracking-widest uppercase px-4 py-2 rounded-full border shadow-sm transition-all
+        /* Badge: Menyesuaikan Kontras */
+        bg-white/40 text-slate-900 border-white/60
+        dark:bg-slate-900/60 dark:text-slate-300 dark:border-slate-800">
+      V1-PTIK
+    </span>
+  </div>
+</div>
 
           {/* TIER 2: CONTROL BAR (Lighter Control Panel) */}
           <div className="bg-white dark:bg-slate-950 px-6 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
