@@ -91,7 +91,7 @@ export default function Features() {
                             <Terminal className="w-4 h-4" />
                             Eksplorasi Portal Kami
                         </motion.div>
-                        
+
                         {/* FIX KETIBAN: mb-12 di mobile, mb-20 di desktop. Leading-normal supaya gradient tidak kepotong */}
                         <motion.h1
                             initial={{ opacity: 0, y: -20 }}
@@ -100,7 +100,7 @@ export default function Features() {
                         >
                             Fitur Unggulan
                         </motion.h1>
-                        
+
                         <motion.p
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}

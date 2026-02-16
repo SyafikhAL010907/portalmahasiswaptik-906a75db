@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 // ✅ Import createClient
 import { createClient } from '@supabase/supabase-js';
 import {
   Users, Plus, Search, Edit, Trash2, UserPlus,
-  Shield, GraduationCap, BookOpen, Loader2, Filter
+  Shield, GraduationCap, BookOpen, Loader2, Filter,
+  AlertTriangle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,6 +85,9 @@ export default function UserManagement() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+// ✅ STATE: Password Change Confirmation Premium
+  const [showPremiumConfirm, setShowPremiumConfirm] = useState(false);
 
   // State form Create
   const [newUser, setNewUser] = useState({
@@ -229,46 +235,71 @@ export default function UserManagement() {
     setIsEditDialogOpen(true);
   };
 
-  // ✅ UPDATE USER
-  const handleUpdateUser = async () => {
+  // ✅ ACTION GATEKEEPER: Memutuskan lewat modal atau langsung
+  // ✅ ACTION GATEKEEPER: Cuma satu pintu konfirmasi!
+  // ✅ ACTION GATEKEEPER: Cuma satu pintu konfirmasi!
+  // ✅ FIX FINAL: Penjaga pintu tunggal (Native Confirm)
+ // ✅ FIX FINAL: Penjaga pintu tunggal (Premium Modal)
+  const handleSaveClick = () => {
     if (!editingUserId || !editUserForm.nim || !editUserForm.full_name) {
       toast.error('Data tidak boleh kosong');
       return;
     }
 
+    if (editUserForm.new_password) {
+      // ✅ Munculkan modal cantik, BUKAN window.confirm lagi!
+      setShowPremiumConfirm(true);
+    } else {
+      executeUserUpdate();
+    }
+  };
+
+  // ✅ EXECUTION ENGINE: Nembak API ke Backend
+  // ✅ EXECUTION ENGINE: Pakai Ninja Client (Bypass 401)
+  // ✅ LOKASI 2: EXECUTION ENGINE (PAKAI NINJA - BYPASS 401)
+  const executeUserUpdate = async () => {
     setIsUpdating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sesi tidak ditemukan');
+      const tempSupabase = getNinjaClient(); // Pakai Kunci Master Ninja
 
-      // Pastikan class_id disimpan jika role adalah mahasiswa ATAU admin_kelas
+      // ✅ Sanitasi NIM
+      const cleanNim = editUserForm.nim.trim().replace(/\s+/g, '');
       const classIdToSave = (editUserForm.role === 'mahasiswa' || editUserForm.role === 'admin_kelas')
         ? (editUserForm.class_id || null)
         : null;
 
-      const response = await fetch(`/api/users/${editingUserId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          nim: editUserForm.nim,
+      // 1. UPDATE AUTH (Jika ganti password)
+      if (editUserForm.new_password) {
+        const { error: authError } = await tempSupabase.auth.admin.updateUserById(
+          editingUserId!,
+          { password: editUserForm.new_password }
+        );
+        if (authError) throw authError;
+      }
+
+      // 2. UPDATE PROFILE (Langsung ke tabel)
+      const { error: profileError } = await tempSupabase
+        .from('profiles')
+        .update({
+          nim: cleanNim,
           full_name: editUserForm.full_name,
           whatsapp: editUserForm.whatsapp || null,
           class_id: classIdToSave,
-          role: editUserForm.role,
-          new_password: editUserForm.new_password || undefined
         })
-      });
+        .eq('user_id', editingUserId);
+      if (profileError) throw profileError;
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Gagal memperbarui data pengguna');
+      // 3. UPDATE ROLE
+      const { error: roleError } = await tempSupabase
+        .from('user_roles')
+        .update({ role: editUserForm.role })
+        .eq('user_id', editingUserId);
+      if (roleError) throw roleError;
 
       toast.success('Data pengguna berhasil diperbarui!');
-      setIsEditDialogOpen(false);
+      setIsEditDialogOpen(false); // Tutup dialog edit
       setEditingUserId(null);
-      fetchData();
+      fetchData(); // Refresh list
 
     } catch (error: any) {
       console.error('Error updating user:', error);
@@ -277,7 +308,6 @@ export default function UserManagement() {
       setIsUpdating(false);
     }
   };
-
   // ✅ DELETE USER HANDLERS
   const handleDeleteClick = (userId: string) => {
     setUserToDelete(userId);
@@ -383,8 +413,19 @@ export default function UserManagement() {
     );
   }
 
+
+
   return (
     <div className="space-y-6">
+      <PremiumConfirmModal 
+        isOpen={showPremiumConfirm}
+        onClose={() => setShowPremiumConfirm(false)}
+        name={editUserForm.full_name}
+        onConfirm={() => {
+          setShowPremiumConfirm(false); // Tutup modal dulu
+          executeUserUpdate(); // Baru hajar update-nya
+        }}
+      />
       <ConfirmationModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
@@ -591,7 +632,8 @@ export default function UserManagement() {
                 Batal
               </Button>
               <Button
-                onClick={handleUpdateUser}
+                type="button"
+                onClick={() => handleSaveClick()} // <--- HANYA MANGGIL INI
                 disabled={isUpdating}
                 className="rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg shadow-purple-500/50"
               >
@@ -808,3 +850,60 @@ export default function UserManagement() {
     </div >
   );
 }
+// ✅ KOMPONEN MODAL PREMIUM (Ditaruh di luar agar tidak infinite loop)
+const PremiumConfirmModal = ({ isOpen, onClose, onConfirm, name }: any) => {
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-auto">
+          {/* Backdrop Blur */}
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
+          />
+          
+          {/* Modal Card */}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="relative w-full max-w-sm overflow-hidden rounded-[2.5rem] border border-white/20 bg-slate-900/80 backdrop-blur-xl shadow-[0_0_40px_rgba(0,0,0,0.5)] p-8 text-center"
+          >
+            <div className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+              <AlertTriangle className="w-10 h-10 text-amber-500" />
+            </div>
+            
+            <h3 className="text-2xl font-bold text-white mb-3">Ganti Password?</h3>
+            <p className="text-slate-300 mb-8 text-sm leading-relaxed">
+              Anda akan memperbarui sandi untuk <span className="font-bold text-amber-400">{name}</span>. Pastikan password baru sudah dicatat.
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Button 
+                variant="ghost" 
+                onClick={onClose}
+                className="rounded-2xl border border-white/10 text-white hover:bg-white/5 transition-all"
+              >
+                Batal
+              </Button>
+              <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onConfirm(); // Eksekusi fungsi update
+                }}
+                className="rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold shadow-lg shadow-amber-600/20 border-0"
+              >
+                Ya, Ganti
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+};

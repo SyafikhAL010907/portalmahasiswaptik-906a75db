@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
@@ -290,6 +292,13 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
+	// NIM Sanitization (if provided)
+	if req.NIM != nil {
+		sanitizedNIM := strings.TrimSpace(*req.NIM)
+		sanitizedNIM = strings.ReplaceAll(sanitizedNIM, " ", "")
+		req.NIM = &sanitizedNIM
+	}
+
 	// Password Reset (AdminDev only)
 	if req.NewPassword != nil && *req.NewPassword != "" {
 		if currentUser.Role != models.RoleAdminDev {
@@ -309,8 +318,10 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 			}
 			jsonData, _ := json.Marshal(updateData)
 
-			url := fmt.Sprintf("%s/auth/v1/admin/users/%s", supabaseURL, userID)
-			httpReq, err := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonData))
+			// Construct URL properly: trim trailing slash and use PUT as per Supabase Admin API
+			trimmedURL := strings.TrimSuffix(supabaseURL, "/")
+			url := fmt.Sprintf("%s/auth/v1/admin/users/%s", trimmedURL, userID)
+			httpReq, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"success": false,
@@ -319,6 +330,7 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 			}
 
 			httpReq.Header.Set("Authorization", "Bearer "+serviceRoleKey)
+			httpReq.Header.Set("apikey", serviceRoleKey)
 			httpReq.Header.Set("Content-Type", "application/json")
 
 			client := &http.Client{}
@@ -332,9 +344,10 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
+				respBody, _ := io.ReadAll(resp.Body)
 				return c.Status(resp.StatusCode).JSON(fiber.Map{
 					"success": false,
-					"error":   fmt.Sprintf("Supabase Auth error (status %d)", resp.StatusCode),
+					"error":   fmt.Sprintf("Supabase Auth error (status %d): %s", resp.StatusCode, string(respBody)),
 				})
 			}
 		}

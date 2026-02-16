@@ -18,7 +18,7 @@ export default function About() {
             <main className="pt-32 md:pt-48 pb-40 px-4 relative z-10">
                 <div className="container mx-auto">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
-                        
+
                         {/* Left Column: Visual/Logo */}
                         <motion.div
                             initial={{ opacity: 0, x: -50 }}
@@ -61,7 +61,7 @@ export default function About() {
                                 <Cpu className="w-4 h-4" />
                                 PTIK UNJ PRIDE
                             </div>
-                            
+
                             {/* FIX JARAK: mb-12 di mobile, mb-20 di desktop. Leading-normal supaya gradient gak kepotong */}
                             <h1 className="text-4xl md:text-6xl font-bold mb-12 md:mb-20 bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary to-purple-500 leading-normal py-2">
                                 Tentang Angkatan 2025

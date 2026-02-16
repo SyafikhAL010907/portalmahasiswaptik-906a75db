@@ -127,28 +127,38 @@ func AuthMiddleware(db *gorm.DB) fiber.Handler {
 			})
 		}
 
-		// Parse and validate JWT using JWKS and ES256
+		// Parse and validate JWT
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// Ensure the signing method is ES256 (ECDSA)
-			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			// Get algorithm from header
+			alg, _ := token.Header["alg"].(string)
+
+			// 1. Try HS256 (Common for Supabase tokens signed with JWT Secret)
+			if alg == "HS256" {
+				secret := os.Getenv("SUPABASE_JWT_SECRET")
+				if secret == "" {
+					return nil, fmt.Errorf("SUPABASE_JWT_SECRET not set in .env")
+				}
+				return []byte(secret), nil
 			}
 
-			// Get kid from header
-			kid, ok := token.Header["kid"].(string)
-			if !ok {
-				return nil, fmt.Errorf("missing kid in token header")
+			// 2. Fallback to ES256 (Supabase JWKS)
+			if alg == "ES256" {
+				kid, ok := token.Header["kid"].(string)
+				if !ok {
+					return nil, fmt.Errorf("missing kid in ES256 token header")
+				}
+				return getPublicKey(kid)
 			}
 
-			// Match with user's specific kid if necessary, but discovery is better
-			return getPublicKey(kid)
+			return nil, fmt.Errorf("unsupported signing method: %v", alg)
 		})
 
 		if err != nil || !token.Valid {
-			fmt.Printf("❌ JWT Error: %v\n", err) // INI PENTING BUAT DEBUG
+			fmt.Printf("❌ Auth Error: %v | Token: %s...\n", err, tokenString[:10])
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"error":   "Invalid or expired token",
+				"debug":   fmt.Sprintf("%v", err),
 			})
 		}
 
