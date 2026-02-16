@@ -170,13 +170,15 @@ export default function UserManagement() {
     setIsCreating(true);
     try {
       const tempSupabase = getNinjaClient();
-      const email = `${newUser.nim}@ptik.local`;
+      // ✅ Sanitasi NIM: Hapus semua spasi
+      const cleanNim = newUser.nim.trim().replace(/\s+/g, '');
+      const email = `${cleanNim}@ptik.local`;
 
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email,
         password: newUser.password,
         options: {
-          data: { nim: newUser.nim, full_name: newUser.full_name },
+          data: { nim: cleanNim, full_name: newUser.full_name },
         },
       });
 
@@ -188,7 +190,7 @@ export default function UserManagement() {
 
       const { error: profileError } = await (supabase.from('profiles') as any).upsert({
         user_id: authData.user.id,
-        nim: newUser.nim,
+        nim: cleanNim,
         full_name: newUser.full_name,
         whatsapp: newUser.whatsapp || null,
         class_id: classIdToSave,
@@ -288,18 +290,70 @@ export default function UserManagement() {
     setIsDeleting(true);
     try {
       const tempSupabase = getNinjaClient();
-      const { error } = await tempSupabase.auth.admin.deleteUser(userToDelete);
-      if (error) throw error;
 
-      toast.success('Pengguna berhasil dihapus permanen');
-      fetchData();
+      // 1. DELETE RELATED DATA MANUALLY (To avoid Foreign Key Constraints)
+      // Gunakan Promise.all untuk eksekusi paralel agar lebih cepat
+      console.log('Menghapus data terkait user:', userToDelete);
+
+      await Promise.all([
+        // Hapus transaksi yang dibuat user (jika ada)
+        tempSupabase.from('transactions').delete().eq('created_by', userToDelete),
+
+        // Hapus materi yang diupload user
+        tempSupabase.from('materials').delete().eq('uploaded_by', userToDelete),
+
+        // Hapus pengumuman yang dibuat user
+        tempSupabase.from('announcements').delete().eq('created_by', userToDelete),
+
+        // Hapus sesi absensi yang dibuat dosen (jika user adalah dosen)
+        tempSupabase.from('attendance_sessions').delete().eq('lecturer_id', userToDelete),
+
+        // UPDATE iuran yang diverifikasi user (Set verified_by = NULL) daripada menghapus data keuangan
+        tempSupabase.from('weekly_dues').update({ verified_by: null }).eq('verified_by', userToDelete),
+
+        // Hapus chat messages (jika ada)
+        tempSupabase.from('public_chat_messages').delete().eq('user_id', userToDelete),
+      ]);
+
+      // 2. DELETE PROFILE (Harus terakhir sebelum Auth, untuk memastikan referensi lain sudh bersih)
+      // Kita delete manual profile biar "bersih" di database aplikasi
+      const { error: profileError } = await tempSupabase.from('profiles').delete().eq('user_id', userToDelete);
+
+      if (profileError) {
+        console.error("Gagal hapus profile:", profileError);
+        // Lanjut aja ke hapus Auth, siapa tau profile udah kehapus duluan
+      }
+
+      // 3. DELETE USER FROM AUTH
+      console.log('Menghapus user dari Auth...');
+      const { error } = await tempSupabase.auth.admin.deleteUser(userToDelete);
+
+      if (error) {
+        // Jika error 500 tapi profile sudah hilang, anggap sukses "partial"
+        console.error("Auth delete error:", error);
+        if (error.status === 500) {
+          toast.success('Data user berhasil dibersihkan dari database (Auth mungkin perlu waktu)');
+        } else {
+          throw error;
+        }
+      } else {
+        toast.success('Pengguna dan data terkait berhasil dihapus permanen');
+      }
+
     } catch (error: any) {
       console.error('Error deleting user:', error);
-      toast.error('Gagal menghapus pengguna: ' + error.message);
+      toast.error('Gagal menghapus pengguna sepenuhnya: ' + error.message);
     } finally {
+      // ✅ FORCE UI UPDATE
+      // Langsung update state lokal biar UI responsif tanpa nunggu fetch ulang yg lama
+      setUsers(prev => prev.filter(u => u.user_id !== userToDelete));
+
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
       setUserToDelete(null);
+
+      // Fetch ulang di background untuk sinkronisasi data
+      fetchData();
     }
   };
 

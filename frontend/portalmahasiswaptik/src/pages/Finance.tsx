@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatIDR } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { DatePicker } from '@/components/ui/date-picker';
+import { format } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -100,8 +102,15 @@ export default function Finance() {
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
 
-  // BILLING RANGE STATE (Global Config) - Permanent Sync
-  const { billingStart, billingEnd, isUpdatingConfig, isLoadingConfig, updateBillingRange } = useBillingConfig();
+  // BILLING RANGE STATE (Global Config) - Unified Source of Truth
+  const {
+    billingStart,
+    billingEnd,
+    selectedMonth,
+    isUpdatingConfig,
+    isLoadingConfig,
+    updateBillingRange
+  } = useBillingConfig();
 
   // GLASS CONFIRMATION STATE
   const [isGlassConfirmOpen, setIsGlassConfirmOpen] = useState(false);
@@ -166,8 +175,7 @@ export default function Finance() {
     });
   };
 
-  // Default to Lifetime mode (0). User can switch to specific months if needed.
-  const [selectedMonth, setSelectedMonth] = useState<number>(0);
+  // Default to CURRENT YEAR. (selectedMonth is now Global)
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [transactionFilter, setTransactionFilter] = useState<'all' | 'income' | 'expense'>('all'); // ADDED FILTER STATE
 
@@ -518,29 +526,40 @@ export default function Finance() {
 
   const handleMonthChange = (newMonth: number) => {
     if (newMonth === selectedMonth) return;
+
+    // UI Feedback
     setIsLoadingStats(true);
     setIsLoadingMatrix(true);
     setTransactions([]);
-    setYearlyDues([]); // Clear the source instead
+    setYearlyDues([]);
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
-    setSelectedMonth(newMonth);
+
+    // Update Global Sync (Hook handles UI Update)
+    if (currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') {
+      updateBillingRange(billingStart || 1, billingEnd || 6, newMonth);
+    } else {
+      // For students, this will just snap back if session doesn't allow saving
+      // to GlobalConfig, but as per user request, we use ONLY the global source.
+      toast.info("Filter sinkron dengan panel Admin.");
+    }
   };
 
   const toggleLifetime = () => {
     setIsLoadingStats(true);
     setIsLoadingMatrix(true);
     setTransactions([]);
-    setYearlyDues([]); // Clear the source instead
+    setYearlyDues([]);
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
-    setDuesTotal(0);
 
+    const nextMonth = selectedMonth === 0 ? (new Date().getMonth() + 1) : 0;
 
-    if (selectedMonth === 0) {
-      setSelectedMonth(new Date().getMonth() + 1);
+    // Update Global Sync
+    if (currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') {
+      updateBillingRange(billingStart || 1, billingEnd || 6, nextMonth);
     } else {
-      setSelectedMonth(0);
+      toast.info("Tampilan sinkron dengan panel Admin.");
     }
   };
 
@@ -1078,9 +1097,11 @@ export default function Finance() {
                 <Select
                   value={selectedMonth.toString()}
                   onValueChange={(val) => handleMonthChange(Number(val))}
+                  disabled={isLoadingConfig && selectedMonth === 0} // Only disable if loading and we have nothing
                 >
                   <SelectTrigger className="w-full sm:w-[160px] pl-9 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Pilih Periode" />
+                    {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-2 text-muted-foreground" />}
                   </SelectTrigger>
                   <SelectContent>
                     {months.map(m => (
@@ -1096,38 +1117,32 @@ export default function Finance() {
               {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && isLifetime && (
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-md border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-300">
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
-                  {isLoadingConfig || billingStart === null ? (
-                    <Skeleton className="w-[100px] h-8" />
-                  ) : (
-                    <Select value={String(billingStart)} onValueChange={(v) => updateBillingRange(Number(v), billingEnd!)} disabled={isUpdatingConfig}>
-                      <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {months.map(m => (
-                          <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select value={String(billingStart || 1)} onValueChange={(v) => updateBillingRange(Number(v), billingEnd || 6, selectedMonth)} disabled={isUpdatingConfig}>
+                    <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
+                      <SelectValue />
+                      {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map(m => (
+                        <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
                   <span className="text-slate-300">|</span>
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mx-1">Sampai</span>
 
-                  {isLoadingConfig || billingEnd === null ? (
-                    <Skeleton className="w-[100px] h-8" />
-                  ) : (
-                    <Select value={String(billingEnd)} onValueChange={(v) => updateBillingRange(billingStart!, Number(v))} disabled={isUpdatingConfig}>
-                      <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {months.map(m => (
-                          <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select value={String(billingEnd || 6)} onValueChange={(v) => updateBillingRange(billingStart || 1, Number(v), selectedMonth)} disabled={isUpdatingConfig}>
+                    <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
+                      <SelectValue />
+                      {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map(m => (
+                        <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
                   {isUpdatingConfig && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-1" />}
                 </div>
@@ -1428,7 +1443,7 @@ export default function Finance() {
                           </div>
                         )}
                       </div>
-                      <Button className="w-full primary-gradient h-12 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95" onClick={handleAddTransaction} disabled={isSubmitting}>
+                      <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold h-12 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/40 active:scale-95" onClick={handleAddTransaction} disabled={isSubmitting}>
                         {isSubmitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Transaksi
                       </Button>
                     </div>
@@ -1569,7 +1584,12 @@ export default function Finance() {
 
                   <div className="space-y-2 col-span-2">
                     <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tanggal</label>
-                    <Input type="date" className="bg-background/50 h-11 rounded-xl border-input focus:ring-2 focus:ring-primary/20 shadow-sm" value={editingTx.transaction_date} onChange={e => setEditingTx(prev => prev ? { ...prev, transaction_date: e.target.value } : null)} />
+                    <DatePicker
+                      date={editingTx.transaction_date ? new Date(editingTx.transaction_date) : undefined}
+                      setDate={(date) => setEditingTx(prev => prev ? { ...prev, transaction_date: date ? format(date, "yyyy-MM-dd") : "" } : null)}
+                      placeholder="Pilih tanggal"
+                      required
+                    />
                   </div>
 
                   <div className="space-y-2 col-span-2">
@@ -1594,8 +1614,15 @@ export default function Finance() {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <Button type="button" variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setIsEditTxOpen(false)}>Batal</Button>
-                  <Button className="flex-[2] primary-gradient h-12 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95" onClick={handleUpdateTransaction} disabled={isUpdating}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 h-12 rounded-xl border-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-300 font-bold"
+                    onClick={() => setIsEditTxOpen(false)}
+                  >
+                    Batal
+                  </Button>
+                  <Button className="flex-[2] bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold h-12 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/40 active:scale-95" onClick={handleUpdateTransaction} disabled={isUpdating}>
                     {isUpdating ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Perubahan
                   </Button>
                 </div>

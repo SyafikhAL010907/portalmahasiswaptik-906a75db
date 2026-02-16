@@ -599,7 +599,7 @@ export default function Dashboard() {
 
     if (curr > endM) return 'finished';
     if (curr >= startM) return 'ongoing';
-    return 'upcoming';
+    return 'next';
   };
 
   // formatRupiah removed and replaced by formatIDR from utils.ts
@@ -663,8 +663,8 @@ export default function Dashboard() {
           title="Kehadiran"
           value="95%"
           subtitle="Persentase Hadir"
-          gradient="from-accent/40 to-accent/10"
-          iconClassName="bg-accent text-accent-foreground"
+          gradient="from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-900/20"
+          iconClassName="bg-white/60 dark:bg-slate-800/50 text-emerald-600 dark:text-emerald-400"
         />
 
         {/* Top Class Card modernized with PremiumCard shell or logic */}
@@ -720,24 +720,31 @@ export default function Dashboard() {
                   const status = getScheduleStatus(schedule.start_time, schedule.end_time);
                   const isFinished = status === 'finished';
                   const isOngoing = status === 'ongoing';
+                  const isNext = status === 'next';
 
                   return (
                     <div
                       key={schedule.id}
                       className={`relative p-5 rounded-xl border transition-all duration-300 ${isOngoing
-                        ? 'bg-primary/5 border-primary/20 shadow-sm'
+                        ? 'bg-blue-500/5 border-blue-500/20 shadow-sm'
                         : isFinished
-                          ? 'bg-secondary/10 border-border/50 opacity-60 grayscale'
+                          ? 'bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-60 grayscale'
                           : 'bg-card/30 border-border/50 hover:bg-card/50'
                         }`}
                     >
+                      {/* Status Badges */}
                       {isOngoing && (
-                        <span className="absolute top-3 right-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 rounded-full animate-pulse">
+                        <span className="absolute top-3 right-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 animate-pulse">
                           Sedang Berlangsung
                         </span>
                       )}
+                      {isNext && (
+                        <span className="absolute top-3 right-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-100 dark:bg-purple-500/10 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
+                          Selanjutnya
+                        </span>
+                      )}
                       {isFinished && (
-                        <span className="absolute top-3 right-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted rounded-full">
+                        <span className="absolute top-3 right-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                           Selesai
                         </span>
                       )}
@@ -907,36 +914,43 @@ export default function Dashboard() {
           <div className="glass-card rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-4">Aksi Cepat</h2>
             <div className="grid grid-cols-2 gap-3">
-              <Link to="/dashboard/scan-qr" className="block">
-                <button className="w-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-secondary/5 border border-border/50 hover:bg-secondary/10 hover:border-primary/20 transition-all duration-300">
-                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
+              {/* Scan Absen - Blue Glow */}
+              <Link to="/dashboard/scan-qr" className="block group">
+                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:border-blue-400/50">
+                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
                     <QrCode size={18} />
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">Scan Absen</span>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Scan Absen</span>
                 </button>
               </Link>
-              <Link to="/dashboard/payment" className="block">
-                <button className="w-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-secondary/5 border border-border/50 hover:bg-secondary/10 hover:border-primary/20 transition-all duration-300">
-                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
+
+              {/* Bayar Kas - Blue Glow */}
+              <Link to="/dashboard/payment" className="block group">
+                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:border-blue-400/50">
+                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
                     <Wallet size={18} />
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">Bayar Kas</span>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Bayar Kas</span>
                 </button>
               </Link>
-              <Link to="/dashboard/repository" className="block">
-                <button className="w-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-secondary/5 border border-border/50 hover:bg-secondary/10 hover:border-primary/20 transition-all duration-300">
-                  <div className="p-2 rounded-full bg-amber-500/10 text-amber-500">
+
+              {/* Materi - Orange/Amber Glow */}
+              <Link to="/dashboard/repository" className="block group">
+                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:border-amber-400/50">
+                  <div className="p-2 rounded-full bg-amber-500/10 text-amber-500 transition-colors group-hover:bg-amber-500/20">
                     <FileText size={18} />
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">Materi</span>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Materi</span>
                 </button>
               </Link>
-              <Link to="/dashboard/ipk-simulator" className="block">
-                <button className="w-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-secondary/5 border border-border/50 hover:bg-secondary/10 hover:border-primary/20 transition-all duration-300">
-                  <div className="p-2 rounded-full bg-purple-500/10 text-purple-500">
+
+              {/* IPK Sim - Purple Glow */}
+              <Link to="/dashboard/ipk-simulator" className="block group">
+                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:border-purple-400/50">
+                  <div className="p-2 rounded-full bg-purple-500/10 text-purple-500 transition-colors group-hover:bg-purple-500/20">
                     <Users size={18} />
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">IPK Sim</span>
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">IPK Sim</span>
                 </button>
               </Link>
             </div>

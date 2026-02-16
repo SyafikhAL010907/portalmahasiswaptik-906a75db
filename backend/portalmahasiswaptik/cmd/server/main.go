@@ -94,6 +94,7 @@ func main() {
 
 // Custom error handler
 func customErrorHandler(c *fiber.Ctx, err error) error {
+	println("🔥 GLOBAL ERROR:", err.Error())
 	code := fiber.StatusInternalServerError
 	message := "Internal Server Error"
 

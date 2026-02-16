@@ -1144,95 +1144,104 @@ export default function AttendanceHistory() {
             </div>
           </div>
 
-          <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs uppercase bg-muted/50 text-muted-foreground border-b">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Mahasiswa</th>
-                    <th className="px-6 py-4 font-semibold text-center">NIM</th>
-                    <th className="px-6 py-4 font-semibold text-center">Status</th>
-                    <th className="px-6 py-4 font-semibold text-center">Metode</th>
-                    <th className="px-6 py-4 font-semibold text-center">Waktu Scan</th>
-                    {userRole === 'admin_dev' && <th className="px-6 py-4 font-semibold text-center">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {students.map((student) => (
-                    <tr key={student.id} className={cn(
-                      "transition-colors",
-                      student.method === 'qr' ? "bg-slate-50/50 dark:bg-slate-900/40 opacity-90" : "hover:bg-muted/30"
-                    )}>
-                      <td className="px-6 py-4 font-medium flex items-center gap-3">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-offset-2 ring-offset-background",
-                          getStatusColor(student.status)
-                        )}>
-                          {student.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-foreground">{student.name}</div>
-                          <div className="text-xs text-muted-foreground md:hidden">{student.nim}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center hidden md:table-cell font-mono text-muted-foreground">
-                        {student.nim}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <button
-                          onClick={() => toggleAttendance(student.id, student.status)}
-                          disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev')}
-                          className={cn(
-                            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all",
-                            getStatusBadge(student.status),
-                            (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer" : "cursor-default opacity-90"
-                          )}
-                        >
-                          {getStatusIcon(student.status)}
-                          {student.status}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {student.method === 'manual' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            MANUAL
-                          </span>
-                        ) : student.method === 'qr' || student.scannedAt ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                            <QrCode className="w-3 h-3" /> QR CODE
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center text-xs text-muted-foreground">
-                        {student.scannedAt ? new Date(student.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </td>
-                      {userRole === 'admin_dev' && (
-                        <td className="px-6 py-4 text-center">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            onClick={() => handleResetIndividual(student.id, student.name)}
-                            title="Reset Status Individual"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {students.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">
-                        Tidak ada data mahasiswa ditemukan.
-                      </td>
-                    </tr>
+          <div className="space-y-3">
+            {students.map((student) => {
+              const status = student.status;
+              const isAlpha = status === 'alpha';
+              const isHadir = status === 'hadir';
+              const isPending = status === 'pending';
+              const isIzin = status === 'izin';
+
+              return (
+                <div
+                  key={student.id}
+                  className={cn(
+                    "flex flex-col md:flex-row items-center justify-between p-4 rounded-2xl transition-all duration-300 ease-in-out",
+                    "bg-white/60 dark:bg-slate-900/40 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 shadow-sm",
+                    "hover:-translate-y-1 hover:scale-[1.01] group",
+                    // Glow Effects based on status
+                    isAlpha ? "hover:shadow-[0_8px_30px_rgba(244,63,94,0.3)] hover:border-rose-300/50" :
+                      (isHadir || isPending) ? "hover:shadow-[0_8px_30px_rgba(59,130,246,0.25)] hover:border-blue-300/50" :
+                        isIzin ? "hover:shadow-[0_8px_30px_rgba(245,158,11,0.25)] hover:border-amber-300/50" :
+                          "hover:shadow-lg"
                   )}
-                </tbody>
-              </table>
-            </div>
+                >
+                  <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className={cn(
+                      "w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ring-2 ring-offset-2 ring-offset-background/50 shadow-inner",
+                      getStatusColor(student.status)
+                    )}>
+                      {student.name.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-slate-100">{student.name}</div>
+                      <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{student.nim}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center md:justify-end gap-x-8 gap-y-4 mt-4 md:mt-0 w-full md:w-auto">
+                    {/* Status Badge */}
+                    <div className="text-center">
+                      <button
+                        onClick={() => toggleAttendance(student.id, student.status)}
+                        disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev')}
+                        className={cn(
+                          "inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm",
+                          getStatusBadge(student.status),
+                          (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer shadow-md" : "cursor-default opacity-90"
+                        )}
+                      >
+                        {getStatusIcon(student.status)}
+                        {student.status}
+                      </button>
+                    </div>
+
+                    {/* Method Info */}
+                    <div className="text-center min-w-[100px]">
+                      {student.method === 'manual' ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm">
+                          MANUAL
+                        </span>
+                      ) : student.method === 'qr' || student.scannedAt ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shadow-sm">
+                          <QrCode className="w-3 h-3" /> QR CODE
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs italic opacity-70">Menunggu Scan</span>
+                      )}
+                    </div>
+
+                    {/* Time Info */}
+                    <div className="text-center min-w-[80px]">
+                      <div className="text-[10px] text-muted-foreground font-medium uppercase mb-0.5 tracking-tighter">Waktu</div>
+                      <div className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                        {student.scannedAt ? new Date(student.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                      </div>
+                    </div>
+
+                    {/* Admin Actions */}
+                    {userRole === 'admin_dev' && (
+                      <div className="text-center">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-9 w-9 text-rose-500 hover:bg-rose-500/10 rounded-full transition-colors"
+                          onClick={() => handleResetIndividual(student.id, student.name)}
+                          title="Reset Status Individual"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {students.length === 0 && (
+              <div className="p-12 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
+                Tidak ada data mahasiswa ditemukan.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1265,9 +1274,19 @@ export default function AttendanceHistory() {
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddOpen(false)}>Batal</Button>
-            <Button onClick={submitAdd} disabled={isLoading}>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsAddOpen(false)}
+              className="rounded-xl border-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-300"
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={submitAdd}
+              disabled={isLoading}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg hover:shadow-purple-500/40 transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+            >
               {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
               Simpan
             </Button>
@@ -1291,9 +1310,19 @@ export default function AttendanceHistory() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Batal</Button>
-            <Button onClick={submitEdit} disabled={isLoading}>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditOpen(false)}
+              className="rounded-xl border-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-300"
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={submitEdit}
+              disabled={isLoading}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg hover:shadow-purple-500/40 transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+            >
               {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
               Simpan Perubahan
             </Button>

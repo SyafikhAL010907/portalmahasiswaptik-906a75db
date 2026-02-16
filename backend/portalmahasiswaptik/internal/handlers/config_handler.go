@@ -19,13 +19,15 @@ func NewConfigHandler(db *gorm.DB) *ConfigHandler {
 }
 
 type BillingRangeResponse struct {
-	StartMonth int `json:"start_month"`
-	EndMonth   int `json:"end_month"`
+	StartMonth    int `json:"start_month"`
+	EndMonth      int `json:"end_month"`
+	SelectedMonth int `json:"selected_month"`
 }
 
 type SaveBillingRangeRequest struct {
-	StartMonth int `json:"start_month"`
-	EndMonth   int `json:"end_month"`
+	StartMonth    int `json:"start_month"`
+	EndMonth      int `json:"end_month"`
+	SelectedMonth int `json:"selected_month"`
 }
 
 // GetBillingRange handles GET /api/config/billing-range
@@ -33,13 +35,14 @@ func (h *ConfigHandler) GetBillingRange(c *fiber.Ctx) error {
 	var configs []models.GlobalConfig
 
 	// Fetch billing settings
-	if err := h.DB.Where("key IN ?", []string{"billing_start_month", "billing_end_month"}).Find(&configs).Error; err != nil {
+	if err := h.DB.Where("key IN ?", []string{"billing_start_month", "billing_end_month", "billing_selected_month"}).Find(&configs).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch configs"})
 	}
 
 	response := BillingRangeResponse{
-		StartMonth: 1, // Default
-		EndMonth:   6, // Default
+		StartMonth:    1, // Default
+		EndMonth:      6, // Default
+		SelectedMonth: 0, // Default (Lifetime)
 	}
 
 	for _, item := range configs {
@@ -49,6 +52,8 @@ func (h *ConfigHandler) GetBillingRange(c *fiber.Ctx) error {
 				response.StartMonth = val
 			case "billing_end_month":
 				response.EndMonth = val
+			case "billing_selected_month":
+				response.SelectedMonth = val
 			}
 		}
 	}
@@ -59,6 +64,7 @@ func (h *ConfigHandler) GetBillingRange(c *fiber.Ctx) error {
 // SaveBillingRange handles POST /api/config/save-range
 // SaveBillingRange handles POST /api/config/save-range
 func (h *ConfigHandler) SaveBillingRange(c *fiber.Ctx) error {
+	println("📥 API CALL: SaveBillingRange")
 	// 1. Strict Role Check (Double Security)
 	userVal := c.Locals("user")
 	var role string
@@ -79,43 +85,67 @@ func (h *ConfigHandler) SaveBillingRange(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		StartMonth int `json:"start_month"`
-		EndMonth   int `json:"end_month"`
+		StartMonth    int `json:"start_month"`
+		EndMonth      int `json:"end_month"`
+		SelectedMonth int `json:"selected_month"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	// Validate
+	// Validate months
 	if req.StartMonth < 1 || req.StartMonth > 12 || req.EndMonth < 1 || req.EndMonth > 12 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Months must be between 1 and 12"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Billing months must be between 1 and 12"})
+	}
+
+	// SelectedMonth can be 0 (Lifetime) to 12
+	if req.SelectedMonth < 0 || req.SelectedMonth > 12 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Selected month must be between 0 and 12"})
 	}
 
 	if req.StartMonth > req.EndMonth {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Start month cannot be greater than end month"})
 	}
 
-	// Transaction to update both keys
+	// TRANSACTION START
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
-		// Update start month
-		startConfig := models.GlobalConfig{Key: "billing_start_month", Value: strconv.Itoa(req.StartMonth)}
-		if err := tx.Save(&startConfig).Error; err != nil {
-			return err
+		configs := []models.GlobalConfig{
+			{Key: "billing_start_month", Value: strconv.Itoa(req.StartMonth)},
+			{Key: "billing_end_month", Value: strconv.Itoa(req.EndMonth)},
+			{Key: "billing_selected_month", Value: strconv.Itoa(req.SelectedMonth)},
 		}
 
-		// Update end month
-		endConfig := models.GlobalConfig{Key: "billing_end_month", Value: strconv.Itoa(req.EndMonth)}
-		if err := tx.Save(&endConfig).Error; err != nil {
-			return err
+		for _, cfg := range configs {
+			println("💾 Saving config:", cfg.Key, "=", cfg.Value)
+			// Use more explicit Save to avoid column missing issues if possible
+			// or just simple Exec for absolute certainty
+			if err := tx.Exec(`
+				INSERT INTO global_configs (key, value, updated_at)
+				VALUES (?, ?, CURRENT_TIMESTAMP)
+				ON CONFLICT (key) DO UPDATE SET 
+					value = EXCLUDED.value,
+					updated_at = EXCLUDED.updated_at
+			`, cfg.Key, cfg.Value).Error; err != nil {
+				println("❌ DB EXEC ERROR for", cfg.Key, ":", err.Error())
+				return err
+			}
 		}
-
 		return nil
 	})
 
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save configs"})
+		println("❌ TRANSACTION FAILED (SaveBillingRange):", err.Error())
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"error":   "Gagal menyimpan konfigurasi",
+			"details": err.Error(),
+		})
 	}
 
-	return c.JSON(fiber.Map{"status": "success", "message": "Billing range updated"})
+	println("✅ TRANSACTION SUCCESS (SaveBillingRange)")
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Konfigurasi berhasil disinkronkan ke database",
+	})
 }

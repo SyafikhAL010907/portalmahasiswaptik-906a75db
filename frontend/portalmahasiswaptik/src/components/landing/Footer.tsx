@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { GraduationCap, Heart, Instagram, Github, Mail } from 'lucide-react';
+import { GraduationCap, Instagram, Github, Mail, Code2 } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -17,7 +17,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-muted-foreground text-sm max-w-md">
-              Portal resmi angkatan PTIK 2025 Universitas Negeri Jakarta. 
+              Portal resmi angkatan PTIK 2025 Universitas Negeri Jakarta.
               Memudahkan koordinasi akademik dan non-akademik dalam satu platform terintegrasi.
             </p>
           </div>
@@ -53,20 +53,20 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-foreground mb-4">Ikuti Kami</h3>
             <div className="flex gap-3">
-              <a 
-                href="#" 
+              <a
+                href="#"
                 className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
               >
                 <Instagram className="w-5 h-5" />
               </a>
-              <a 
-                href="#" 
+              <a
+                href="#"
                 className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
               >
                 <Github className="w-5 h-5" />
               </a>
-              <a 
-                href="#" 
+              <a
+                href="#"
                 className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
               >
                 <Mail className="w-5 h-5" />
@@ -78,7 +78,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="border-t border-border mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm flex items-center gap-1">
-            Made with <Heart className="w-4 h-4 text-destructive" /> by PTIK 2025
+            Made with <Code2 className="w-4 h-4 text-green-500 animate-pulse" /> by PTIK 2025
           </p>
           <p className="text-muted-foreground text-sm">
             © 2025 PTIK UNJ. All rights reserved.

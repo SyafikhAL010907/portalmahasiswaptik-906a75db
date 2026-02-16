@@ -25,7 +25,10 @@ func InitDatabase() (*gorm.DB, error) {
 	}
 
 	// Open database connection
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true, // Force simple protocol for PgBouncer compatibility
+	}), &gorm.Config{
 		Logger:                 gormLogger,
 		SkipDefaultTransaction: true,  // Improve performance
 		PrepareStmt:            false, // Required for PgBouncer / Session stability
@@ -69,6 +72,12 @@ func autoMigrate(db *gorm.DB) error {
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	)`)
 
+	// ENSURE updated_at column exists (in case table was created without it previously)
+	db.Exec(`ALTER TABLE global_configs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`)
+
+	// USER REQUESTED: Force add billing_selected_month column (even if we use key-value store, we follow owner's lead)
+	db.Exec(`ALTER TABLE global_configs ADD COLUMN IF NOT EXISTS billing_selected_month INT DEFAULT 0`)
+
 	err := db.AutoMigrate(
 		&models.GlobalConfig{}, // Moved to TOP for priority
 		&models.Class{},
@@ -89,16 +98,12 @@ func autoMigrate(db *gorm.DB) error {
 	}
 
 	// Seed default global configs
-	var count int64
-	db.Model(&models.GlobalConfig{}).Where("key = ?", "billing_start_month").Count(&count)
-	if count == 0 {
-		db.Create(&models.GlobalConfig{Key: "billing_start_month", Value: "1"})
-	}
+	// Use Raw SQL for seeding to avoid any GORM model issues durante startup
+	db.Exec(`INSERT INTO global_configs (key, value) VALUES ('billing_start_month', '1') ON CONFLICT (key) DO NOTHING`)
+	db.Exec(`INSERT INTO global_configs (key, value) VALUES ('billing_end_month', '6') ON CONFLICT (key) DO NOTHING`)
+	db.Exec(`INSERT INTO global_configs (key, value) VALUES ('billing_selected_month', '0') ON CONFLICT (key) DO NOTHING`)
 
-	db.Model(&models.GlobalConfig{}).Where("key = ?", "billing_end_month").Count(&count)
-	if count == 0 {
-		db.Create(&models.GlobalConfig{Key: "billing_end_month", Value: "6"})
-	}
-
+	println("✅ Manual SQL Seed Completed")
+	println("✅ autoMigrate completed")
 	return nil
 }

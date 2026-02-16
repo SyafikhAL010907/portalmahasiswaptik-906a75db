@@ -566,7 +566,7 @@ export default function Payment() {
             />
           </div>
           <Button
-            className="h-12 px-8 bg-primary/80 hover:bg-primary text-primary-foreground rounded-2xl font-medium transition-all min-w-[160px]"
+            className="h-12 px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl transition-all duration-300 ease-in-out hover:shadow-lg hover:shadow-purple-500/50 hover:-translate-y-0.5 active:scale-95 min-w-[160px] border-none"
             onClick={handleCheckBill}
             disabled={isLoading}
           >
@@ -677,9 +677,9 @@ export default function Payment() {
                   <Button
                     onClick={handlePayNow}
                     disabled={isPaying || selectedTotal === 0}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground h-14 rounded-xl font-black text-lg shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.98]"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 rounded-xl font-bold text-lg shadow-md shadow-purple-500/20 transition-all duration-300 ease-in-out hover:shadow-lg hover:shadow-purple-500/50 hover:-translate-y-0.5 active:scale-95 w-full border-none"
                   >
-                    {isPaying ? <Loader2 className="animate-spin w-6 h-6 mr-2" /> : <CreditCard className="w-6 h-6 mr-2" />}
+                    {isPaying ? <Loader2 className="animate-spin w-6 h-6 mr-2" /> : <CreditCard className="w-6 h-6 mr-2 text-white" />}
                     BAYAR SEKARANG
                   </Button>
                 </div>
@@ -742,7 +742,11 @@ export default function Payment() {
                 </p>
               </div>
 
-              <Button variant="outline" className="w-full border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground font-bold transition-all h-12 rounded-xl" onClick={handleManualClose}>
+              <Button
+                variant="outline"
+                className="w-full border-2 border-purple-500/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 shadow-sm hover:shadow-purple-500/20 rounded-xl px-6 py-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 backdrop-blur-sm font-bold h-12"
+                onClick={handleManualClose}
+              >
                 Selesai / Tutup Panel
               </Button>
             </div>

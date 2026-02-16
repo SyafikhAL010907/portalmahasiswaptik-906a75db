@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Medal, Crown, TrendingUp, Users, Calendar, Plus, Pencil, Trash2, Award } from 'lucide-react';
+import { Trophy, Medal, Crown, TrendingUp, Users, Calendar, Plus, Pencil, Trash2, Award, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
+import { format } from "date-fns";
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ClassAchievement {
@@ -267,7 +269,7 @@ export default function Leaderboard() {
           <p className="text-muted-foreground mt-1">Klasemen prestasi antar kelas PTIK 2025</p>
         </div>
         {canManage && (
-          <Button onClick={() => handleOpenDialog()} className="primary-gradient shadow-lg">
+          <Button onClick={() => handleOpenDialog()} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-6 rounded-full shadow-md hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300 hover:-translate-y-0.5">
             <Plus className="w-4 h-4 mr-2" /> Tambah Prestasi
           </Button>
         )}
@@ -283,7 +285,7 @@ export default function Leaderboard() {
       ) : (
         <>
           {/* Top Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full mb-6">
             {(() => {
               const maxScore = Math.max(...orderedStats.map(s => s.total));
               return orderedStats.map((stat, idx) => (
@@ -321,7 +323,7 @@ export default function Leaderboard() {
                 <div className="flex items-end gap-4 md:gap-12 relative z-10 pb-4 min-h-[300px]">
                   {/* 2nd Place */}
                   {sortedStats[1] && (
-                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1">
+                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-1">
                       <span className="font-bold text-foreground text-lg mb-12">Kelas {sortedStats[1].className}</span>
                       <div className={cn(
                         "w-20 md:w-24 h-24 md:h-32 bg-gradient-to-t from-gray-400/30 to-gray-400/5 rounded-t-lg border-t border-x border-gray-400/30 flex items-center justify-center relative",
@@ -338,7 +340,7 @@ export default function Leaderboard() {
 
                   {/* 1st Place */}
                   {sortedStats[0] && (
-                    <div className="flex flex-col items-center justify-end h-full -mx-4 z-20 group transition-all duration-300 hover:-translate-y-2">
+                    <div className="flex flex-col items-center justify-end h-full -mx-4 z-20 group transition-all duration-300 hover:-translate-y-2 order-2">
                       <div className="animate-bounce-slow mb-2">
                         <Crown className="w-10 h-10 text-yellow-500" />
                       </div>
@@ -358,7 +360,7 @@ export default function Leaderboard() {
 
                   {/* 3rd Place */}
                   {sortedStats[2] && (
-                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1">
+                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-3">
                       <span className="font-bold text-foreground text-lg mb-12">Kelas {sortedStats[2].className}</span>
                       <div className={cn(
                         "w-20 md:w-24 h-20 md:h-24 bg-gradient-to-t from-amber-700/30 to-amber-700/5 rounded-t-lg border-t border-x border-amber-700/30 flex items-center justify-center relative",
@@ -370,6 +372,23 @@ export default function Leaderboard() {
                         </div>
                       </div>
                       <span className="font-mono text-sm text-muted-foreground mt-2">{sortedStats[2].total} Poin</span>
+                    </div>
+                  )}
+
+                  {/* 4th Place */}
+                  {sortedStats[3] && (
+                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-4">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 text-lg mb-12">Kelas {sortedStats[3].className}</span>
+                      <div className={cn(
+                        "w-20 md:w-24 h-16 md:h-20 bg-gradient-to-t from-slate-200 to-slate-100 dark:from-slate-800 dark:to-slate-700/80 rounded-t-lg border-t border-x border-slate-300/30 dark:border-slate-700/30 flex items-center justify-center relative",
+                        "shadow-[0_0_40px_-5px_rgba(148,163,184,0.3)] dark:shadow-[0_0_40px_-5px_rgba(148,163,184,0.15)]"
+                      )}>
+                        <span className="text-4xl font-bold text-slate-400 dark:text-slate-500 opacity-50">4</span>
+                        <div className="absolute -top-8 transition-transform group-hover:scale-110 duration-300">
+                          <Star className="w-10 h-10 text-slate-400 dark:text-slate-500 drop-shadow-lg fill-slate-300 dark:fill-slate-600" />
+                        </div>
+                      </div>
+                      <span className="font-mono text-sm text-slate-500 dark:text-slate-400 mt-2">{sortedStats[3].total} Poin</span>
                     </div>
                   )}
                 </div>
@@ -470,28 +489,42 @@ export default function Leaderboard() {
 
       {/* CRUD Dialogs */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] glass-card border-white/10">
+        <DialogContent className="sm:max-w-[500px] bg-white dark:bg-slate-950 shadow-2xl border-white/10">
           <DialogHeader>
             <DialogTitle>{currentAchievement ? 'Edit Prestasi' : 'Tambah Prestasi Baru'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Nama Lomba / Kegiatan</Label>
-              <Input value={formData.competition_name} onChange={e => setFormData({ ...formData, competition_name: e.target.value })} placeholder="Contoh: Hackathon Nasional 2025" required className="bg-secondary/20 border-white/10" />
+              <Label className="text-slate-900 dark:text-slate-200 font-medium">Nama Lomba / Kegiatan</Label>
+              <Input
+                value={formData.competition_name}
+                onChange={e => setFormData({ ...formData, competition_name: e.target.value })}
+                placeholder="Contoh: Hackathon Nasional 2025"
+                required
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm"
+              />
             </div>
             <div className="space-y-2">
-              <Label>Nama Mahasiswa</Label>
-              <Input value={formData.student_names} onChange={e => setFormData({ ...formData, student_names: e.target.value })} placeholder="Nama mahasiswa (pisahkan koma jika banyak)" required className="bg-secondary/20 border-white/10" />
+              <Label className="text-slate-900 dark:text-slate-200 font-medium">Nama Mahasiswa</Label>
+              <Input
+                value={formData.student_names}
+                onChange={e => setFormData({ ...formData, student_names: e.target.value })}
+                placeholder="Nama mahasiswa (pisahkan koma jika banyak)"
+                required
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               {isAdminDev() && (
                 <div className="space-y-2">
-                  <Label>Kelas</Label>
+                  <Label className="text-slate-900 dark:text-slate-200 font-medium">Kelas</Label>
                   <Select
                     value={formData.class_id}
                     onValueChange={val => setFormData({ ...formData, class_id: val })}
                   >
-                    <SelectTrigger className="bg-secondary/20 border-white/10"><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
+                    <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm">
+                      <SelectValue placeholder="Pilih Kelas" />
+                    </SelectTrigger>
                     <SelectContent>
                       {classesList.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                     </SelectContent>
@@ -499,29 +532,66 @@ export default function Leaderboard() {
                 </div>
               )}
               <div className={cn("space-y-2", !isAdminDev() && "col-span-2")}>
-                <Label>Tanggal</Label>
-                <Input type="date" value={formData.event_date} onChange={e => setFormData({ ...formData, event_date: e.target.value })} required className="bg-secondary/20 border-white/10" />
+                <Label className="text-slate-900 dark:text-slate-200 font-medium">Tanggal</Label>
+                <DatePicker
+                  date={formData.event_date ? new Date(formData.event_date) : undefined}
+                  setDate={(date) => setFormData({ ...formData, event_date: date ? format(date, "yyyy-MM-dd") : "" })}
+                  placeholder="Pilih tanggal"
+                  required
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Peringkat / Capaian</Label>
-              <Input value={formData.rank} onChange={e => setFormData({ ...formData, rank: e.target.value })} placeholder="Contoh: Juara 1 / Finalis" required className="bg-secondary/20 border-white/10" />
+              <Label className="text-slate-900 dark:text-slate-200 font-medium">Peringkat / Capaian</Label>
+              <Input
+                value={formData.rank}
+                onChange={e => setFormData({ ...formData, rank: e.target.value })}
+                placeholder="Contoh: Juara 1 / Finalis"
+                required
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm"
+              />
             </div>
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit" className="primary-gradient" disabled={isSubmitting}>{isSubmitting ? 'Menyimpan...' : 'Simpan'}</Button>
+            <DialogFooter className="gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsDialogOpen(false)}
+                className="rounded-xl border-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-300"
+              >
+                Batal
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold h-12 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/40 active:scale-95"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[400px] glass-card border-white/10">
+        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-slate-950 shadow-2xl border-white/10">
           <DialogHeader><DialogTitle className="text-destructive">Hapus Data?</DialogTitle></DialogHeader>
           <p className="text-muted-foreground py-4">Hapus data prestasi <strong>{currentAchievement?.competition_name}</strong>?</p>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={isSubmitting}>Hapus</Button>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="rounded-xl border-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-300"
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 shadow-md hover:shadow-rose-500/20 transition-all duration-300 hover:-translate-y-0.5 active:scale-95"
+            >
+              Hapus
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

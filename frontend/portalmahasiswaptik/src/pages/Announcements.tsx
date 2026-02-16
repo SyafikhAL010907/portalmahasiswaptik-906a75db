@@ -303,7 +303,7 @@ export default function Announcements() {
           <p className="text-muted-foreground mt-1">Informasi terbaru untuk angkatan PTIK 2025</p>
         </div>
         {canManage && (
-          <Button onClick={() => handleOpenDialog()} className="primary-gradient shadow-lg shadow-primary/20">
+          <Button onClick={() => handleOpenDialog()} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-6 rounded-full shadow-md hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300 hover:-translate-y-0.5">
             <Plus className="w-4 h-4 mr-2" />
             Buat Pengumuman
           </Button>
@@ -371,32 +371,33 @@ export default function Announcements() {
         </>
       )}
 
+// ... inside render ...
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] glass-card border-white/10">
+        <DialogContent className="sm:max-w-[600px] bg-white dark:bg-slate-950 shadow-2xl border-white/10">
           <DialogHeader>
             <DialogTitle>{currentAnnouncement ? 'Edit Pengumuman' : 'Buat Pengumuman Baru'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Judul Pengumuman</Label>
+              <Label className="text-slate-900 dark:text-slate-200 font-medium">Judul Pengumuman</Label>
               <Input
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="Contoh: Jadwal UAS..."
-                className="bg-secondary/20 border-white/10"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm"
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Kategori</Label>
+                <Label className="text-slate-900 dark:text-slate-200 font-medium">Kategori</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(val) => setFormData({ ...formData, category: val })}
                 >
-                  <SelectTrigger className="bg-secondary/20 border-white/10">
+                  <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -405,12 +406,12 @@ export default function Announcements() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Prioritas</Label>
+                <Label className="text-slate-900 dark:text-slate-200 font-medium">Prioritas</Label>
                 <Select
                   value={formData.priority}
                   onValueChange={(val: any) => setFormData({ ...formData, priority: val })}
                 >
-                  <SelectTrigger className="bg-secondary/20 border-white/10">
+                  <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -422,12 +423,12 @@ export default function Announcements() {
             </div>
 
             <div className="space-y-2">
-              <Label>Isi Pengumuman</Label>
+              <Label className="text-slate-900 dark:text-slate-200 font-medium">Isi Pengumuman</Label>
               <Textarea
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                 placeholder="Tulis detail pengumuman di sini..."
-                className="min-h-[150px] bg-secondary/20 border-white/10"
+                className="min-h-[150px] w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all shadow-sm"
                 required
               />
             </div>
@@ -439,7 +440,7 @@ export default function Announcements() {
                   onCheckedChange={(checked) => setFormData({ ...formData, is_pinned: checked })}
                   id="pin-mode"
                 />
-                <Label htmlFor="pin-mode" className="cursor-pointer">Sematkan (Pin)</Label>
+                <Label htmlFor="pin-mode" className="cursor-pointer text-slate-900 dark:text-slate-200 font-medium">Sematkan (Pin)</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Switch
@@ -447,13 +448,13 @@ export default function Announcements() {
                   onCheckedChange={(checked) => setFormData({ ...formData, is_new: checked })}
                   id="new-mode"
                 />
-                <Label htmlFor="new-mode" className="cursor-pointer">Tandai "New"</Label>
+                <Label htmlFor="new-mode" className="cursor-pointer text-slate-900 dark:text-slate-200 font-medium">Tandai "New"</Label>
               </div>
             </div>
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit" className="primary-gradient" disabled={isSubmitting}>
+              <Button type="submit" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-6 rounded-full shadow-md hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300 hover:-translate-y-0.5" disabled={isSubmitting}>
                 {isSubmitting ? 'Menyimpan...' : 'Simpan Pengumuman'}
               </Button>
             </DialogFooter>
@@ -463,7 +464,7 @@ export default function Announcements() {
 
       {/* Delete Confirmation */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[400px] glass-card border-white/10">
+        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-slate-950 shadow-2xl border-white/10">
           <DialogHeader>
             <DialogTitle className="text-destructive flex items-center gap-2">
               <AlertCircle className="w-5 h-5" /> Hapus Pengumuman?

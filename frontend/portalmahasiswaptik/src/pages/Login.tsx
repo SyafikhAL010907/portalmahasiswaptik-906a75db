@@ -83,13 +83,14 @@ export default function Login() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="nim" className="text-foreground">NIM / ID</Label>
+            <Label htmlFor="nim" className="text-foreground">NIM / NIP</Label>
             <Input
               id="nim"
               type="text"
-              placeholder="Masukkan NIM atau ID"
+              placeholder="Masukkan NIM atau NIP"
               value={nim}
               onChange={(e) => setNim(e.target.value)}
+              maxLength={20}
               className="h-12 rounded-xl bg-background/50 border-border/50 focus:border-primary"
               disabled={isLoading}
             />

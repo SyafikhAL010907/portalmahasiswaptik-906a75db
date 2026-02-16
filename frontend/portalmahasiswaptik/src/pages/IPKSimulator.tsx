@@ -1,197 +1,316 @@
-import { useState, useEffect } from 'react';
-import { Calculator, Star, AlertTriangle, Award } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { GraduationCap, Loader2, Plus, Minus, ChevronDown } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
-const grades = ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'E'];
-const gradePoints: Record<string, number> = {
-  'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7,
-  'C+': 2.3, 'C': 2.0, 'D': 1.0, 'E': 0.0
+interface Subject {
+    id: string;
+    name: string;
+    code: string;
+    sks: number;
+}
+
+// Standar Bobot Nilai Indonesia (SN-Dikti)
+const GRADE_VALUES: Record<string, number> = {
+    "A": 4.0,
+    "A-": 3.7,
+    "B+": 3.3,
+    "B": 3.0,
+    "B-": 2.7,
+    "C+": 2.3,
+    "C": 2.0,
+    "D": 1.0,
+    "E": 0.0,
 };
 
-const subjects = [
-  { name: 'Pemrograman Web Lanjut', sks: 3 },
-  { name: 'Basis Data', sks: 3 },
-  { name: 'Jaringan Komputer', sks: 3 },
-  { name: 'Kecerdasan Buatan', sks: 3 },
-  { name: 'Mobile Development', sks: 3 },
-  { name: 'Keamanan Sistem', sks: 3 },
-];
+// Descending order for calculation: A, A-, B+...
+const VALUE_TO_GRADE = Object.entries(GRADE_VALUES).sort((a, b) => b[1] - a[1]);
 
-export default function IPKSimulator() {
-  const [selectedGrades, setSelectedGrades] = useState<Record<string, string>>(
-    Object.fromEntries(subjects.map(s => [s.name, 'B+']))
-  );
-  const [ipk, setIpk] = useState(0);
-  const [showConfetti, setShowConfetti] = useState(false);
+const IPKSimulator = () => {
+    const { toast } = useToast();
+    const { session } = useAuth();
 
-  useEffect(() => {
-    let totalPoints = 0;
-    let totalSks = 0;
+    // State
+    const [semester, setSemester] = useState<string>("1");
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [loading, setLoading] = useState(false);
 
-    subjects.forEach(subject => {
-      const grade = selectedGrades[subject.name];
-      totalPoints += gradePoints[grade] * subject.sks;
-      totalSks += subject.sks;
-    });
+    // Initialize with a default value of 3.50
+    const [targetIPK, setTargetIPK] = useState<number>(3.50);
+    const [simulatedGrades, setSimulatedGrades] = useState<Record<string, string>>({});
 
-    const calculatedIpk = totalSks > 0 ? totalPoints / totalSks : 0;
-    setIpk(Number(calculatedIpk.toFixed(2)));
+    // Fetch Subjects whenever semester changes
+    useEffect(() => {
+        const fetchSubjects = async () => {
+            setLoading(true);
+            setSimulatedGrades({}); // Reset simulation on semester change
+            try {
+                const { data, error } = await supabase
+                    .from('subjects')
+                    .select('*')
+                    .eq('semester', parseInt(semester))
+                    .order('name');
 
-    if (calculatedIpk >= 3.5 && !showConfetti) {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2000);
-    }
-  }, [selectedGrades]);
+                if (error) throw error;
+                // RESET SKS to 0 for simulation start
+                const safeData = (data || []).map(s => ({
+                    ...s,
+                    sks: 0 // Explicitly 0 as requested
+                }));
+                setSubjects(safeData);
+            } catch (err: any) {
+                toast({
+                    title: "Gagal memuat mata kuliah",
+                    description: err.message,
+                    variant: "destructive",
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
 
-  const getIpkStatus = () => {
-    if (ipk >= 3.5) return { label: 'Cumlaude', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10', icon: Award };
-    if (ipk >= 3.0) return { label: 'Sangat Memuaskan', color: 'text-primary', bg: 'bg-primary/20', icon: Star };
-    if (ipk >= 2.5) return { label: 'Memuaskan', color: 'text-warning-foreground', bg: 'bg-warning/30', icon: Star };
-    return { label: 'Perlu Peningkatan', color: 'text-destructive', bg: 'bg-destructive/20', icon: AlertTriangle };
-  };
+        fetchSubjects();
+    }, [semester, toast]);
 
-  const status = getIpkStatus();
-  const StatusIcon = status.icon;
+    // Handle SKS Update (Local Only - Available for ALL Roles)
+    const handleSKSUpdate = (id: string, newSKS: number) => {
+        // Validation: Non-negative SKS only
+        const validSKS = Math.max(0, newSKS);
+        setSubjects(prev => prev.map(s => s.id === id ? { ...s, sks: validSKS } : s));
+    };
 
-  return (
-    <div className="space-y-6 pt-12 md:pt-0 relative">
-      {/* Confetti Effect */}
-      {showConfetti && (
-        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-          {[...Array(30)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-3 h-3 animate-confetti"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: '100%',
-                backgroundColor: ['hsl(var(--primary))', '#3b82f6', '#a855f7'][i % 3],
-                animationDelay: `${Math.random() * 0.5}s`,
-                borderRadius: Math.random() > 0.5 ? '50%' : '0',
-              }}
-            />
-          ))}
-        </div>
-      )}
+    // Calculation Logic (Reusable)
+    const performCalculation = useCallback(() => {
+        // Filter out subjects with 0 SKS from calculation to avoid skewing
+        const activeSubjects = subjects.filter(s => s.sks > 0);
 
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Simulator IPK</h1>
-        <p className="text-muted-foreground mt-1">Rencanakan target nilaimu dan lihat prediksi IPK</p>
-      </div>
+        if (activeSubjects.length === 0) {
+            setSimulatedGrades({});
+            return;
+        }
 
-      {/* IPK Display - HERO CARD */}
-      <div className={cn(
-        "bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/30 dark:from-slate-900 dark:via-indigo-950/10 dark:to-purple-950/10",
-        "rounded-3xl p-10 text-center border border-indigo-100/50 dark:border-indigo-900/30",
-        "shadow-sm hover-glow-blue cursor-default relative overflow-hidden group"
-      )}>
-        {/* Decorative Glass Elements */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-500" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl group-hover:bg-purple-500/10 transition-colors duration-500" />
+        const target = targetIPK;
 
-        <div className="relative z-10">
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center shadow-inner", status.bg)}>
-              <StatusIcon className={cn("w-10 h-10", status.color)} />
-            </div>
-          </div>
+        // 1. Initialize all grades to A (4.0)
+        let currentGrades: Record<string, number> = {};
+        activeSubjects.forEach(s => currentGrades[s.id] = 4.0);
 
-          <div className="text-7xl md:text-8xl font-black text-foreground mb-4 tracking-tighter transition-all duration-500 group-hover:scale-105">
-            {ipk.toFixed(2)}
-          </div>
+        // Helper to calc IPK
+        const calcIPK = (grades: Record<string, number>) => {
+            let totalSKS = 0;
+            let totalPoints = 0;
+            activeSubjects.forEach(s => {
+                const credit = s.sks || 0;
+                totalSKS += credit;
+                totalPoints += credit * (grades[s.id] || 0);
+            });
+            return totalSKS === 0 ? 0 : totalPoints / totalSKS;
+        };
 
-          <div className={cn("inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm", status.bg, status.color)}>
-            <StatusIcon className="w-4 h-4" />
-            {status.label}
-          </div>
+        // 2. Round Robin Downgrade Algorithm
+        let improvementPossible = true;
+        let protectionCount = 0;
+        const maxIterations = activeSubjects.length * VALUE_TO_GRADE.length * 2;
 
-          {/* IPK Scale */}
-          <div className="mt-10 max-w-md mx-auto">
-            <div className="h-4 rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 shadow-inner overflow-hidden border border-border/20">
-              <div
-                className="h-full rounded-full primary-gradient transition-all duration-1000 cubic-bezier(0.34, 1.56, 0.64, 1)"
-                style={{ width: `${(ipk / 4) * 100}%` }}
-              >
-                <div className="w-full h-full opacity-30 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px]" />
-              </div>
-            </div>
-            <div className="flex justify-between text-[10px] font-bold text-muted-foreground mt-3 px-1 uppercase tracking-tighter">
-              <span>0.00</span>
-              <span>2.00</span>
-              <span>3.00</span>
-              <span>3.50</span>
-              <span className="text-primary font-black">4.00</span>
-            </div>
-          </div>
-        </div>
-      </div>
+        while (improvementPossible && protectionCount < maxIterations) {
+            improvementPossible = false;
 
-      {/* Grade Input - CARD CONTAINER */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-bold text-foreground px-2 flex items-center gap-2">
-          <Calculator className="w-5 h-5 text-primary" />
-          Pilih Target Nilai
-        </h2>
+            // Iterate through all subjects
+            for (const sub of activeSubjects) {
+                const currentVal = currentGrades[sub.id];
 
-        <div className="grid grid-cols-1 gap-3">
-          {subjects.map((subject) => (
-            <div
-              key={subject.name}
-              className="bg-card rounded-2xl p-5 border border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 group hover-glow-blue"
-            >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/20 transition-colors group-hover:bg-primary group-hover:text-white">
-                    {subject.sks}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{subject.name}</h3>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">{subject.sks} Sks • Mata Kuliah Inti</p>
-                  </div>
+                // Find next lower grade
+                const nextGradeEntry = VALUE_TO_GRADE.find(v => v[1] < currentVal - 0.01);
+                if (!nextGradeEntry) continue; // Already at bottom (E)
+
+                const nextVal = nextGradeEntry[1];
+
+                // Tentative Downgrade
+                const originalVal = currentGrades[sub.id];
+                currentGrades[sub.id] = nextVal;
+
+                const newIPK = calcIPK(currentGrades);
+
+                if (newIPK >= target) {
+                    // Downgrade accepted!
+                    improvementPossible = true;
+                    protectionCount++;
+                } else {
+                    // Revert, this downgrade drops us below target
+                    currentGrades[sub.id] = originalVal;
+                }
+            }
+        }
+
+        // 3. Convert numerical values back to Letter Grades for display
+        const finalGrades: Record<string, string> = {};
+        for (const [id, val] of Object.entries(currentGrades)) {
+            const gradeEntry = VALUE_TO_GRADE.find(v => Math.abs(v[1] - val) < 0.01);
+            finalGrades[id] = gradeEntry ? gradeEntry[0] : "E";
+        }
+
+        setSimulatedGrades(finalGrades);
+    }, [subjects, targetIPK]);
+
+    // Real-Time Calculation Effect
+    useEffect(() => {
+        performCalculation();
+    }, [performCalculation]);
+
+    return (
+        <div className="container mx-auto p-4 space-y-6 pb-24 fade-in min-h-screen bg-slate-50 dark:bg-[#050505] transition-colors duration-300">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent flex items-center gap-2">
+                        <GraduationCap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                        IPK Simulator
+                    </h1>
+                    <p className="text-slate-600 dark:text-gray-400 mt-1">
+                        Geser slider untuk melihat saran nilai secara real-time.
+                    </p>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 p-1 bg-secondary/30 dark:bg-slate-900/50 rounded-xl">
-                  {grades.map((grade) => (
-                    <button
-                      key={grade}
-                      onClick={() => setSelectedGrades(prev => ({ ...prev, [subject.name]: grade }))}
-                      className={cn(
-                        "flex-1 min-w-[32px] h-8 rounded-lg text-xs font-bold transition-all duration-300",
-                        selectedGrades[subject.name] === grade
-                          ? "bg-primary text-white shadow-lg shadow-primary/30 scale-105"
-                          : "text-muted-foreground hover:bg-white dark:hover:bg-slate-800 hover:text-primary hover:shadow-sm hover:-translate-y-0.5"
-                      )}
-                    >
-                      {grade}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-4 w-full md:w-auto relative">
+                    {/* Custom Pill Styles injected into SelectTrigger */}
+                    <div className="w-full md:w-56">
+                        <Select value={semester} onValueChange={setSemester}>
+                            <SelectTrigger className="w-full h-auto bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-2 border-slate-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-500 text-slate-800 dark:text-white rounded-2xl px-6 py-2.5 font-bold shadow-sm transition-all focus:ring-4 focus:ring-purple-500/20 cursor-pointer [&>svg]:hidden">
+                                <SelectValue placeholder="Pilih Semester" />
+                                <ChevronDown className="absolute right-4 w-5 h-5 opacity-70" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl shadow-xl">
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                                    <SelectItem key={num} value={num.toString()} className="focus:bg-purple-50 dark:focus:bg-slate-800 focus:text-purple-900 dark:focus:text-purple-100 cursor-pointer font-medium py-2">
+                                        Semester {num}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-              </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Summary Chips */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-20">
-        {[
-          { label: 'Matkul', val: subjects.length, color: 'text-primary', bg: 'bg-card hover-glow-blue' },
-          { label: 'Total SKS', val: subjects.reduce((acc, s) => acc + s.sks, 0), color: 'text-success', bg: 'bg-card hover-glow-blue' },
-          { label: 'Target A', val: Object.values(selectedGrades).filter(g => g === 'A' || g === 'A-').length, color: 'text-warning-foreground', bg: 'bg-card hover-glow-yellow' },
-          { label: 'Prediksi IPK', val: ipk.toFixed(2), color: 'text-white', bg: 'primary-gradient shadow-lg shadow-primary/20 hover:scale-105 group' }
-        ].map((item, i) => (
-          <div key={i} className={cn("p-6 rounded-2xl flex flex-col items-center justify-center text-center transition-all border border-border/50 shadow-sm cursor-default", item.bg)}>
-            <span className={cn("text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:scale-110 transition-transform", item.color === 'text-white' ? 'text-white' : 'text-muted-foreground')}>
-              {item.label}
-            </span>
-            <span className={cn("text-3xl font-black tracking-tighter transition-transform group-hover:scale-110", item.color)}>
-              {item.val}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+            {/* Target IPK Slider Section */}
+            <Card className="bg-white/80 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 backdrop-blur-md sticky top-4 z-10 shadow-lg border">
+                <CardContent className="p-6">
+                    <div className="flex flex-col gap-6 items-center">
+                        <div className="text-center space-y-2">
+                            <label className="text-sm font-medium text-slate-500 dark:text-gray-400 uppercase tracking-widest">
+                                Target IPK Saya
+                            </label>
+                            <div className="text-6xl font-black bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                                {targetIPK.toFixed(2)}
+                            </div>
+                        </div>
+
+                        <div className="w-full max-w-2xl px-4">
+                            <input
+                                type="range"
+                                min="1.00"
+                                max="4.00"
+                                step="0.01"
+                                value={targetIPK}
+                                onChange={(e) => setTargetIPK(parseFloat(e.target.value))}
+                                className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                            />
+                            <div className="flex justify-between text-xs text-slate-400 dark:text-gray-600 mt-2 font-mono mb-2">
+                                <span>1.00</span>
+                                <span>2.00</span>
+                                <span>3.00</span>
+                                <span>4.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Course List */}
+            <div className="space-y-4">
+                {loading ? (
+                    <div className="flex justify-center py-20">
+                        <Loader2 className="animate-spin w-10 h-10 text-purple-500" />
+                    </div>
+                ) : subjects.length === 0 ? (
+                    <div className="text-center py-20 text-slate-500 dark:text-gray-500 bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <p>Belum ada mata kuliah di semester {semester}.</p>
+                    </div>
+                ) : (
+                    subjects.map((subject, index) => (
+                        <Card key={subject.id} className="relative overflow-hidden border border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/20 dark:hover:shadow-purple-500/30 hover:border-purple-300 dark:hover:border-purple-500/50 hover:bg-purple-50/50 dark:hover:bg-[#110e1b]/80 group">
+                            {/* Grid Layout for Content */}
+                            <CardContent className="p-4 grid grid-cols-[auto_1fr_auto_auto] gap-4 md:gap-6 items-center w-full">
+
+                                {/* Col 1: Number */}
+                                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold border border-blue-200 dark:border-blue-500/30">
+                                    {index + 1}
+                                </div>
+
+                                {/* Col 2: Name & Code */}
+                                <div className="min-w-0">
+                                    <h3 className="font-semibold text-slate-900 dark:text-white truncate text-sm md:text-base leading-tight">{subject.name}</h3>
+                                    <p className="text-[10px] md:text-xs text-slate-500 dark:text-gray-500 pt-0.5">{subject.code}</p>
+                                </div>
+
+                                {/* Col 3: SKS Stepper (Cell Style) */}
+                                <div className="bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50 flex flex-col items-center min-w-[80px]">
+                                    <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider mb-1">SKS</span>
+                                    <div className="flex items-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 shadow-sm">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleSKSUpdate(subject.id, (subject.sks || 0) - 1)}
+                                            className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-purple-600 text-slate-500 dark:text-slate-400 transition-all"
+                                        >
+                                            <Minus className="h-2.5 w-2.5" />
+                                        </Button>
+
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            max={24}
+                                            value={subject.sks}
+                                            onChange={(e) => handleSKSUpdate(subject.id, parseInt(e.target.value) || 0)}
+                                            className="w-8 h-6 text-center bg-transparent border-none p-0 focus-visible:ring-0 text-slate-900 dark:text-white font-bold text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleSKSUpdate(subject.id, (subject.sks || 0) + 1)}
+                                            className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-purple-600 text-slate-500 dark:text-slate-400 transition-all"
+                                        >
+                                            <Plus className="h-2.5 w-2.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Col 4: Grade Suggestion (Cell Style) */}
+                                <div className={`flex flex-col items-center justify-center min-w-[70px] p-1.5 rounded-xl border transition-all duration-300 ${simulatedGrades[subject.id] ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-500/20' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50'}`}>
+                                    <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Nilai</span>
+                                    <span className={`text-xl font-black ${simulatedGrades[subject.id] ? 'text-purple-600 dark:text-purple-400 drop-shadow-sm' : 'text-slate-300 dark:text-slate-600'}`}>
+                                        {simulatedGrades[subject.id] || "-"}
+                                    </span>
+                                </div>
+
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default IPKSimulator;
