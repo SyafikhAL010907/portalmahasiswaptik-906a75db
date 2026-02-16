@@ -24,6 +24,8 @@ import Profile from "./pages/Profile";
 import ChangePassword from "./pages/ChangePassword";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { GlobalChat } from "./components/dashboard/GlobalChat";
+import Features from "./pages/Features";
+import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +72,8 @@ const App = () => (
                 <Route path="profile" element={<Profile />} />
                 <Route path="change-password" element={<ChangePassword />} />
               </Route>
+              <Route path="/features" element={<Features />} />
+              <Route path="/about" element={<About />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </TooltipProvider>

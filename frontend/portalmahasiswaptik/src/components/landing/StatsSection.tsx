@@ -16,9 +16,9 @@ export function StatsSection({
   aggregatedBalance?: number
 }) {
   return (
-    <section className="py-16 hero-gradient">
+    <section className="py-16 hero-gradient transition-colors duration-500">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Total Saldo Bersih Angkatan (Aggregated) */}
           <div className="glass-card rounded-3xl p-8 text-center hover:scale-105 transition-transform duration-300">
             <div className="w-16 h-16 rounded-2xl bg-success/20 flex items-center justify-center mx-auto mb-4">
