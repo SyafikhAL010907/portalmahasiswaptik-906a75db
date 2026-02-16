@@ -297,12 +297,21 @@ const SidebarContent = ({
   </>
 );
 
-export function RoleBasedSidebar() {
+export function RoleBasedSidebar({
+  mobileOpen: externalMobileOpen,
+  setMobileOpen: setExternalMobileOpen
+}: {
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void
+} = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, roles, signOut } = useAuth();
   const [expandedItems, setExpandedItems] = useState<string[]>(['Akademik', 'Keuangan', 'Absensi']);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+
+  const isMobileOpen = externalMobileOpen !== undefined ? externalMobileOpen : internalMobileOpen;
+  const setIsMobileOpen = setExternalMobileOpen !== undefined ? setExternalMobileOpen : setInternalMobileOpen;
 
   const menuItems = getMenuItems();
 
@@ -332,15 +341,17 @@ export function RoleBasedSidebar() {
 
   return (
     <>
-      {/* Mobile Toggle Button */}
-      <Button
-        variant="glass"
-        size="icon"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="fixed top-4 left-4 z-50 md:hidden"
-      >
-        {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </Button>
+      {/* Mobile Toggle Button - Only shown if not controlled externally */}
+      {externalMobileOpen === undefined && (
+        <Button
+          variant="glass"
+          size="icon"
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+          className="fixed top-4 left-4 z-50 md:hidden"
+        >
+          {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </Button>
+      )}
 
       {/* Mobile Overlay */}
       {isMobileOpen && (

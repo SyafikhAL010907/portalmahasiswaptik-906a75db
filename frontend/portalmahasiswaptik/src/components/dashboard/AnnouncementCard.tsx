@@ -70,8 +70,8 @@ export function AnnouncementCard({ title, date, excerpt, isNew, priority = 'norm
             </div>
           </div>
 
-          <h3 className={cn("font-bold text-foreground mb-1 transition-colors line-clamp-1", style.textAccent)}>{title}</h3>
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{excerpt}</p>
+          <h3 className={cn("font-bold text-foreground mb-1 transition-colors whitespace-normal break-words h-auto", style.textAccent)}>{title}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-normal break-words h-auto">{excerpt}</p>
         </div>
         <ChevronRight className={cn("w-5 h-5 text-muted-foreground/50 transition-all mt-1 group-hover:translate-x-1", style.textAccent)} />
       </div>

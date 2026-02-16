@@ -210,9 +210,9 @@ export function PaymentNotificationCenter() {
         <div className="bg-white dark:bg-slate-950 border-2 border-indigo-500/30 rounded-xl shadow-lg mb-6 overflow-hidden animate-in fade-in duration-500">
             {/* Header */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex items-center justify-between">
-                <div>
+                <div className="max-w-[70%]">
                     <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Bell className="w-5 h-5" fill="currentColor" />
+                        <Bell className="w-5 h-5 flex-shrink-0" fill="currentColor" />
                         Antrean Konfirmasi Pembayaran
                     </h3>
                     <p className="text-xs text-indigo-100 opacity-90 mt-1">
@@ -220,8 +220,8 @@ export function PaymentNotificationCenter() {
                     </p>
                 </div>
                 {pendingCount > 0 && (
-                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none font-bold text-md px-3 py-1">
-                        {pendingCount} Pending
+                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none font-bold text-sm px-3 py-1 flex flex-row items-center justify-center gap-1.5 whitespace-nowrap flex-shrink-0">
+                        {pendingCount} <span className="whitespace-nowrap flex-shrink-0">Pending</span>
                     </Badge>
                 )}
             </div>

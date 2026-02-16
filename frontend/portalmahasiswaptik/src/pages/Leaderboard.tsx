@@ -308,94 +308,104 @@ export default function Leaderboard() {
             })()}
           </div>
 
-          {/* Podium Section (Visual) */}
-          {(() => {
-            // Calculate sorted stats for Podium
-            const sortedStats = [...orderedStats].sort((a, b) => b.total - a.total);
+{/* Podium Section (Visual) - FIX JARAK DESKTOP (MOBILE TETAP) */}
+{(() => {
+  const sortedStats = [...orderedStats].sort((a, b) => b.total - a.total);
 
-            return sortedStats.length >= 2 && (
-              <div className="glass-card rounded-3xl p-8 flex flex-col items-center justify-center overflow-hidden relative">
-                <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-                <h2 className="text-xl font-bold mb-12 flex items-center gap-2 relative z-10">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                  Peringkat Kelas
-                </h2>
-                <div className="flex items-end gap-4 md:gap-12 relative z-10 pb-4 min-h-[300px]">
-                  {/* 2nd Place */}
-                  {sortedStats[1] && (
-                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-1">
-                      <span className="font-bold text-foreground text-lg mb-12">Kelas {sortedStats[1].className}</span>
-                      <div className={cn(
-                        "w-20 md:w-24 h-24 md:h-32 bg-gradient-to-t from-gray-400/30 to-gray-400/5 rounded-t-lg border-t border-x border-gray-400/30 flex items-center justify-center relative",
-                        "shadow-[0_0_40px_-5px_rgba(148,163,184,0.3)] dark:shadow-[0_0_40px_-5px_rgba(148,163,184,0.15)]"
-                      )}>
-                        <span className="text-4xl font-bold text-gray-400 opacity-50">2</span>
-                        <div className="absolute -top-8 transition-transform group-hover:scale-110 duration-300">
-                          <Medal className="w-12 h-12 text-gray-400 drop-shadow-lg" />
-                        </div>
-                      </div>
-                      <span className="font-mono text-sm text-muted-foreground mt-2">{sortedStats[1].total} Poin</span>
-                    </div>
-                  )}
-
-                  {/* 1st Place */}
-                  {sortedStats[0] && (
-                    <div className="flex flex-col items-center justify-end h-full -mx-4 z-20 group transition-all duration-300 hover:-translate-y-2 order-2">
-                      <div className="animate-bounce-slow mb-2">
-                        <Crown className="w-10 h-10 text-yellow-500" />
-                      </div>
-                      <span className="font-bold text-foreground text-xl text-yellow-500 mb-14 drop-shadow-sm">Kelas {sortedStats[0].className}</span>
-                      <div className={cn(
-                        "w-24 md:w-32 h-32 md:h-48 bg-gradient-to-t from-yellow-500/30 to-yellow-500/5 rounded-t-lg border-t border-x border-yellow-500/30 flex items-center justify-center relative",
-                        "shadow-[0_0_50px_-10px_rgba(234,179,8,0.5)] dark:shadow-[0_0_50px_-10px_rgba(234,179,8,0.25)]"
-                      )}>
-                        <span className="text-6xl font-bold text-yellow-500 opacity-50">1</span>
-                        <div className="absolute -top-10 transition-transform group-hover:scale-110 duration-300">
-                          <Trophy className="w-16 h-16 text-yellow-500 [filter:drop-shadow(0_0_10px_rgba(234,179,8,0.4))]" />
-                        </div>
-                      </div>
-                      <span className="font-mono text-sm font-bold text-yellow-500 mt-2">{sortedStats[0].total} Poin</span>
-                    </div>
-                  )}
-
-                  {/* 3rd Place */}
-                  {sortedStats[2] && (
-                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-3">
-                      <span className="font-bold text-foreground text-lg mb-12">Kelas {sortedStats[2].className}</span>
-                      <div className={cn(
-                        "w-20 md:w-24 h-20 md:h-24 bg-gradient-to-t from-amber-700/30 to-amber-700/5 rounded-t-lg border-t border-x border-amber-700/30 flex items-center justify-center relative",
-                        "shadow-[0_0_40px_-5px_rgba(180,83,9,0.3)] dark:shadow-[0_0_40px_-5px_rgba(180,83,9,0.15)]"
-                      )}>
-                        <span className="text-4xl font-bold text-amber-700 opacity-50">3</span>
-                        <div className="absolute -top-8 transition-transform group-hover:scale-110 duration-300">
-                          <Medal className="w-12 h-12 text-amber-700 drop-shadow-lg" />
-                        </div>
-                      </div>
-                      <span className="font-mono text-sm text-muted-foreground mt-2">{sortedStats[2].total} Poin</span>
-                    </div>
-                  )}
-
-                  {/* 4th Place */}
-                  {sortedStats[3] && (
-                    <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-4">
-                      <span className="font-bold text-slate-500 dark:text-slate-400 text-lg mb-12">Kelas {sortedStats[3].className}</span>
-                      <div className={cn(
-                        "w-20 md:w-24 h-16 md:h-20 bg-gradient-to-t from-slate-200 to-slate-100 dark:from-slate-800 dark:to-slate-700/80 rounded-t-lg border-t border-x border-slate-300/30 dark:border-slate-700/30 flex items-center justify-center relative",
-                        "shadow-[0_0_40px_-5px_rgba(148,163,184,0.3)] dark:shadow-[0_0_40px_-5px_rgba(148,163,184,0.15)]"
-                      )}>
-                        <span className="text-4xl font-bold text-slate-400 dark:text-slate-500 opacity-50">4</span>
-                        <div className="absolute -top-8 transition-transform group-hover:scale-110 duration-300">
-                          <Star className="w-10 h-10 text-slate-400 dark:text-slate-500 drop-shadow-lg fill-slate-300 dark:fill-slate-600" />
-                        </div>
-                      </div>
-                      <span className="font-mono text-sm text-slate-500 dark:text-slate-400 mt-2">{sortedStats[3].total} Poin</span>
-                    </div>
-                  )}
-                </div>
+  return sortedStats.length >= 2 && (
+    <div className="glass-card rounded-3xl p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+      <h2 className="text-lg md:text-xl font-bold mb-8 md:mb-12 flex items-center gap-2 relative z-10">
+        <TrendingUp className="w-5 h-5 text-primary" />
+        Peringkat Kelas
+      </h2>
+      
+      {/* Container: Tinggi desktop ditambah dikit biar teks melayang enak dilihat */}
+      <div className="flex flex-row items-end justify-center gap-1 md:gap-6 relative z-10 pb-4 min-h-[260px] md:min-h-[400px] w-full max-w-full">
+        
+        {/* 2nd Place */}
+        {sortedStats[1] && (
+          <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-1 flex-1 max-w-[80px] md:max-w-none">
+            {/* Mobile mb-10 (Tetap), Desktop dinaikkan jadi md:mb-12 */}
+            <span className="font-bold text-foreground text-[10px] md:text-lg mb-10 md:mb-12 text-center leading-tight">
+              Kelas<br />{sortedStats[1].className}
+            </span>
+            <div className={cn(
+              "w-full md:w-28 h-28 md:h-36 bg-gradient-to-t from-gray-400/30 to-gray-400/5 rounded-t-lg border-t border-x border-gray-400/30 flex items-center justify-center relative",
+              "shadow-[0_0_40px_-5px_rgba(148,163,184,0.3)]"
+            )}>
+              <span className="text-2xl md:text-4xl font-bold text-gray-400 opacity-20">2</span>
+              <div className="absolute -top-6 md:-top-10 transition-transform group-hover:scale-110 duration-300">
+                <Medal className="w-8 h-8 md:w-14 md:h-14 text-gray-400 drop-shadow-lg" />
               </div>
-            );
-          })()}
+            </div>
+            <span className="font-mono text-[9px] md:text-base text-muted-foreground mt-2">{sortedStats[1].total} Poin</span>
+          </div>
+        )}
 
+        {/* 1st Place */}
+        {sortedStats[0] && (
+          <div className="flex flex-col items-center justify-end h-full z-20 group transition-all duration-300 hover:-translate-y-2 order-2 flex-1 max-w-[95px] md:max-w-none">
+            <div className="animate-bounce-slow mb-1">
+              <Crown className="w-7 h-7 md:w-12 md:h-12 text-yellow-500" />
+            </div>
+            {/* Mobile mb-12 (Tetap), Desktop dinaikkan jadi md:mb-16 (Piala Juara 1 Tinggi) */}
+            <span className="font-bold text-[11px] md:text-2xl text-yellow-500 mb-12 md:mb-16 drop-shadow-sm text-center leading-tight">
+              Kelas<br />{sortedStats[0].className}
+            </span>
+            <div className={cn(
+              "w-full md:w-36 h-36 md:h-48 bg-gradient-to-t from-yellow-500/30 to-yellow-500/5 rounded-t-lg border-t border-x border-yellow-500/30 flex items-center justify-center relative",
+              "shadow-[0_0_50px_-10px_rgba(234,179,8,0.5)]"
+            )}>
+              <span className="text-4xl md:text-7xl font-bold text-yellow-500 opacity-20">1</span>
+              <div className="absolute -top-8 md:-top-12 transition-transform group-hover:scale-110 duration-300">
+                <Trophy className="w-10 h-10 md:w-20 md:h-20 text-yellow-500 [filter:drop-shadow(0_0_10px_rgba(234,179,8,0.4))]" />
+              </div>
+            </div>
+            <span className="font-mono text-[10px] md:text-base font-bold text-yellow-500 mt-2">{sortedStats[0].total} Poin</span>
+          </div>
+        )}
+
+        {/* 3rd Place */}
+        {sortedStats[2] && (
+          <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-3 flex-1 max-w-[80px] md:max-w-none">
+            <span className="font-bold text-foreground text-[10px] md:text-lg mb-10 md:mb-12 text-center leading-tight">
+              Kelas<br />{sortedStats[2].className}
+            </span>
+            <div className={cn(
+              "w-full md:w-28 h-20 md:h-28 bg-gradient-to-t from-amber-700/30 to-amber-700/5 rounded-t-lg border-t border-x border-amber-700/30 flex items-center justify-center relative",
+              "shadow-[0_0_40px_-5px_rgba(180,83,9,0.3)]"
+            )}>
+              <span className="text-2xl md:text-4xl font-bold text-amber-700 opacity-20">3</span>
+              <div className="absolute -top-6 md:-top-10 transition-transform group-hover:scale-110 duration-300">
+                <Medal className="w-8 h-8 md:w-14 md:h-14 text-amber-700 drop-shadow-lg" />
+              </div>
+            </div>
+            <span className="font-mono text-[9px] md:text-base text-muted-foreground mt-2">{sortedStats[2].total} Poin</span>
+          </div>
+        )}
+
+        {/* 4th Place */}
+        {sortedStats[3] && (
+          <div className="flex flex-col items-center justify-end h-full group transition-all duration-300 hover:-translate-y-1 order-4 flex-1 max-w-[75px] md:max-w-none">
+            <span className="font-bold text-slate-500 dark:text-slate-400 text-[10px] md:text-lg mb-8 md:mb-10 text-center leading-tight">
+              Kelas<br />{sortedStats[3].className}
+            </span>
+            <div className={cn(
+              "w-full md:w-28 h-12 md:h-20 bg-gradient-to-t from-slate-200 to-slate-100 dark:from-slate-800 dark:to-slate-700/80 rounded-t-lg border-t border-x border-slate-300/30 flex items-center justify-center relative shadow-sm"
+            )}>
+              <span className="text-xl md:text-4xl font-bold text-slate-400 opacity-20">4</span>
+              <div className="absolute -top-4 md:-top-8 transition-transform group-hover:scale-110 duration-300">
+                <Star className="w-6 h-6 md:w-12 md:h-12 text-slate-400 dark:text-slate-500 fill-slate-300" />
+              </div>
+            </div>
+            <span className="font-mono text-[9px] md:text-base text-slate-500 mt-2">{sortedStats[3].total} Poin</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+})()}
           {/* Detailed List */}
           <div className="glass-card rounded-2xl overflow-hidden">
             <div className="p-6 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -405,14 +415,14 @@ export default function Leaderboard() {
               </h3>
 
               {/* Class Filters */}
-              <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+              <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 whitespace-nowrap scrollbar-hide">
                 {['Semua', ...classesList.map(c => c.name)].map((filter) => (
                   <Button
                     key={filter}
                     variant={selectedClassFilter === filter ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSelectedClassFilter(filter)}
-                    className={selectedClassFilter === filter ? 'primary-gradient border-none whitespace-nowrap' : 'bg-transparent border-white/10 hover:bg-white/5 whitespace-nowrap'}
+                    className={selectedClassFilter === filter ? 'primary-gradient border-none flex-shrink-0' : 'bg-transparent border-white/10 hover:bg-white/5 flex-shrink-0'}
                   >
                     {filter === 'Semua' ? 'Semua' : `Kelas ${filter}`}
                   </Button>

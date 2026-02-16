@@ -79,8 +79,8 @@ export function PremiumCard({
                         titleClassName
                     )}>{title}</h3>
                     {value !== undefined && <div className={cn(
-                        "font-black mt-1",
-                        isBold ? "text-3xl text-white" : isPastel ? "text-2xl text-slate-900 dark:text-slate-100" : (centered ? "text-4xl md:text-5xl" : "text-2xl text-foreground")
+                        "font-black mt-1 truncate",
+                        isBold ? "text-3xl text-white" : isPastel ? "text-2xl text-slate-900 dark:text-slate-100" : (centered ? "text-4xl md:text-5xl" : "text-[clamp(1rem,2.2vw,1.5rem)] text-foreground")
                     )}>{value}</div>}
                     {subtitle && <p className={cn(
                         "text-sm font-medium mt-1 max-w-[600px]",

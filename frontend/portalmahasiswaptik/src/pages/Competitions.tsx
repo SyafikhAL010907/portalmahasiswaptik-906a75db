@@ -256,14 +256,14 @@ export default function Competitions() {
       </div>
 
       {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap pb-2 overflow-x-auto">
+      <div className="flex gap-2 pb-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
         {categories.map((cat) => (
           <Button
             key={cat}
             variant={selectedCategory === cat ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setSelectedCategory(cat)}
-            className={selectedCategory === cat ? 'primary-gradient transition-all' : 'text-muted-foreground'}
+            className={selectedCategory === cat ? 'primary-gradient transition-all flex-shrink-0' : 'text-muted-foreground flex-shrink-0'}
           >
             {cat}
           </Button>
@@ -394,9 +394,8 @@ export default function Competitions() {
         </div>
       )}
 
-      {/* Dialogs */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] bg-white dark:bg-slate-950 shadow-2xl border-white/10 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95%] sm:max-w-4xl bg-white dark:bg-slate-950 shadow-2xl border-white/10 max-h-[90vh] overflow-y-auto p-0 sm:p-6 no-scrollbar">
           <DialogHeader>
             <DialogTitle>{currentCompetition ? 'Edit Lomba' : 'Tambah Lomba Baru'}</DialogTitle>
           </DialogHeader>
@@ -539,7 +538,7 @@ export default function Competitions() {
       </Dialog>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-white dark:bg-slate-950 shadow-2xl border-white/10">
+        <DialogContent className="w-[95%] sm:max-w-[400px] bg-white dark:bg-slate-950 shadow-2xl border-white/10 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-destructive">Hapus Data Lomba?</DialogTitle>
           </DialogHeader>

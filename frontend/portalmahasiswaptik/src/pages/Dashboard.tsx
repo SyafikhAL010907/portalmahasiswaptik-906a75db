@@ -913,44 +913,44 @@ export default function Dashboard() {
           {/* Quick Actions */}
           <div className="glass-card rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-4">Aksi Cepat</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Scan Absen - Blue Glow */}
               <Link to="/dashboard/scan-qr" className="block group">
-                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:border-blue-400/50">
-                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
-                    <QrCode size={18} />
+                <button className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_25px_rgba(59,130,246,0.2)] hover:border-blue-400/50 active:scale-95 shadow-sm">
+                  <div className="p-3 rounded-full bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
+                    <QrCode size={20} strokeWidth={2.5} />
                   </div>
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Scan Absen</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight">Scan Absen</span>
                 </button>
               </Link>
 
               {/* Bayar Kas - Blue Glow */}
               <Link to="/dashboard/payment" className="block group">
-                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:border-blue-400/50">
-                  <div className="p-2 rounded-full bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
-                    <Wallet size={18} />
+                <button className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_25px_rgba(59,130,246,0.2)] hover:border-blue-400/50 active:scale-95 shadow-sm">
+                  <div className="p-3 rounded-full bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
+                    <Wallet size={20} strokeWidth={2.5} />
                   </div>
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Bayar Kas</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight">Bayar Kas</span>
                 </button>
               </Link>
 
               {/* Materi - Orange/Amber Glow */}
               <Link to="/dashboard/repository" className="block group">
-                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:border-amber-400/50">
-                  <div className="p-2 rounded-full bg-amber-500/10 text-amber-500 transition-colors group-hover:bg-amber-500/20">
-                    <FileText size={18} />
+                <button className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_25px_rgba(245,158,11,0.2)] hover:border-amber-400/50 active:scale-95 shadow-sm">
+                  <div className="p-3 rounded-full bg-amber-500/10 text-amber-500 transition-colors group-hover:bg-amber-500/20">
+                    <FileText size={20} strokeWidth={2.5} />
                   </div>
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Materi</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors uppercase tracking-tight">Materi</span>
                 </button>
               </Link>
 
               {/* IPK Sim - Purple Glow */}
               <Link to="/dashboard/ipk-simulator" className="block group">
-                <button className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:border-purple-400/50">
-                  <div className="p-2 rounded-full bg-purple-500/10 text-purple-500 transition-colors group-hover:bg-purple-500/20">
-                    <Users size={18} />
+                <button className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_25px_rgba(168,85,247,0.2)] hover:border-purple-400/50 active:scale-95 shadow-sm">
+                  <div className="p-3 rounded-full bg-purple-500/10 text-purple-500 transition-colors group-hover:bg-purple-500/20">
+                    <Users size={20} strokeWidth={2.5} />
                   </div>
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">IPK Sim</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors uppercase tracking-tight">IPK Sim</span>
                 </button>
               </Link>
             </div>

@@ -1156,37 +1156,37 @@ export default function AttendanceHistory() {
                 <div
                   key={student.id}
                   className={cn(
-                    "flex flex-col md:flex-row items-center justify-between p-4 rounded-2xl transition-all duration-300 ease-in-out",
+                    "flex flex-col md:flex-row items-start md:items-center justify-between p-5 rounded-2xl transition-all duration-300 ease-in-out gap-4",
                     "bg-white/60 dark:bg-slate-900/40 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 shadow-sm",
                     "hover:-translate-y-1 hover:scale-[1.01] group",
                     // Glow Effects based on status
-                    isAlpha ? "hover:shadow-[0_8px_30px_rgba(244,63,94,0.3)] hover:border-rose-300/50" :
-                      (isHadir || isPending) ? "hover:shadow-[0_8px_30px_rgba(59,130,246,0.25)] hover:border-blue-300/50" :
-                        isIzin ? "hover:shadow-[0_8px_30px_rgba(245,158,11,0.25)] hover:border-amber-300/50" :
+                    isAlpha ? "hover:shadow-[0_8px_30px_rgba(244,63,94,0.15)] hover:border-rose-300/50" :
+                      (isHadir || isPending) ? "hover:shadow-[0_8px_30px_rgba(59,130,246,0.15)] hover:border-blue-300/50" :
+                        isIzin ? "hover:shadow-[0_8px_30px_rgba(245,158,11,0.15)] hover:border-amber-300/50" :
                           "hover:shadow-lg"
                   )}
                 >
                   <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ring-2 ring-offset-2 ring-offset-background/50 shadow-inner",
+                      "w-14 h-14 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ring-2 ring-offset-2 ring-offset-background/50 shadow-inner",
                       getStatusColor(student.status)
                     )}>
                       {student.name.substring(0, 2).toUpperCase()}
                     </div>
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{student.name}</div>
-                      <div className="text-xs font-mono text-slate-500 dark:text-slate-400">{student.nim}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 dark:text-slate-100 text-base md:text-sm truncate">{student.name}</div>
+                      <div className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">{student.nim}</div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-center md:justify-end gap-x-8 gap-y-4 mt-4 md:mt-0 w-full md:w-auto">
+                  <div className="grid grid-cols-2 md:flex md:flex-wrap items-center justify-items-center md:justify-end gap-x-6 gap-y-4 md:gap-x-8 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-border/50">
                     {/* Status Badge */}
-                    <div className="text-center">
+                    <div className="text-center w-full md:w-auto flex justify-start md:justify-center col-span-2 md:col-span-1">
                       <button
                         onClick={() => toggleAttendance(student.id, student.status)}
                         disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev')}
                         className={cn(
-                          "inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm",
+                          "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-sm w-full md:w-auto justify-center",
                           getStatusBadge(student.status),
                           (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer shadow-md" : "cursor-default opacity-90"
                         )}
@@ -1197,7 +1197,8 @@ export default function AttendanceHistory() {
                     </div>
 
                     {/* Method Info */}
-                    <div className="text-center min-w-[100px]">
+                    <div className="text-center w-full md:w-auto flex flex-col items-center justify-center">
+                      <div className="text-[10px] text-muted-foreground font-bold uppercase mb-1 tracking-tighter md:hidden">Metode</div>
                       {student.method === 'manual' ? (
                         <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm">
                           MANUAL
@@ -1207,13 +1208,13 @@ export default function AttendanceHistory() {
                           <QrCode className="w-3 h-3" /> QR CODE
                         </span>
                       ) : (
-                        <span className="text-muted-foreground text-xs italic opacity-70">Menunggu Scan</span>
+                        <span className="text-muted-foreground text-[10px] italic opacity-70">Menunggu</span>
                       )}
                     </div>
 
                     {/* Time Info */}
-                    <div className="text-center min-w-[80px]">
-                      <div className="text-[10px] text-muted-foreground font-medium uppercase mb-0.5 tracking-tighter">Waktu</div>
+                    <div className="text-center w-full md:w-auto flex flex-col items-center justify-center">
+                      <div className="text-[10px] text-muted-foreground font-bold uppercase mb-1 tracking-tighter md:hidden">Waktu</div>
                       <div className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
                         {student.scannedAt ? new Date(student.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                       </div>
@@ -1221,15 +1222,16 @@ export default function AttendanceHistory() {
 
                     {/* Admin Actions */}
                     {userRole === 'admin_dev' && (
-                      <div className="text-center">
+                      <div className="text-center col-span-2 md:col-span-1 border-t md:border-t-0 border-border/30 w-full md:w-auto pt-2 md:pt-0">
                         <Button
-                          size="icon"
+                          size="sm"
                           variant="ghost"
-                          className="h-9 w-9 text-rose-500 hover:bg-rose-500/10 rounded-full transition-colors"
+                          className="h-9 w-full md:w-9 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors gap-2"
                           onClick={() => handleResetIndividual(student.id, student.name)}
                           title="Reset Status Individual"
                         >
                           <RotateCcw className="w-4 h-4" />
+                          <span className="md:hidden text-xs font-bold uppercase">Reset Status</span>
                         </Button>
                       </div>
                     )}
