@@ -93,7 +93,11 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
 
     // UPDATE GLOBAL CONFIG
     const updateBillingRange = async (start: number, end: number, currentSelected: number) => {
-        console.log('📤 useBillingConfig: Updating Global Config...', { start, end, currentSelected });
+        console.log('📤 useBillingConfig: Updating Global Config...', {
+            start_month: start,
+            end_month: end,
+            selected_month: currentSelected
+        });
 
         // Optimistic Update
         setBillingStart(start);
@@ -103,9 +107,11 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
         setIsUpdatingConfig(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("No session");
+            if (!session) throw new Error("No session found. Please re-login.");
 
             const baseUrl = import.meta.env.VITE_API_URL;
+            console.log(`🔗 useBillingConfig: POST to ${baseUrl}/config/save-range`);
+
             const response = await fetch(`${baseUrl}/config/save-range`, {
                 method: 'POST',
                 headers: {
@@ -120,24 +126,22 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
             });
 
             if (response.ok) {
-                toast.success("Konfigurasi berhasil disinkronkan!");
-                setHasServerError(false); // Clear error on successful POST
+                const result = await response.json();
+                console.log('✅ useBillingConfig: Save success!', result);
+                toast.success("Konfigurasi berhasil disimpan ke server!");
+                setHasServerError(false);
                 if (onConfigUpdated) onConfigUpdated();
             } else {
                 const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.details || errorData.error || "Failed to save config";
+                console.error("❌ useBillingConfig: Save failed", response.status, errorData);
 
-                if (response.status === 500) {
-                    setHasServerError(true);
-                    console.error("🛑 useBillingConfig: Server 500 detected via POST.");
-                }
-
-                throw new Error(errorMessage);
+                if (response.status === 500) setHasServerError(true);
+                throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
             }
         } catch (error: any) {
             console.error("❌ useBillingConfig: Sync error:", error);
-            toast.error(`Gagal sinkronisasi: ${error.message || "Server Error"}`);
-            // Revert on failure
+            toast.error(`Gagal sinkronisasi: ${error.message || "Network Error / CORS"}`);
+            // Revert state on failure to match server truth
             fetchGlobalConfig(true);
         } finally {
             setIsUpdatingConfig(false);

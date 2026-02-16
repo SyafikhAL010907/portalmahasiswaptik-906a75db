@@ -61,7 +61,7 @@ func main() {
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With",
 		AllowCredentials: true,
 		ExposeHeaders:    "Content-Length",
-		MaxAge:           86400,
+		MaxAge:           86400, // 24 hours
 	}))
 
 	// Health check endpoint
