@@ -245,9 +245,42 @@
     @apply bg-destructive/20 border-destructive/30;
   }
 
-  /* Smooth Theme Transition */
-  * {
-    @apply transition-colors duration-500 ease-in-out;
+  /* View Transition API - Unified Dark Mode Transition */
+  /* Smooth cross-fade for entire viewport */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 400ms;
+    animation-timing-function: ease-in-out;
+  }
+
+  /* Disable default morphing, use pure cross-fade */
+  ::view-transition-old(root) {
+    animation-name: fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation-name: fade-in;
+  }
+
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Fallback for browsers without View Transition API */
+  @media (prefers-reduced-motion: reduce) {
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none !important;
+    }
   }
 }
 

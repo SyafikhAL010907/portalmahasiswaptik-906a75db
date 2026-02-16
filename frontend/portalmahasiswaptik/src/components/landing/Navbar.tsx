@@ -14,12 +14,13 @@ export function Navbar() {
 
           {/* Logo - Modified by Vasya AI (Logo PTIK Asli) */}
           <Link to="/" className="flex items-center gap-2 group">
-            {/* Container Logo: Pakai bg-white biar logo jelas */}
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-soft group-hover:shadow-glow transition-shadow duration-300 p-0.5 border border-gray-100">
+            {/* Container Logo: Transparent untuk menyatu dengan background */}
+            <div className="bg-transparent flex items-center justify-center">
               <img
                 src="https://ft.unj.ac.id/ptik/wp-content/uploads/2021/07/LOGO-BEMP-PTIK-150x150.png"
                 alt="Logo PTIK"
-                className="w-full h-full object-contain"
+                className="w-10 h-10 object-contain"
+                style={{ filter: 'brightness(1.05) contrast(1.1) drop-shadow(0 0 1px rgba(0,0,0,0.5))' }}
               />
             </div>
             <span className="font-bold text-xl text-foreground">

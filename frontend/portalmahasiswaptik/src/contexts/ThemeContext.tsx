@@ -27,7 +27,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    // Check if browser supports View Transition API
+    if (!document.startViewTransition) {
+      // Fallback for browsers without support
+      setTheme(prev => prev === 'light' ? 'dark' : 'light');
+      return;
+    }
+
+    // Use View Transition API for smooth unified cross-fade
+    document.startViewTransition(() => {
+      setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    });
   };
 
   return (

@@ -1,19 +1,44 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { RoleBasedSidebar } from './RoleBasedSidebar';
+import { TopNavbar } from './TopNavbar';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  type NavigationMode,
+  NAVIGATION_MODE_SIDEBAR,
+  NAVIGATION_MODE_NAVBAR,
+} from '@/lib/navigationConfig';
+
+const STORAGE_KEY = 'navigation_mode';
 
 export function DashboardLayout() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
 
-  // Close sidebar on route change
+  // Initialize navigation mode from localStorage, default to sidebar
+  const [navigationMode, setNavigationMode] = useState<NavigationMode>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return (stored === NAVIGATION_MODE_NAVBAR || stored === NAVIGATION_MODE_SIDEBAR)
+      ? stored as NavigationMode
+      : NAVIGATION_MODE_SIDEBAR;
+  });
+
+  // Persist navigation mode to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, navigationMode);
+  }, [navigationMode]);
+
+  // Close mobile sidebar on route change
   useEffect(() => {
     setIsMobileOpen(false);
   }, [location.pathname]);
+
+  const handleModeChange = (mode: NavigationMode) => {
+    setNavigationMode(mode);
+  };
 
   const getPageTitle = (pathname: string) => {
     if (pathname === '/dashboard') return 'Dashboard';
@@ -36,49 +61,94 @@ export function DashboardLayout() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background flex flex-col md:flex-row">
-        {/* Mobile Top Bar */}
-        <header className="md:hidden sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md border-b border-border px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMobileOpen(!isMobileOpen)}
-              className="text-foreground shrink-0"
-            >
-              {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </Button>
-            <h1 className="font-bold text-lg tracking-tight truncate">
-              {getPageTitle(location.pathname)}
-            </h1>
-          </div>
-          <div className="flex items-center shrink-0 ml-2">
-            <img
-              src="https://ft.unj.ac.id/ptik/wp-content/uploads/2021/07/LOGO-BEMP-PTIK-150x150.png"
-              alt="Logo"
-              className="w-8 h-8 object-contain"
-            />
-          </div>
-        </header>
+      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-500 ease-in-out">
+        {/* Top Navbar (when mode is navbar) */}
+        {navigationMode === NAVIGATION_MODE_NAVBAR && (
+          <TopNavbar onModeChange={handleModeChange} />
+        )}
 
-        <RoleBasedSidebar mobileOpen={isMobileOpen} setMobileOpen={setIsMobileOpen} />
+        {/* Mobile Top Bar (when mode is sidebar) */}
+        {navigationMode === NAVIGATION_MODE_SIDEBAR && (
+          <header className="md:hidden sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md border-b border-border px-4 h-16 flex items-center justify-between transition-all duration-500 ease-in-out">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMobileOpen(!isMobileOpen)}
+                className="text-foreground shrink-0"
+              >
+                {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </Button>
+              <h1 className="font-bold text-lg tracking-tight truncate">
+                {getPageTitle(location.pathname)}
+              </h1>
+            </div>
+            <div className="flex items-center shrink-0 ml-2">
+              <img
+                src="https://ft.unj.ac.id/ptik/wp-content/uploads/2021/07/LOGO-BEMP-PTIK-150x150.png"
+                alt="Logo"
+                className="w-8 h-8 object-contain"
+              />
+            </div>
+          </header>
+        )}
 
-        <main className={cn(
-          "flex-1 transition-all duration-300",
-          "md:ml-72",
-          "p-4 md:p-8 pt-6 md:pt-8"
-        )}>
-          {/* Desktop Title Header (Hidden on Mobile) */}
-          <div className="hidden md:block mb-8">
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-              <span className="w-2 h-8 bg-primary rounded-full" />
-              {getPageTitle(location.pathname)}
-            </h1>
+        {/* Sidebar (always rendered but conditionally visible) */}
+        <RoleBasedSidebar
+          mobileOpen={isMobileOpen}
+          setMobileOpen={setIsMobileOpen}
+          navigationMode={navigationMode}
+          onModeChange={handleModeChange}
+        />
+
+        <main
+          style={{
+            marginLeft: navigationMode === NAVIGATION_MODE_NAVBAR ? '0' : undefined
+          }}
+          className={cn(
+            "flex-1 transition-all duration-500 ease-in-out",
+            // CRITICAL AGGRESSIVE MARGIN FIX
+            navigationMode === NAVIGATION_MODE_SIDEBAR
+              ? "md:ml-72 ml-0 pt-6 md:pt-8" // Sidebar mode: margin left for desktop only
+              : "ml-0 md:ml-0 pt-20 md:pt-28", // Navbar mode: FORCE no margin, extra padding top
+            // Side padding
+            "px-4 md:px-10 pb-8"
+          )}
+        >
+          {/* Content Wrapper - FORCE CENTERING */}
+          <div
+            className={cn(
+              "transition-all duration-500",
+              navigationMode === NAVIGATION_MODE_NAVBAR
+                ? "w-full max-w-[1400px] mx-auto" // Navbar: force center with specific max-width
+                : "w-full" // Sidebar: full width
+            )}
+          >
+            {/* Desktop Title Header (Sidebar Mode Only) */}
+            {navigationMode === NAVIGATION_MODE_SIDEBAR && (
+              <div className="hidden md:block mb-8">
+                <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+                  <span className="w-2 h-8 bg-primary rounded-full" />
+                  {getPageTitle(location.pathname)}
+                </h1>
+              </div>
+            )}
+
+            {/* Page Title for Navbar Mode (Desktop) */}
+            {navigationMode === NAVIGATION_MODE_NAVBAR && (
+              <div className="hidden md:block mb-8">
+                <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+                  <span className="w-2 h-8 bg-primary rounded-full" />
+                  {getPageTitle(location.pathname)}
+                </h1>
+              </div>
+            )}
+
+            <Outlet />
           </div>
-
-          <Outlet />
         </main>
       </div>
     </ProtectedRoute>
   );
 }
+
