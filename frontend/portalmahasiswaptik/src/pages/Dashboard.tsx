@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from '@/contexts/AuthContext';
+import { useAttendanceStats } from '@/hooks/useAttendanceStats';
 
 // Interfaces
 interface ScheduleItem {
@@ -80,6 +81,8 @@ export default function Dashboard() {
   const [topClass, setTopClass] = useState<{ name: string, total: number } | null>(null);
   const [isLoadingRank, setIsLoadingRank] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+
+  const { percentage: attendancePercentage, isLoading: isLoadingAttendance, semesterName } = useAttendanceStats(user?.id);
 
   // Derived constants for backward compatibility
   const userName = profile?.full_name;
@@ -545,7 +548,6 @@ export default function Dashboard() {
   const fetchLifetimeClassBalance = async () => {
     setIsLoadingSaldo(true);
     try {
-      // Get user's class_id from profile
       const userClassId = profile?.class_id;
       if (!userClassId) {
         setBalance(0);
@@ -553,35 +555,57 @@ export default function Dashboard() {
         return;
       }
 
-      // A. Hitung Iuran Lunas (weekly_dues) - LIFETIME, PER CLASS
-      // Join weekly_dues with users to filter by class_id
-      const { data: duesData } = await supabase
+      // 1. Fetch all student IDs for this class from profiles
+      const { data: students, error: studentError } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('class_id', userClassId);
+
+      if (studentError) throw studentError;
+
+      const studentIds = students?.map(s => s.user_id) || [];
+
+      if (studentIds.length === 0) {
+        setBalance(0);
+        setIsLoadingSaldo(false);
+        return;
+      }
+
+      // 2. Fetch all paid dues for these students (LIFETIME)
+      const { data: duesData, error: duesError } = await supabase
         .from('weekly_dues')
-        .select(`
-          status,
-          users!inner (
-            class_id
-          )
-        `)
+        .select('amount')
         .eq('status', 'paid')
-        .eq('users.class_id', userClassId);
+        .in('student_id', studentIds);
 
-      const duesIncome = (duesData?.length || 0) * 5000;
+      if (duesError) throw duesError;
 
-      // B. Hitung Transaksi Manual (transactions) - LIFETIME, PER CLASS
-      const { data: txData } = await supabase
+      const duesIncome = duesData?.reduce((sum, d) => sum + d.amount, 0) || 0;
+
+      // 3. Fetch all transactions for this class (Income - Expense)
+      const { data: txData, error: txError } = await supabase
         .from('transactions')
         .select('amount, type')
         .eq('class_id', userClassId);
 
+      if (txError) throw txError;
+
       const manualIncome = txData?.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) || 0;
       const totalExpense = txData?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
 
-      // C. Final Lifetime Balance (Saldo Bersih)
+      // 4. Final Calculation
       const lifetimeBalance = (duesIncome + manualIncome) - totalExpense;
+      console.log(`💰 [DEBUG] Balance for ${profile?.user_class || 'Class'}:`, {
+        duesIncome,
+        manualIncome,
+        totalExpense,
+        final: lifetimeBalance
+      });
+
       setBalance(lifetimeBalance);
     } catch (err) {
-      console.error("Gagal hitung saldo lifetime:", err);
+      console.error("❌ [DEBUG] Gagal hitung saldo lifetime:", err);
+      // Fallback but log error
       setBalance(0);
     } finally {
       setIsLoadingSaldo(false);
@@ -661,8 +685,8 @@ export default function Dashboard() {
         <PremiumCard
           icon={CheckCircle2}
           title="Kehadiran"
-          value="95%"
-          subtitle="Persentase Hadir"
+          value={isLoadingAttendance ? "..." : `${attendancePercentage}%`}
+          subtitle={semesterName || "Semester Aktif"}
           gradient="from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-900/20"
           iconClassName="bg-white/60 dark:bg-slate-800/50 text-emerald-600 dark:text-emerald-400"
         />

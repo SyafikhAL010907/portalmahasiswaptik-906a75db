@@ -2,8 +2,19 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LandingStats } from '@/pages/Landing';
+import { cn } from '@/lib/utils';
 
-export function HeroSection({ stats }: { stats: LandingStats | null }) {
+export function HeroSection({
+  stats,
+  attendancePercentage,
+  isLoadingAttendance,
+  isLoggedIn
+}: {
+  stats: LandingStats | null,
+  attendancePercentage?: number,
+  isLoadingAttendance?: boolean,
+  isLoggedIn?: boolean
+}) {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden hero-gradient pt-16">
       {/* Decorative Elements */}

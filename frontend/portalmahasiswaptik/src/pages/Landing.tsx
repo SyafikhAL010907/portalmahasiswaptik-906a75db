@@ -5,6 +5,8 @@ import { StatsSection } from '@/components/landing/StatsSection';
 import { Footer } from '@/components/landing/Footer';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAttendanceStats } from '@/hooks/useAttendanceStats';
 
 export interface LandingStats {
   total_students: number;
@@ -16,25 +18,36 @@ export interface LandingStats {
 
 export default function Landing() {
   const [stats, setStats] = useState<LandingStats | null>(null);
+  const [aggregatedBalance, setAggregatedBalance] = useState<number>(0);
+  const { user } = useAuth();
+  const { percentage, isLoading: isLoadingAttendance, semesterName } = useAttendanceStats(user?.id);
 
   useEffect(() => {
     const fetchStats = async () => {
-      console.log('Fetching landing stats...');
-      const { data, error } = await (supabase as any).rpc('get_landing_stats');
+      console.log('🔍 [DEBUG] Fetching landing stats via RPC...');
+      try {
+        const { data, error } = await (supabase as any).rpc('get_landing_stats');
 
-      if (error) {
-        console.error('FAILED to fetch landing stats:', error);
-        return;
+        if (error) {
+          console.error('❌ [DEBUG] FAILED to fetch landing stats:', error);
+          return;
+        }
+
+        if (data) {
+          console.log('✅ [DEBUG] Landing stats fetched successfully:', data);
+          setStats(data as unknown as LandingStats);
+
+          // The RPC now calculates the accurate net balance (1.035.000)
+          if (data.total_cash_lifetime !== undefined) {
+            console.log('💰 [DEBUG] Aggregated Balance delivered from RPC:', data.total_cash_lifetime);
+            setAggregatedBalance(data.total_cash_lifetime);
+          }
+        }
+      } catch (err) {
+        console.error('❌ [DEBUG] Unexpected error in fetchStats:', err);
       }
-
-      if (!data) {
-        console.warn('Landing stats returned empty data');
-        return;
-      }
-
-      console.log('Landing stats fetched successfully:', data);
-      setStats(data as unknown as LandingStats);
     };
+
     fetchStats();
   }, []);
 
@@ -43,7 +56,12 @@ export default function Landing() {
       <Navbar />
       <HeroSection stats={stats} />
       <FeaturesSection />
-      <StatsSection stats={stats} />
+      <StatsSection
+        stats={stats}
+        attendancePercentage={percentage}
+        semesterName={semesterName}
+        aggregatedBalance={aggregatedBalance}
+      />
       <Footer />
     </div>
   );

@@ -1,33 +1,36 @@
 import { Wallet, Users, TrendingUp } from 'lucide-react';
 import { LandingStats } from '@/pages/Landing';
-import { cn } from '@/lib/utils';
+import { cn, formatIDR } from '@/lib/utils';
 
-const formatRupiah = (amount: number | string) => {
-  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(numericAmount || 0);
-};
+// formatRupiah removed and replaced by formatIDR from utils.ts
 
-export function StatsSection({ stats }: { stats: LandingStats | null }) {
+export function StatsSection({
+  stats,
+  attendancePercentage,
+  semesterName,
+  aggregatedBalance
+}: {
+  stats: LandingStats | null,
+  attendancePercentage?: number,
+  semesterName?: string,
+  aggregatedBalance?: number
+}) {
   return (
     <section className="py-16 hero-gradient">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Saldo Kas */}
+          {/* Total Saldo Bersih Angkatan (Aggregated) */}
           <div className="glass-card rounded-3xl p-8 text-center hover:scale-105 transition-transform duration-300">
             <div className="w-16 h-16 rounded-2xl bg-success/20 flex items-center justify-center mx-auto mb-4">
               <Wallet className="w-8 h-8 text-success" />
             </div>
             <div className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              {stats ? formatRupiah(stats.total_cash_lifetime) : 'Rp 0'}
+              {aggregatedBalance && aggregatedBalance > 0 ? formatIDR(aggregatedBalance) : '...'}
             </div>
-            <div className="text-muted-foreground">Saldo Bersih Lifetime</div>
+            <div className="text-muted-foreground font-bold text-sm">Total Saldo Bersih Angkatan (Aggregated)</div>
             <div className="mt-4 inline-flex items-center gap-1 text-success text-sm font-medium">
               <TrendingUp className="w-4 h-4" />
-              +15% dari bulan lalu
+              Transparansi Dana Real-time
             </div>
           </div>
 
@@ -37,7 +40,7 @@ export function StatsSection({ stats }: { stats: LandingStats | null }) {
               <Users className="w-8 h-8 text-primary" />
             </div>
             <div className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              {stats ? stats.total_students : '0'}
+              {stats && stats.total_students ? stats.total_students : '...'}
             </div>
             <div className="text-muted-foreground">Total Mahasiswa</div>
             {stats && stats.class_breakdown && (
@@ -63,11 +66,14 @@ export function StatsSection({ stats }: { stats: LandingStats | null }) {
               <div className="text-2xl font-bold text-accent-foreground">%</div>
             </div>
             <div className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-              94.5%
+              {attendancePercentage && attendancePercentage > 0 ? `${attendancePercentage}%` : '...'}
             </div>
-            <div className="text-muted-foreground">Tingkat Kehadiran</div>
+            <div className="text-muted-foreground">Tingkat Kehadiran {semesterName || 'Semester Aktif'}</div>
             <div className="mt-4 w-full bg-muted rounded-full h-2.5">
-              <div className="bg-primary h-2.5 rounded-full" style={{ width: '94.5%' }} />
+              <div
+                className="bg-primary h-2.5 rounded-full transition-all duration-1000"
+                style={{ width: `${attendancePercentage || 0}%` }}
+              />
             </div>
           </div>
         </div>
