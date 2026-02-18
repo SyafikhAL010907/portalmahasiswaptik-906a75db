@@ -69,11 +69,16 @@ export default function Features() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground transition-colors duration-500 selection:bg-primary/30 relative overflow-hidden">
-            {/* Dynamic Background Glows for Dark Mode */}
-            <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-1000">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px]"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px]"></div>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 bg-gradient-to-b from-white via-slate-100 to-slate-200 dark:from-slate-900 dark:via-slate-950 dark:to-black text-foreground transition-colors duration-500 selection:bg-primary/30 relative overflow-hidden">
+            {/* Dynamic Background Glows for Unified Theme */}
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-1000">
+                {/* Dark Mode Glows */}
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] hidden dark:block"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] hidden dark:block"></div>
+
+                {/* Light Mode Glows (Pastel) */}
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-100/40 rounded-full blur-[100px] dark:hidden"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-100/30 rounded-full blur-[100px] dark:hidden"></div>
             </div>
 
             <Navbar />
@@ -96,7 +101,7 @@ export default function Features() {
                         <motion.h1
                             initial={{ opacity: 0, y: -20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="text-4xl md:text-6xl font-bold mb-12 md:mb-20 bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary to-purple-500 leading-normal py-2"
+                            className="text-4xl md:text-6xl font-bold mb-12 md:mb-20 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-primary to-purple-600 dark:from-white dark:via-primary dark:to-purple-500 leading-normal py-2"
                         >
                             Fitur Unggulan
                         </motion.h1>
@@ -105,7 +110,7 @@ export default function Features() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                            className="text-lg md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
+                            className="text-lg md:text-2xl text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed"
                         >
                             Dirancang khusus untuk mendukung efisiensi akademik dan transparansi organisasi angkatan PTIK 2025.
                         </motion.p>
@@ -127,7 +132,7 @@ export default function Features() {
                                     subtitle={feature.subtitle}
                                     gradient={feature.gradient}
                                     iconClassName={feature.iconClassName}
-                                    className="h-full border border-border/50 dark:border-white/5 hover:border-primary/30 dark:hover:border-primary/30 transition-all duration-500 shadow-xl shadow-black/5 dark:shadow-none bg-card/50 backdrop-blur-sm rounded-[32px]"
+                                    className="h-full border border-slate-200 dark:border-white/5 hover:border-primary/30 dark:hover:border-primary/30 transition-all duration-500 shadow-xl shadow-black/5 dark:shadow-none bg-white/70 dark:bg-card/50 backdrop-blur-sm rounded-[32px]"
                                 />
                             </motion.div>
                         ))}
@@ -135,7 +140,7 @@ export default function Features() {
                 </div>
 
                 {/* EFEK GRADASI BAWAH - DIPERTANDAM UNTUK KONSISTENSI MEWAH */}
-                <div className="absolute bottom-0 left-0 right-0 h-[500px] bg-gradient-to-t from-primary/20 via-purple-500/10 to-transparent blur-[120px] -z-10 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 right-0 h-[500px] bg-gradient-to-t from-primary/10 via-purple-500/5 to-transparent blur-[120px] -z-10 pointer-events-none opacity-50 dark:opacity-100" />
             </main>
 
             <Footer />

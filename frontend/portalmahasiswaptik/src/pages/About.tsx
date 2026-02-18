@@ -5,11 +5,16 @@ import { Shield, Users, MapPin, Terminal, Cpu } from 'lucide-react';
 
 export default function About() {
     return (
-        <div className="min-h-screen bg-slate-950 bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground transition-colors duration-500 selection:bg-primary/30 relative overflow-hidden">
-            {/* Background Glows for Dark Mode */}
-            <div className="absolute top-0 right-0 w-full h-full pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-1000">
-                <div className="absolute top-[20%] right-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[150px]"></div>
-                <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 bg-gradient-to-b from-white via-slate-100 to-slate-200 dark:from-slate-900 dark:via-slate-950 dark:to-black text-foreground transition-colors duration-500 selection:bg-primary/30 relative overflow-hidden">
+            {/* Dynamic Background Glows for Unified Theme */}
+            <div className="absolute top-0 right-0 w-full h-full pointer-events-none transition-opacity duration-1000">
+                {/* Dark Mode Glows */}
+                <div className="absolute top-[20%] right-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[150px] hidden dark:block"></div>
+                <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] hidden dark:block"></div>
+
+                {/* Light Mode Glows (Pastel) */}
+                <div className="absolute top-[20%] right-[-10%] w-[50%] h-[50%] bg-indigo-100/40 rounded-full blur-[120px] dark:hidden"></div>
+                <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-blue-100/30 rounded-full blur-[100px] dark:hidden"></div>
             </div>
 
             <Navbar />
@@ -27,7 +32,7 @@ export default function About() {
                             className="relative group order-1 lg:order-none"
                         >
                             <div className="absolute -inset-4 bg-gradient-to-r from-primary/30 to-purple-600/30 rounded-[40px] blur-2xl group-hover:blur-3xl transition-all duration-500 opacity-60"></div>
-                            <div className="relative glass-card rounded-[40px] p-8 md:p-12 border border-border/50 dark:border-white/10 flex items-center justify-center overflow-hidden">
+                            <div className="relative bg-white/70 dark:bg-slate-900/40 backdrop-blur-md rounded-[40px] p-8 md:p-12 border border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden shadow-sm">
                                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-purple-600/5 dark:from-primary/10 dark:to-purple-500/10 animate-pulse"></div>
                                 <img
                                     src="https://ft.unj.ac.id/ptik/wp-content/uploads/2021/07/LOGO-BEMP-PTIK-150x150.png"
@@ -63,13 +68,13 @@ export default function About() {
                             </div>
 
                             {/* FIX JARAK: mb-12 di mobile, mb-20 di desktop. Leading-normal supaya gradient gak kepotong */}
-                            <h1 className="text-4xl md:text-6xl font-bold mb-12 md:mb-20 bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary to-purple-500 leading-normal py-2">
+                            <h1 className="text-4xl md:text-6xl font-bold mb-12 md:mb-20 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-primary to-purple-600 dark:from-white dark:via-primary dark:to-purple-500 leading-normal py-2">
                                 Tentang Angkatan 2025
                             </h1>
 
                             <div className="space-y-12">
                                 {/* Deskripsi dengan margin bottom ekstra */}
-                                <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-prose mb-12">
+                                <p className="text-lg md:text-xl text-slate-700 dark:text-slate-300 leading-relaxed max-w-prose mb-12">
                                     Kami adalah angkatan Pendidikan Teknik Informatika dan Komputer (PTIK) 2025 Universitas Negeri Jakarta.
                                     Sebuah komunitas akademik yang dinamis dan inovatif, bertekad untuk menjadi pelopor dalam pengembangan teknologi pendidikan di Indonesia.
                                 </p>
@@ -81,8 +86,8 @@ export default function About() {
                                             <Users className="w-6 h-6 text-blue-600 dark:text-primary" />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-xl mb-1.5">Populasi Solid</h3>
-                                            <p className="text-sm md:text-base text-muted-foreground">Terdiri dari 75+ Mahasiswa berdedikasi dari 4 Kelas (A, B, C, D) yang solid.</p>
+                                            <h3 className="font-bold text-xl mb-1.5 text-slate-900 dark:text-white">Populasi Solid</h3>
+                                            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">Terdiri dari 75+ Mahasiswa berdedikasi dari 4 Kelas (A, B, C, D) yang solid.</p>
                                         </div>
                                     </div>
 
@@ -91,8 +96,8 @@ export default function About() {
                                             <MapPin className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-xl mb-1.5">Markas Akademik</h3>
-                                            <p className="text-sm md:text-base text-muted-foreground">Beroperasi secara aktif antara Gedung L dan Gedung Dewi Sartika, Kampus UNJ.</p>
+                                            <h3 className="font-bold text-xl mb-1.5 text-slate-900 dark:text-white">Markas Akademik</h3>
+                                            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">Beroperasi secara aktif antara Gedung L dan Gedung Dewi Sartika, Kampus UNJ.</p>
                                         </div>
                                     </div>
 
@@ -101,8 +106,8 @@ export default function About() {
                                             <Shield className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-xl mb-1.5">Visi Utama</h3>
-                                            <p className="text-sm md:text-base text-muted-foreground">Mewujudkan angkatan yang inklusif, kolaboratif, dan unggul dalam penguasaan kompetensi digital.</p>
+                                            <h3 className="font-bold text-xl mb-1.5 text-slate-900 dark:text-white">Visi Utama</h3>
+                                            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">Mewujudkan angkatan yang inklusif, kolaboratif, dan unggul dalam penguasaan kompetensi digital.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -111,13 +116,13 @@ export default function About() {
                             {/* Branding Footer */}
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
-                                className="mt-16 md:mt-24 p-8 rounded-[32px] bg-gradient-to-br from-primary/10 via-transparent to-purple-500/5 border border-border dark:border-white/5 relative overflow-hidden"
+                                className="mt-16 md:mt-24 p-8 rounded-[32px] bg-white/60 dark:bg-slate-900/20 backdrop-blur-lg border border-slate-200 dark:border-white/5 relative overflow-hidden shadow-sm"
                             >
                                 <div className="absolute -top-4 -right-4 p-4 opacity-5 dark:opacity-10 rotate-12">
                                     <Terminal className="w-32 h-32" />
                                 </div>
-                                <h4 className="font-black italic text-xl md:text-2xl mb-3 text-foreground tracking-tight">#SolidaritasDalamKode</h4>
-                                <p className="text-muted-foreground text-sm md:text-base italic leading-relaxed">
+                                <h4 className="font-black italic text-xl md:text-2xl mb-3 text-slate-900 dark:text-white tracking-tight">#SolidaritasDalamKode</h4>
+                                <p className="text-slate-600 dark:text-slate-400 text-sm md:text-base italic leading-relaxed">
                                     "Bukan hanya tentang satu baris kode, tapi tentang bagaimana kita membangun masa depan bersama."
                                 </p>
                             </motion.div>
@@ -126,7 +131,7 @@ export default function About() {
                 </div>
 
                 {/* EFEK GRADASI BAWAH - DIPERTANDAM UNTUK KONSISTENSI */}
-                <div className="absolute bottom-0 left-0 right-0 h-[500px] bg-gradient-to-t from-primary/20 via-purple-500/10 to-transparent blur-[120px] -z-10 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 right-0 h-[500px] bg-gradient-to-t from-primary/10 via-purple-500/5 to-transparent blur-[120px] -z-10 pointer-events-none opacity-50 dark:opacity-100" />
             </main>
 
             <Footer />

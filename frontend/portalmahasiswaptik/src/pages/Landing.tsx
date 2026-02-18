@@ -52,12 +52,18 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground transition-colors duration-500 relative overflow-hidden">
-      {/* Dynamic Background Glows for Bottom Section Sync (Exact match with Features.tsx) */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-1000">
-        <div className="absolute top-[10%] right-[-5%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-purple-600/20 rounded-full blur-[140px]"></div>
-        <div className="absolute bottom-[-5%] left-[-5%] w-[35%] h-[35%] bg-blue-600/20 rounded-full blur-[120px]"></div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 bg-gradient-to-b from-white via-slate-100 to-slate-200 dark:from-slate-900 dark:via-slate-950 dark:to-black text-foreground transition-colors duration-500 relative overflow-hidden">
+      {/* Dynamic Background Glows for Bottom Section Sync */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-1000">
+        {/* Dark Mode Glows */}
+        <div className="absolute top-[10%] right-[-5%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] hidden dark:block"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-purple-600/20 rounded-full blur-[140px] hidden dark:block"></div>
+        <div className="absolute bottom-[-5%] left-[-5%] w-[35%] h-[35%] bg-blue-600/20 rounded-full blur-[120px] hidden dark:block"></div>
+
+        {/* Light Mode Glows (Pastel) */}
+        <div className="absolute top-[10%] right-[-5%] w-[40%] h-[40%] bg-indigo-200/30 rounded-full blur-[100px] dark:hidden"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-blue-100/40 rounded-full blur-[120px] dark:hidden"></div>
+        <div className="absolute bottom-[-5%] left-[-5%] w-[35%] h-[35%] bg-purple-100/30 rounded-full blur-[100px] dark:hidden"></div>
       </div>
 
       <Navbar />

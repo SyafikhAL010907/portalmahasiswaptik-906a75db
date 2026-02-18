@@ -66,10 +66,10 @@ export function FeaturesSection() {
       <div className="container mx-auto px-4">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
             Semua yang Kamu Butuhkan
           </h2>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-slate-600 dark:text-slate-400 text-lg">
             Fitur lengkap untuk mendukung perjalanan akademikmu di PTIK UNJ
           </p>
         </div>
@@ -79,16 +79,16 @@ export function FeaturesSection() {
           {features.map((feature, index) => (
             <div
               key={feature.title}
-              className="group glass-card rounded-2xl p-6 hover:scale-105 transition-all duration-300 animate-fade-in"
+              className="group bg-white/80 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-slate-200 dark:border-white/10 hover:scale-105 transition-all duration-300 animate-fade-in shadow-sm hover:shadow-md"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <div className={`w-12 h-12 rounded-xl ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                 <feature.icon className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                 {feature.title}
               </h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
                 {feature.description}
               </p>
             </div>

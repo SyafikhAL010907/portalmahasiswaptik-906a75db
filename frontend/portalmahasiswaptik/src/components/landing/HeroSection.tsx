@@ -17,11 +17,17 @@ export function HeroSection({
 }) {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-transparent pt-16">
-      {/* Decorative Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-float" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-success/5 rounded-full blur-3xl" />
+      {/* Decorative Elements - Theme Aware */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none transition-opacity duration-1000">
+        {/* Dark Mode Glows */}
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-float hidden dark:block" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-float hidden dark:block" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-success/5 rounded-full blur-3xl hidden dark:block" />
+
+        {/* Light Mode Glows (Pastel) */}
+        <div className="absolute top-20 left-10 w-72 h-72 bg-indigo-200/40 rounded-full blur-3xl animate-float dark:hidden" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl animate-float dark:hidden" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-50/30 rounded-full blur-3xl dark:hidden" />
       </div>
 
       <div className="container mx-auto px-4 relative z-10">
@@ -29,23 +35,23 @@ export function HeroSection({
           {/* Badge - Modified by Vasya AI (Clean Version) */}
           <Link
             to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8 animate-fade-in hover:bg-primary/20 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 dark:bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8 animate-fade-in hover:bg-primary/20 transition-colors cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
             <span>Portal Angkatan PTIK 2025</span>
           </Link>
 
           {/* Main Heading */}
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
             Satu Portal untuk{' '}
-            <span className="text-gradient bg-gradient-to-r from-primary via-success to-primary">
+            <span className="text-gradient bg-clip-text text-transparent bg-gradient-to-r from-primary via-emerald-500 to-indigo-600 dark:from-primary dark:via-success dark:to-primary">
               Semua Kebutuhan
             </span>{' '}
             Mahasiswa
           </h1>
 
           {/* Subtitle */}
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 animate-fade-in" style={{ animationDelay: '0.2s' }}>
             Kelola jadwal kuliah, absensi, kas angkatan, dan materi pembelajaran dalam satu platform yang terintegrasi dengan tampilan yang menenangkan.
           </p>
 
@@ -74,11 +80,11 @@ export function HeroSection({
             ].map((stat, index) => (
               <div
                 key={stat.label}
-                className="glass-card rounded-2xl p-4 hover:scale-105 transition-transform duration-300"
+                className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-md rounded-2xl p-4 border border-slate-200 dark:border-white/10 hover:scale-105 transition-transform duration-300 shadow-sm"
                 style={{ animationDelay: `${0.5 + index * 0.1}s` }}
               >
-                <div className="text-2xl md:text-3xl font-bold text-gradient bg-gradient-to-r from-primary to-success">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+                <div className="text-2xl md:text-3xl font-bold text-gradient bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-600 dark:to-success">{stat.value}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">{stat.label}</div>
               </div>
             ))}
           </div>
