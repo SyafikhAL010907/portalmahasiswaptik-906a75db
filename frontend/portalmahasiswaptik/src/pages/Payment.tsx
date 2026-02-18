@@ -333,6 +333,19 @@ export default function Payment() {
         toast.dismiss(toastId);
         toast.success("Pembayaran berhasil dikonfirmasi tepat waktu!");
       } else {
+        // TEPAT saat timer 0: Update status di profiles (Requirement)
+        // Note: Using studentData.id for the profile update
+        if (studentData?.id) {
+          try {
+            await supabase
+              .from('profiles')
+              .update({ payment_status: 'unpaid' })
+              .eq('id', studentData.id);
+          } catch (profileUpdateErr) {
+            console.error("Failed to update profile payment_status:", profileUpdateErr);
+          }
+        }
+
         toast.dismiss(toastId);
         toast.error("Waktu pembayaran habis! Status pending telah dibatalkan otomatis.");
       }
@@ -374,7 +387,7 @@ export default function Payment() {
       // 1. Fetch profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, nim, class_id')
+        .select('id, user_id, full_name, nim, class_id')
         .eq('nim', nimToFetch)
         .maybeSingle();
 

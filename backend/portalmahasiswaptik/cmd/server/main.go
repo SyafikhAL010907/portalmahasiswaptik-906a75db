@@ -49,20 +49,15 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} ${latency}\n",
 	}))
 
-	// CORS configuration
-	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	if allowedOrigins == "" {
-		allowedOrigins = "http://localhost:5173,http://127.0.0.1:5173"
-	}
-
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     allowedOrigins,
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With",
-		AllowCredentials: true,
-		ExposeHeaders:    "Content-Length",
-		MaxAge:           86400, // 24 hours
-	}))
+        // ✅ Masukkan IP spesifik agar tidak crash. Pisahkan dengan koma.
+        AllowOrigins:     "http://localhost:5173, http://127.0.0.1:5173, http://192.168.1.7:5173",
+        AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+        AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With",
+        AllowCredentials: true,
+        ExposeHeaders:     "Content-Length",
+        MaxAge:           86400, // 24 jam
+    }))
 
 	// Health check endpoint
 	app.Get("/health", func(c *fiber.Ctx) error {

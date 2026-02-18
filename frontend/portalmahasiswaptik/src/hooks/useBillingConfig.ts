@@ -24,7 +24,7 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
                 return;
             }
 
-            const baseUrl = import.meta.env.VITE_API_URL;
+            const baseUrl = `http://${window.location.hostname}:9000/api`;
             const response = await fetch(`${baseUrl}/config/billing-range`, {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
@@ -109,7 +109,7 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("No session found. Please re-login.");
 
-            const baseUrl = import.meta.env.VITE_API_URL;
+            const baseUrl = `http://${window.location.hostname}:9000/api`;
             console.log(`🔗 useBillingConfig: POST to ${baseUrl}/config/save-range`);
 
             const response = await fetch(`${baseUrl}/config/save-range`, {
