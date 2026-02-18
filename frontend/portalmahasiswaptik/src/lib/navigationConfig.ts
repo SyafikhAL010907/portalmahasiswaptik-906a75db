@@ -60,7 +60,7 @@ export const getMenuItems = (): MenuItem[] => [
         children: [
             { icon: Calendar, label: 'Jadwal Kuliah', path: '/dashboard/schedule' },
             { icon: BookOpen, label: 'Repository Materi', path: '/dashboard/repository' },
-            { icon: Calculator, label: 'Simulator IPK', path: '/dashboard/ipk-simulator' },
+            { icon: Calculator, label: 'Simulator IPK', path: '/dashboard/ipk-simulator', roles: ['mahasiswa', 'admin_dev', 'admin_kelas'] },
         ],
     },
 

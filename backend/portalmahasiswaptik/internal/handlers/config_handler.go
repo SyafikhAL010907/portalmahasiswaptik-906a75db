@@ -5,17 +5,22 @@ import (
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
 type ConfigHandler struct {
-	DB *gorm.DB
+	DB       *gorm.DB
+	Validate *validator.Validate
 }
 
-func NewConfigHandler(db *gorm.DB) *ConfigHandler {
-	return &ConfigHandler{DB: db}
+func NewConfigHandler(db *gorm.DB, validate *validator.Validate) *ConfigHandler {
+	return &ConfigHandler{
+		DB:       db,
+		Validate: validate,
+	}
 }
 
 type BillingRangeResponse struct {
@@ -85,13 +90,21 @@ func (h *ConfigHandler) SaveBillingRange(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		StartMonth    int `json:"start_month"`
-		EndMonth      int `json:"end_month"`
-		SelectedMonth int `json:"selected_month"`
+		StartMonth    int `json:"start_month" validate:"required,min=1,max=12"`
+		EndMonth      int `json:"end_month" validate:"required,min=1,max=12"`
+		SelectedMonth int `json:"selected_month" validate:"min=0,max=12"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
+		})
 	}
 
 	// Validate months

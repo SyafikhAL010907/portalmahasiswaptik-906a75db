@@ -1,12 +1,12 @@
-import { 
-  Calendar, 
-  BookOpen, 
-  Calculator, 
-  QrCode, 
-  Wallet, 
+import {
+  Calendar,
+  BookOpen,
+  Calculator,
+  QrCode,
+  Wallet,
   Trophy,
   Megaphone,
-  FileText 
+  FileText
 } from 'lucide-react';
 
 const features = [
@@ -62,7 +62,7 @@ const features = [
 
 export function FeaturesSection() {
   return (
-    <section className="py-24 bg-background">
+    <section className="py-24 bg-transparent">
       <div className="container mx-auto px-4">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">

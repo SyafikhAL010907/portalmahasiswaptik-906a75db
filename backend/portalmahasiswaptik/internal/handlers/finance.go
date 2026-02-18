@@ -7,17 +7,22 @@ import (
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type FinanceHandler struct {
-	DB *gorm.DB
+	DB       *gorm.DB
+	Validate *validator.Validate
 }
 
-func NewFinanceHandler(db *gorm.DB) *FinanceHandler {
-	return &FinanceHandler{DB: db}
+func NewFinanceHandler(db *gorm.DB, validate *validator.Validate) *FinanceHandler {
+	return &FinanceHandler{
+		DB:       db,
+		Validate: validate,
+	}
 }
 
 // ChartDataPoint represents data formatted for Recharts
@@ -326,6 +331,14 @@ func (h *FinanceHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Invalid request body",
+		})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
 		})
 	}
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -28,6 +29,18 @@ func (h *AttendanceHandler) ExportAttendanceExcel(c *fiber.Ctx) error {
 	var session models.AttendanceSession
 	if err := h.DB.Preload("Class").Preload("Meeting.Subject").Where("id = ?", sessionID).First(&session).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Session not found"})
+	}
+
+	user := c.Locals("user").(middleware.UserContext)
+
+	// --- IDOR PROTECTION (Zero Tolerance) ---
+	// AdminDev can see everything. Others only their own class.
+	if user.Role != models.RoleAdminDev {
+		if user.ClassID == nil || *user.ClassID != session.ClassID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Akses Ditolak: Anda tidak memiliki akses ke data absensi kelas ini.",
+			})
+		}
 	}
 
 	// 2. Fetch Students sorted by NIM
@@ -72,6 +85,18 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 
 	subjectID, _ := uuid.Parse(subjectIDStr)
 	classID, _ := uuid.Parse(classIDStr)
+
+	user := c.Locals("user").(middleware.UserContext)
+
+	// --- IDOR PROTECTION (Zero Tolerance) ---
+	// AdminDev can see everything. Others only their own class.
+	if user.Role != models.RoleAdminDev {
+		if user.ClassID == nil || *user.ClassID != classID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Akses Ditolak: Anda tidak memiliki akses ke data absensi kelas ini.",
+			})
+		}
+	}
 
 	// 1. Fetch Context (Subject, Class, Meetings, Students)
 	var subject models.Subject

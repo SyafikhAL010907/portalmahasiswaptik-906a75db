@@ -110,20 +110,23 @@ type UserContext struct {
 // AuthMiddleware validates Supabase JWT tokens
 func AuthMiddleware(db *gorm.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get Authorization header
+		var tokenString string
+
+		// 1. Try to get token from Authorization header
 		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"error":   "Missing authorization header",
-			})
+		if authHeader != "" {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 		}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader {
+		// 2. Fallback to Cookie (SECURE METHOD requested by owner)
+		if tokenString == "" {
+			tokenString = c.Cookies("sb-auth-token")
+		}
+
+		if tokenString == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
-				"error":   "Invalid authorization header format",
+				"error":   "Missing authentication token (Header or Cookie)",
 			})
 		}
 

@@ -8,17 +8,22 @@ import (
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type AttendanceHandler struct {
-	DB *gorm.DB
+	DB       *gorm.DB
+	Validate *validator.Validate
 }
 
-func NewAttendanceHandler(db *gorm.DB) *AttendanceHandler {
-	return &AttendanceHandler{DB: db}
+func NewAttendanceHandler(db *gorm.DB, validate *validator.Validate) *AttendanceHandler {
+	return &AttendanceHandler{
+		DB:       db,
+		Validate: validate,
+	}
 }
 
 // Campus location for geolocation validation (Jakarta State University approximate)
@@ -60,6 +65,14 @@ func (h *AttendanceHandler) CreateSession(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Invalid request body",
+		})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
 		})
 	}
 
@@ -146,6 +159,14 @@ func (h *AttendanceHandler) ScanQR(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Invalid request body",
+		})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
 		})
 	}
 

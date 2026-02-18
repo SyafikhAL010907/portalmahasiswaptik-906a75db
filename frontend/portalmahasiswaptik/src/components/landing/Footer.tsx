@@ -3,7 +3,7 @@ import { GraduationCap, Instagram, Github, Mail, Terminal } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="bg-card border-t border-border transition-colors duration-500">
+    <footer className="bg-transparent border-t border-white/5 transition-colors duration-500">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}

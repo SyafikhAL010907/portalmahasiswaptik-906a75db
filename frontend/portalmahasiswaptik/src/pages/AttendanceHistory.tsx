@@ -685,6 +685,62 @@ export default function AttendanceHistory() {
     );
   };
 
+  // ✅ NEW FEATURE: Reset Global Mata Kuliah for AdminDev ONLY
+  const handleResetGlobalSubject = async () => {
+    if (userRole !== 'admin_dev' || !activeId.course) {
+      toast.error("Hanya AdminDev yang dapat melakukan Reset Global Matkul!");
+      return;
+    }
+
+    openConfirmation(
+      'Reset Global Mata Kuliah?',
+      'SEMUA pertemuan di mata kuliah ini akan direset kembali ke status PENDING? Tindakan ini tidak dapat dibatalkan.',
+      async () => {
+        setIsLoading(true);
+        try {
+          // 1. Get all meetings for this course
+          const { data: meetingsData } = await supabase
+            .from('meetings')
+            .select('id')
+            .eq('subject_id', activeId.course);
+
+          if (!meetingsData || meetingsData.length === 0) {
+            toast.info("Tidak ada pertemuan untuk mata kuliah ini.");
+            return;
+          }
+          const meetingIds = meetingsData.map(m => m.id);
+
+          // 2. Get all sessions for these meetings
+          const { data: sessionsData } = await supabase
+            .from('attendance_sessions')
+            .select('id')
+            .in('meeting_id', meetingIds);
+
+          if (sessionsData && sessionsData.length > 0) {
+            const sessionIds = sessionsData.map(s => s.id);
+            // 3. Delete all records for these sessions
+            const { error } = await supabase
+              .from('attendance_records')
+              .delete()
+              .in('session_id', sessionIds);
+
+            if (error) throw error;
+          }
+
+          toast.success('Berhasil mereset seluruh data absensi mata kuliah ini ke status Pending.');
+          // Refresh list
+          fetchMeetings(activeId.course);
+        } catch (err: any) {
+          toast.error("Gagal reset global matkul: " + err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      'danger',
+      'Reset Global Matkul'
+    );
+  };
+
   const saveAttendance = async () => {
     if (!canEdit) {
       toast.error("Anda tidak memiliki akses untuk menyimpan absensi");
@@ -983,12 +1039,23 @@ export default function AttendanceHistory() {
             </Button>
           )}
           {view === 'meetings' && canEdit && (
-            <Button
-              onClick={() => setIsMasterExportOpen(true)}
-              className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <FileSpreadsheet className="w-4 h-4" /> Download Master Excel (Semester)
-            </Button>
+            <>
+              {userRole === 'admin_dev' && (
+                <Button
+                  variant="destructive"
+                  onClick={handleResetGlobalSubject}
+                  className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4"
+                >
+                  <RotateCcw className="w-4 h-4" /> Reset Global Matkul
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsMasterExportOpen(true)}
+                className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Download Master Excel (Semester)
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -27,6 +28,18 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 	year, _ := strconv.Atoi(yearStr)
 	if year == 0 {
 		year = time.Now().Year()
+	}
+
+	user := c.Locals("user").(middleware.UserContext)
+
+	// --- IDOR PROTECTION (Zero Tolerance) ---
+	// AdminDev can see everything. Others only their own class.
+	if user.Role != models.RoleAdminDev {
+		if user.ClassID == nil || *user.ClassID != classID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Akses Ditolak: Anda tidak memiliki akses ke data keuangan kelas ini.",
+			})
+		}
 	}
 
 	// --- 1. PREPARE DATA ---

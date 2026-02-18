@@ -6,18 +6,20 @@ import (
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/storage"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorage) {
+func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorage, validate *validator.Validate) {
 	// Initialize handlers
-	userHandler := handlers.NewUserHandler(db)
-	financeHandler := handlers.NewFinanceHandler(db)
-	attendanceHandler := handlers.NewAttendanceHandler(db)
+	userHandler := handlers.NewUserHandler(db, validate)
+	financeHandler := handlers.NewFinanceHandler(db, validate)
+	attendanceHandler := handlers.NewAttendanceHandler(db, validate)
 	automationHandler := handlers.NewAutomationHandler(db)
 	repoHandler := repository.NewRepositoryHandler(db, storageSrv)
+	configHandler := handlers.NewConfigHandler(db, validate)
 
 	// API v1 group
 	api := app.Group("/api")
@@ -189,7 +191,6 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// ========================================
 	// CONFIG ROUTES (V9.0 Global Configs)
 	// ========================================
-	configHandler := handlers.NewConfigHandler(db)
 	configGrp := protected.Group("/config")
 
 	// Get billing range (Authenticated users: Admin, Dosen, Mahasiswa)

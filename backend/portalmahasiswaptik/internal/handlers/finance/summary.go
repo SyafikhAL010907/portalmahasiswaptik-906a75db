@@ -115,10 +115,9 @@ func (h *FinanceHandler) GetFinanceSummary(c *fiber.Ctx) error {
         WHERE EXTRACT(YEAR FROM transaction_date) = ?
     `
 	if classFilter != "" {
-		monthlyQuery += " AND " + classFilter
-		h.DB.Raw(monthlyQuery+" GROUP BY TO_CHAR(transaction_date, 'Mon'), EXTRACT(MONTH FROM transaction_date) ORDER BY EXTRACT(MONTH FROM transaction_date)", currentYear, args[0]).Scan(&monthlyBreakdown)
+		h.DB.Raw(monthlyQuery+` AND class_id = ? GROUP BY TO_CHAR(transaction_date, 'Mon'), EXTRACT(MONTH FROM transaction_date) ORDER BY EXTRACT(MONTH FROM transaction_date)`, currentYear, args[0]).Scan(&monthlyBreakdown)
 	} else {
-		h.DB.Raw(monthlyQuery+" GROUP BY TO_CHAR(transaction_date, 'Mon'), EXTRACT(MONTH FROM transaction_date) ORDER BY EXTRACT(MONTH FROM transaction_date)", currentYear).Scan(&monthlyBreakdown)
+		h.DB.Raw(monthlyQuery+` GROUP BY TO_CHAR(transaction_date, 'Mon'), EXTRACT(MONTH FROM transaction_date) ORDER BY EXTRACT(MONTH FROM transaction_date)`, currentYear).Scan(&monthlyBreakdown)
 	}
 
 	return c.JSON(fiber.Map{

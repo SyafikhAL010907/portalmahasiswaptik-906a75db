@@ -11,6 +11,7 @@ import (
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -18,11 +19,15 @@ import (
 )
 
 type UserHandler struct {
-	DB *gorm.DB
+	DB       *gorm.DB
+	Validate *validator.Validate
 }
 
-func NewUserHandler(db *gorm.DB) *UserHandler {
-	return &UserHandler{DB: db}
+func NewUserHandler(db *gorm.DB, validate *validator.Validate) *UserHandler {
+	return &UserHandler{
+		DB:       db,
+		Validate: validate,
+	}
 }
 
 // UserResponse represents user data for API response
@@ -40,10 +45,10 @@ type UserResponse struct {
 
 // CreateUserRequest represents the request body for creating a user
 type CreateUserRequest struct {
-	NIM      string         `json:"nim" validate:"required"`
-	FullName string         `json:"full_name" validate:"required"`
-	Password string         `json:"password" validate:"required,min=8"`
-	Role     models.AppRole `json:"role" validate:"required"`
+	NIM      string         `json:"nim" validate:"required,min=5,max=20"`
+	FullName string         `json:"full_name" validate:"required,min=2,max=100"`
+	Password string         `json:"password" validate:"required,min=8,max=72"`
+	Role     models.AppRole `json:"role" validate:"required,oneof=mahasiswa admin_kelas admin_dosen admin_dev"`
 	ClassID  *uuid.UUID     `json:"class_id"`
 }
 
@@ -162,6 +167,24 @@ func (h *UserHandler) GetUserByID(c *fiber.Ctx) error {
 	var userRole models.UserRole
 	h.DB.Where("user_id = ?", userID).First(&userRole)
 
+	// --- IDOR PROTECTION (Zero Tolerance) ---
+	currentUser := c.Locals("user").(middleware.UserContext)
+	// Only AdminDev or target user themselves can view full detail
+	// AdminKelas can only view their own class students
+	isAllowed := false
+	if currentUser.Role == models.RoleAdminDev || currentUser.UserID == userID {
+		isAllowed = true
+	} else if currentUser.Role == models.RoleAdminKelas && currentUser.ClassID != nil && profile.ClassID != nil && *currentUser.ClassID == *profile.ClassID {
+		isAllowed = true
+	}
+
+	if !isAllowed {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"error":   "Akses Ditolak: Anda hanya diizinkan melihat profil Anda sendiri.",
+		})
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data": UserResponse{
@@ -195,6 +218,14 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Invalid request body",
+		})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
 		})
 	}
 
@@ -266,13 +297,13 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	}
 
 	type UpdateUserRequest struct {
-		NIM         *string         `json:"nim"`
-		FullName    *string         `json:"full_name"`
-		WhatsApp    *string         `json:"whatsapp"`
-		AvatarURL   *string         `json:"avatar_url"`
+		NIM         *string         `json:"nim" validate:"omitempty,min=5,max=20"`
+		FullName    *string         `json:"full_name" validate:"omitempty,min=2,max=100"`
+		WhatsApp    *string         `json:"whatsapp" validate:"omitempty,max=20"`
+		AvatarURL   *string         `json:"avatar_url" validate:"omitempty,url"`
 		ClassID     *uuid.UUID      `json:"class_id"`
-		Role        *models.AppRole `json:"role"`
-		NewPassword *string         `json:"new_password"`
+		Role        *models.AppRole `json:"role" validate:"omitempty,oneof=mahasiswa admin_kelas admin_dosen admin_dev"`
+		NewPassword *string         `json:"new_password" validate:"omitempty,min=8,max=72"`
 	}
 
 	var req UpdateUserRequest
@@ -280,6 +311,14 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Invalid request body",
+		})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
 		})
 	}
 

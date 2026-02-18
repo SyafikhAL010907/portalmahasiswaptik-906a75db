@@ -52,7 +52,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-500 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground transition-colors duration-500 relative overflow-hidden">
       {/* Dynamic Background Glows for Bottom Section Sync (Exact match with Features.tsx) */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-1000">
         <div className="absolute top-[10%] right-[-5%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]"></div>

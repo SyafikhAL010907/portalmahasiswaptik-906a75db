@@ -46,10 +46,9 @@ func (h *FinanceHandler) GetWeeklyDuesSummary(c *fiber.Ctx) error {
     `
 
 	if user.Role != models.RoleAdminDev && user.ClassID != nil {
-		query += " WHERE c.id = ?"
-		h.DB.Raw(query+" GROUP BY c.id, c.name ORDER BY c.name", *user.ClassID).Scan(&summaries)
+		h.DB.Raw(query+` WHERE c.id = ? GROUP BY c.id, c.name ORDER BY c.name`, *user.ClassID).Scan(&summaries)
 	} else {
-		h.DB.Raw(query + " GROUP BY c.id, c.name ORDER BY c.name").Scan(&summaries)
+		h.DB.Raw(query + ` GROUP BY c.id, c.name ORDER BY c.name`).Scan(&summaries)
 	}
 
 	return c.JSON(fiber.Map{
@@ -61,19 +60,40 @@ func (h *FinanceHandler) GetWeeklyDuesSummary(c *fiber.Ctx) error {
 // GetDuesMatrix returns the matrix of student dues
 // GET /api/finance/dues/matrix?class_id=...
 func (h *FinanceHandler) GetDuesMatrix(c *fiber.Ctx) error {
-	classID := c.Query("class_id")
-	if classID == "" {
+	classIDStr := c.Query("class_id")
+	if classIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "class_id required"})
 	}
 
-	// 1. Fetch all students for the class
+	classID, err := uuid.Parse(classIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid class_id format"})
+	}
+
+	user := c.Locals("user").(middleware.UserContext)
+
+	// --- IDOR PROTECTION (Zero Tolerance) ---
+	// AdminDev can see everything. Others only their own class.
+	if user.Role != models.RoleAdminDev {
+		if user.ClassID == nil || *user.ClassID != classID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Akses Ditolak: Anda tidak memiliki akses ke data kelas ini.",
+			})
+		}
+	}
+
+	// 1. Fetch all students for the class (Use GORM Model for safety)
 	type StudentResult struct {
 		UserID   uuid.UUID `json:"user_id"`
 		FullName string    `json:"full_name"`
 	}
 
 	var students []StudentResult
-	if err := h.DB.Raw("SELECT user_id, full_name FROM profiles WHERE class_id = ? ORDER BY nim ASC", classID).Scan(&students).Error; err != nil {
+	if err := h.DB.Model(&models.Profile{}).
+		Select("user_id, full_name").
+		Where("class_id = ?", classID).
+		Order("nim ASC").
+		Scan(&students).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch students"})
 	}
 
@@ -158,6 +178,14 @@ func (h *FinanceHandler) BulkUpdateDues(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Format request salah",
+		})
+	}
+
+	// EXECUTE VALIDATION
+	if err := h.Validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Validasi Gagal: " + err.Error(),
 		})
 	}
 

@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  build: {
+    sourcemap: mode === "production" ? false : true, // ✅ SECURITY: Matikan Source Map di Produksi
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),

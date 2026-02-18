@@ -5,7 +5,7 @@ import { Shield, Users, MapPin, Terminal, Cpu } from 'lucide-react';
 
 export default function About() {
     return (
-        <div className="min-h-screen bg-background text-foreground transition-colors duration-500 selection:bg-primary/30 relative overflow-hidden">
+        <div className="min-h-screen bg-slate-950 bg-gradient-to-b from-slate-900 via-slate-950 to-black text-foreground transition-colors duration-500 selection:bg-primary/30 relative overflow-hidden">
             {/* Background Glows for Dark Mode */}
             <div className="absolute top-0 right-0 w-full h-full pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-1000">
                 <div className="absolute top-[20%] right-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[150px]"></div>
