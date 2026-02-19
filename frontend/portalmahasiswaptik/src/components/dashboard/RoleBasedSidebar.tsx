@@ -412,7 +412,7 @@ function RoleBasedSidebarComponent({
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed top-0 left-0 h-[100dvh] w-72 floating-sidebar flex flex-col z-50 transition-transform duration-300 ease-out will-change-transform transform-gpu",
+        "fixed top-0 left-0 h-[100dvh] w-72 floating-sidebar flex flex-col z-[49] transition-transform duration-300 ease-out will-change-transform transform-gpu",
         navigationMode === NAVIGATION_MODE_NAVBAR ? "md:-translate-x-full" : "md:translate-x-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>

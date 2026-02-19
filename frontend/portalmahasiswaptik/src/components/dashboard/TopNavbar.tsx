@@ -24,6 +24,13 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+// Extend window interface for debounce
+declare global {
+    interface Window {
+        mobileMenuTimeout?: NodeJS.Timeout | null;
+    }
+}
+
 // Optimized Mobile Menu Component (Isolated State)
 const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: boolean; onClose: () => void; onModeChange: (mode: NavigationMode) => void }) => {
     const location = useLocation();
@@ -511,15 +518,20 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {/* Mobile: Hamburger Menu */}
-                        {/* Mobile: Hamburger Menu (Optimized) */}
+                        {/* Mobile: Hamburger Menu (Stabilized) */}
                         <Button
                             variant="ghost"
                             size="icon"
-                            onPointerDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setMobileMenuOpen(!mobileMenuOpen);
+
+                                // Debounce Toggle
+                                if (window.mobileMenuTimeout) return;
+                                setMobileMenuOpen(prev => !prev);
+                                window.mobileMenuTimeout = setTimeout(() => {
+                                    window.mobileMenuTimeout = null;
+                                }, 200); // 200ms cooldown
                             }}
                             className="md:hidden text-slate-950 dark:text-white touch-none"
                             style={{ touchAction: 'manipulation' }}
