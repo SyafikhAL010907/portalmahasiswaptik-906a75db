@@ -66,7 +66,7 @@ export default function DashboardLayout() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-300 ease-out will-change-transform transform-gpu">
+      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-300 ease-out">
         {/* Top Navbar (when mode is navbar) */}
         {navigationMode === NAVIGATION_MODE_NAVBAR && (
           <TopNavbar onModeChange={handleModeChange} />
