@@ -29,13 +29,13 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'splash-unj.jpg', 'pwa-icon.png'],
       manifest: {
         name: 'Portal PTIK',
         short_name: 'Portal PTIK',
         description: 'Portal Akademik Mahasiswa PTIK UNJ',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: '#F3E8FF',
+        background_color: '#F3E8FF',
         display: 'standalone',
         start_url: '/',
         icons: [
