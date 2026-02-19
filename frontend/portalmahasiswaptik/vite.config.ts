@@ -23,6 +23,17 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     sourcemap: mode === "production" ? false : true, // ✅ SECURITY: Matikan Source Map di Produksi
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tooltip'],
+        },
+      },
+    },
+  },
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
   },
   plugins: [
     react(),

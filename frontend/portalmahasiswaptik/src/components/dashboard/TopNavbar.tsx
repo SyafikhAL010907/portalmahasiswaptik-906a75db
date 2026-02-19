@@ -329,7 +329,8 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
                             variant="ghost"
                             size="icon"
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="md:hidden text-slate-950 dark:text-white"
+                            className="md:hidden text-slate-950 dark:text-white touch-none"
+                            style={{ touchAction: 'manipulation' }}
                         >
                             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                         </Button>

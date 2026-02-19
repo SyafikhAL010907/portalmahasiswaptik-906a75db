@@ -544,6 +544,7 @@ export default function Finance() {
   };
 
   const handleMonthChange = (newMonth: number) => {
+    console.log(`🖱️ UI: Month changed to ${newMonth} (Current: ${selectedMonth})`);
     if (newMonth === selectedMonth) return;
 
     // UI Feedback

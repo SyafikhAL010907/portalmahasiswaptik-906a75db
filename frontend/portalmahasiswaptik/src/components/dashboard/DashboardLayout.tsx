@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, startTransition } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { usePaymentMonitor } from '@/hooks/usePaymentMonitor';
 import { RoleBasedSidebar } from './RoleBasedSidebar';
 import { TopNavbar } from './TopNavbar';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -15,7 +14,10 @@ import {
 
 const STORAGE_KEY = 'navigation_mode';
 
-export function DashboardLayout() {
+// Memoize Outlet to prevent re-renders when sidebar toggles
+const MemoizedOutlet = React.memo(() => <Outlet />);
+
+export default function DashboardLayout() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
 
@@ -64,7 +66,7 @@ export function DashboardLayout() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-500 ease-in-out">
+      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-300 ease-out will-change-transform transform-gpu">
         {/* Top Navbar (when mode is navbar) */}
         {navigationMode === NAVIGATION_MODE_NAVBAR && (
           <TopNavbar onModeChange={handleModeChange} />
@@ -72,13 +74,14 @@ export function DashboardLayout() {
 
         {/* Mobile Top Bar (when mode is sidebar) */}
         {navigationMode === NAVIGATION_MODE_SIDEBAR && (
-          <header className="md:hidden sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md border-b border-border px-4 h-16 flex items-center justify-between transition-all duration-500 ease-in-out">
+          <header className="md:hidden sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md border-b border-border px-4 h-16 flex items-center justify-between transition-all duration-300 ease-in-out">
             <div className="flex items-center gap-3 overflow-hidden">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsMobileOpen(!isMobileOpen)}
-                className="text-foreground shrink-0"
+                className="text-foreground shrink-0 touch-none" // optimization: touch-none/manipulation
+                style={{ touchAction: 'manipulation' }}
               >
                 {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </Button>
@@ -109,7 +112,7 @@ export function DashboardLayout() {
             marginLeft: navigationMode === NAVIGATION_MODE_NAVBAR ? '0' : undefined
           }}
           className={cn(
-            "flex-1 transition-all duration-500 ease-in-out will-change-transform transform-gpu",
+            "flex-1 transition-all duration-300 ease-out will-change-transform transform-gpu",
             // CRITICAL AGGRESSIVE MARGIN FIX
             navigationMode === NAVIGATION_MODE_SIDEBAR
               ? "md:ml-72 ml-0 pt-6 md:pt-8" // Sidebar mode: margin left for desktop only
@@ -121,7 +124,7 @@ export function DashboardLayout() {
           {/* Content Wrapper - FORCE CENTERING */}
           <div
             className={cn(
-              "transition-all duration-500",
+              "transition-all duration-300 ease-out",
               navigationMode === NAVIGATION_MODE_NAVBAR
                 ? "w-full max-w-[1400px] mx-auto" // Navbar: force center with specific max-width
                 : "w-full" // Sidebar: full width
@@ -147,7 +150,7 @@ export function DashboardLayout() {
               </div>
             )}
 
-            <Outlet />
+            <MemoizedOutlet />
           </div>
         </main>
       </div>

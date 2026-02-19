@@ -9,6 +9,15 @@
   <link rel="apple-touch-icon" href="/pwa-icon.png">
   <meta name="theme-color" content="#F3E8FF">
 
+  <!-- Optimization: Preload Font -->
+  <link rel="preload"
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+    as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+  </noscript>
+
   <title>Portal Mahasiswa PTIK 2025</title>
 
   <meta name="description" content="Portal Akademik Mahasiswa PTIK UNJ" />
@@ -26,6 +35,8 @@
     body {
       background-color: #F3E8FF;
       margin: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      /* Fallback */
     }
   </style>
 </head>

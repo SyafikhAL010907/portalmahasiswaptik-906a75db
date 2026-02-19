@@ -260,7 +260,7 @@ const SidebarContent = ({
               "absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center",
               "bg-gradient-to-br from-blue-500 to-purple-500 dark:from-blue-600/40 dark:via-cyan-500/40 dark:to-emerald-500/40",
               "border border-white/0 dark:border-white/20",
-              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
               "pointer-events-none"
             )}
             style={{
@@ -309,7 +309,7 @@ const SidebarContent = ({
               "absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center",
               "bg-gradient-to-br from-emerald-500 to-blue-500 dark:from-indigo-500/40 dark:via-purple-500/40 dark:to-blue-500/40",
               "border border-white/0 dark:border-white/20",
-              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-[600ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
               "pointer-events-none"
             )}
             style={{
@@ -412,7 +412,7 @@ function RoleBasedSidebarComponent({
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed top-0 left-0 h-full w-72 floating-sidebar flex flex-col z-50 transition-all duration-500 will-change-transform transform-gpu",
+        "fixed top-0 left-0 h-full w-72 floating-sidebar flex flex-col z-50 transition-transform duration-300 ease-out will-change-transform transform-gpu",
         navigationMode === NAVIGATION_MODE_NAVBAR ? "md:-translate-x-full" : "md:translate-x-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>

@@ -5,31 +5,36 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Schedule from "./pages/Schedule";
-import Finance from "./pages/Finance";
-import IPKSimulator from "./pages/IPKSimulator";
-import Repository from "./pages/Repository";
-import ScanQR from "./pages/ScanQR";
-import QRGenerator from "./pages/QRGenerator";
-import AttendanceHistory from "./pages/AttendanceHistory";
-import Payment from "./pages/Payment";
-import Announcements from "./pages/Announcements";
-import Competitions from "./pages/Competitions";
-import Leaderboard from "./pages/Leaderboard";
-import UserManagement from "./pages/admin/UserManagement";
-import Profile from "./pages/Profile";
-import ChangePassword from "./pages/ChangePassword";
-import { DashboardLayout } from "./components/dashboard/DashboardLayout";
-import { GlobalChat } from "./components/dashboard/GlobalChat";
-import Features from "./pages/Features";
-import About from "./pages/About";
-import NotFound from "./pages/NotFound";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/ui/SplashScreen";
+import { GlobalChat } from "./components/dashboard/GlobalChat";
+
+// Lazy Load Pages & Components
+const Index = lazy(() => import("./pages/Index"));
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Schedule = lazy(() => import("./pages/Schedule"));
+const Finance = lazy(() => import("./pages/Finance"));
+const IPKSimulator = lazy(() => import("./pages/IPKSimulator"));
+const Repository = lazy(() => import("./pages/Repository"));
+const ScanQR = lazy(() => import("./pages/ScanQR"));
+const QRGenerator = lazy(() => import("./pages/QRGenerator"));
+const AttendanceHistory = lazy(() => import("./pages/AttendanceHistory"));
+const Payment = lazy(() => import("./pages/Payment"));
+const Announcements = lazy(() => import("./pages/Announcements"));
+const Competitions = lazy(() => import("./pages/Competitions"));
+const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
+const Profile = lazy(() => import("./pages/Profile"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const Features = lazy(() => import("./pages/Features"));
+const About = lazy(() => import("./pages/About"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Lazy load named export DashboardLayout
+// Lazy load named export DashboardLayout
+const DashboardLayout = lazy(() => import("./components/dashboard/DashboardLayout"));
 
 const queryClient = new QueryClient();
 
@@ -45,6 +50,12 @@ const ProtectedGlobalChat = () => {
 
   return <GlobalChat />;
 };
+
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+  </div>
+);
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -77,33 +88,36 @@ const App = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.5, ease: "easeInOut" }}
+                  // Fixed ambiguous Tailwind class warning by using specific duration utility or escaping
                   className="min-h-screen will-change-opacity"
                 >
                   <ProtectedGlobalChat />
-                  <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/dashboard" element={<DashboardLayout />}>
-                      <Route index element={<Dashboard />} />
-                      <Route path="schedule" element={<Schedule />} />
-                      <Route path="finance" element={<Finance />} />
-                      <Route path="ipk-simulator" element={<IPKSimulator />} />
-                      <Route path="repository" element={<Repository />} />
-                      <Route path="scan-qr" element={<ScanQR />} />
-                      <Route path="qr-generator" element={<QRGenerator />} />
-                      <Route path="attendance-history" element={<AttendanceHistory />} />
-                      <Route path="payment" element={<Payment />} />
-                      <Route path="announcements" element={<Announcements />} />
-                      <Route path="competitions" element={<Competitions />} />
-                      <Route path="leaderboard" element={<Leaderboard />} />
-                      <Route path="users" element={<UserManagement />} />
-                      <Route path="profile" element={<Profile />} />
-                      <Route path="change-password" element={<ChangePassword />} />
-                    </Route>
-                    <Route path="/features" element={<Features />} />
-                    <Route path="/about" element={<About />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/dashboard" element={<DashboardLayout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="schedule" element={<Schedule />} />
+                        <Route path="finance" element={<Finance />} />
+                        <Route path="ipk-simulator" element={<IPKSimulator />} />
+                        <Route path="repository" element={<Repository />} />
+                        <Route path="scan-qr" element={<ScanQR />} />
+                        <Route path="qr-generator" element={<QRGenerator />} />
+                        <Route path="attendance-history" element={<AttendanceHistory />} />
+                        <Route path="payment" element={<Payment />} />
+                        <Route path="announcements" element={<Announcements />} />
+                        <Route path="competitions" element={<Competitions />} />
+                        <Route path="leaderboard" element={<Leaderboard />} />
+                        <Route path="users" element={<UserManagement />} />
+                        <Route path="profile" element={<Profile />} />
+                        <Route path="change-password" element={<ChangePassword />} />
+                      </Route>
+                      <Route path="/features" element={<Features />} />
+                      <Route path="/about" element={<About />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
                 </motion.div>
               )}
             </TooltipProvider>
