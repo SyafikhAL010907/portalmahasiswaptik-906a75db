@@ -409,7 +409,7 @@ function RoleBasedSidebarComponent({
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed top-0 left-0 h-full w-72 floating-sidebar flex flex-col z-50 transition-all duration-500",
+        "fixed top-0 left-0 h-full w-72 floating-sidebar flex flex-col z-50 transition-all duration-500 will-change-transform transform-gpu",
         navigationMode === NAVIGATION_MODE_NAVBAR ? "md:-translate-x-full" : "md:translate-x-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
@@ -433,4 +433,11 @@ function RoleBasedSidebarComponent({
   );
 }
 
-export const RoleBasedSidebar = React.memo(RoleBasedSidebarComponent);
+// Optimization: Prevent unnecessary re-renders of the heavy Sidebar
+export const RoleBasedSidebar = React.memo(RoleBasedSidebarComponent, (prev, next) => {
+  return (
+    prev.mobileOpen === next.mobileOpen &&
+    prev.navigationMode === next.navigationMode &&
+    prev.onModeChange === next.onModeChange
+  );
+});

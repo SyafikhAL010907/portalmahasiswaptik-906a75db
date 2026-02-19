@@ -1,3 +1,4 @@
+import React from 'react';
 import { Megaphone, ChevronRight, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,7 +11,7 @@ interface AnnouncementCardProps {
   icon?: LucideIcon;
 }
 
-export function AnnouncementCard({ title, date, excerpt, isNew, priority = 'normal', icon: Icon = Megaphone }: AnnouncementCardProps) {
+export const AnnouncementCard = React.memo(function AnnouncementCard({ title, date, excerpt, isNew, priority = 'normal', icon: Icon = Megaphone }: AnnouncementCardProps) {
   const priorityStyles = {
     normal: {
       bg: 'bg-card',
@@ -77,4 +78,4 @@ export function AnnouncementCard({ title, date, excerpt, isNew, priority = 'norm
       </div>
     </div>
   );
-}
+});

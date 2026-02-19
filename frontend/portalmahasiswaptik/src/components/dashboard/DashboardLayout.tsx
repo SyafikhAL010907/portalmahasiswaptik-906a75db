@@ -107,7 +107,7 @@ export function DashboardLayout() {
             marginLeft: navigationMode === NAVIGATION_MODE_NAVBAR ? '0' : undefined
           }}
           className={cn(
-            "flex-1 transition-all duration-500 ease-in-out",
+            "flex-1 transition-all duration-500 ease-in-out will-change-transform transform-gpu",
             // CRITICAL AGGRESSIVE MARGIN FIX
             navigationMode === NAVIGATION_MODE_SIDEBAR
               ? "md:ml-72 ml-0 pt-6 md:pt-8" // Sidebar mode: margin left for desktop only

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react'; // GraduationCap dihapus
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-export function Navbar() {
+export const Navbar = React.memo(function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -98,4 +98,4 @@ export function Navbar() {
       </div>
     </nav>
   );
-}
+});

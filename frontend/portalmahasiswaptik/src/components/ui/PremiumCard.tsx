@@ -1,3 +1,4 @@
+import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +16,7 @@ interface PremiumCardProps {
     centered?: boolean;
 }
 
-export function PremiumCard({
+export const PremiumCard = React.memo(function PremiumCard({
     icon: Icon,
     title,
     subtitle,
@@ -90,4 +91,4 @@ export function PremiumCard({
             </div>
         </div>
     );
-}
+});

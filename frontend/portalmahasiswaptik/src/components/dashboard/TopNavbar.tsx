@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, User, Menu, X, Layout, Sun, Moon, Bell, Search, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,7 +28,7 @@ interface TopNavbarProps {
     onModeChange: (mode: NavigationMode) => void;
 }
 
-export function TopNavbar({ onModeChange }: TopNavbarProps) {
+export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const { profile, roles, signOut } = useAuth();
@@ -513,46 +513,46 @@ export function TopNavbar({ onModeChange }: TopNavbarProps) {
                                     {/* Mobile: Quick Controls Section */}
                                     <div className="pt-6 border-t border-slate-200/50 dark:border-white/5 mt-6 space-y-6">
                                         <div className="grid grid-cols-2 gap-3">
-    {/* TOMBOL 1: SIDEBAR SWITCH */}
-    <button
-        onClick={toggleSidebar}
-        className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none"
-    >
-        {/* === LAYER GLOW (PASTEL MODE) === */}
-        {/* Logic: Klik/Sentuh (Active) & Hover tetep nyala */}
-        {/* Kita pake warna yang agak 'deep' dikit biar kelihatan di light mode, tapi tetep pastel */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
+                                            {/* TOMBOL 1: SIDEBAR SWITCH */}
+                                            <button
+                                                onClick={toggleSidebar}
+                                                className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none"
+                                            >
+                                                {/* === LAYER GLOW (PASTEL MODE) === */}
+                                                {/* Logic: Klik/Sentuh (Active) & Hover tetep nyala */}
+                                                {/* Kita pake warna yang agak 'deep' dikit biar kelihatan di light mode, tapi tetep pastel */}
+                                                <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
 
-        {/* KONTEN */}
-        <div className="relative z-10 flex flex-col items-center justify-center gap-1">
-            <Layout className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300">
-                Sidebar
-            </span>
-        </div>
-    </button>
+                                                {/* KONTEN */}
+                                                <div className="relative z-10 flex flex-col items-center justify-center gap-1">
+                                                    <Layout className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300">
+                                                        Sidebar
+                                                    </span>
+                                                </div>
+                                            </button>
 
-    {/* TOMBOL 2: THEME TOGGLE */}
-    <button
-        onClick={toggleTheme}
-        className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none"
-    >
-        {/* === LAYER GLOW (PASTEL MODE) === */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
+                                            {/* TOMBOL 2: THEME TOGGLE */}
+                                            <button
+                                                onClick={toggleTheme}
+                                                className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none"
+                                            >
+                                                {/* === LAYER GLOW (PASTEL MODE) === */}
+                                                <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
 
-        {/* KONTEN */}
-        <div className="relative z-10 flex flex-col items-center justify-center gap-1">
-            {theme === 'dark' ? (
-                <Sun className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-amber-500 dark:group-hover:text-amber-300 transition-colors duration-300" />
-            ) : (
-                <Moon className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors duration-300" />
-            )}
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors duration-300">
-                Mode
-            </span>
-        </div>
-    </button>
-</div>
+                                                {/* KONTEN */}
+                                                <div className="relative z-10 flex flex-col items-center justify-center gap-1">
+                                                    {theme === 'dark' ? (
+                                                        <Sun className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-amber-500 dark:group-hover:text-amber-300 transition-colors duration-300" />
+                                                    ) : (
+                                                        <Moon className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors duration-300" />
+                                                    )}
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors duration-300">
+                                                        Mode
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        </div>
 
                                         <Button
                                             variant="ghost"
@@ -573,3 +573,5 @@ export function TopNavbar({ onModeChange }: TopNavbarProps) {
         </>
     );
 }
+// Memoize TopNavbar to prevent re-renders unless mode changes
+export const TopNavbar = React.memo(TopNavbarInternal);

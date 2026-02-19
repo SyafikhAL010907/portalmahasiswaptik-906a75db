@@ -52,6 +52,12 @@ export default defineConfig(({ mode }) => ({
             purpose: 'any maskable'
           }
         ]
+      },
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Increase limit to 5MB to prevent bottlenecks
       }
     })
   ].filter(Boolean),

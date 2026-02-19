@@ -1,3 +1,4 @@
+import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +16,7 @@ interface StatCardProps {
   description?: string; // Added description prop
 }
 
-export function StatCard({ icon: Icon, label, value, trend, iconBg = 'bg-primary/10 text-primary', className, valueClassName, description }: StatCardProps) {
+export const StatCard = React.memo(function StatCard({ icon: Icon, label, value, trend, iconBg = 'bg-primary/10 text-primary', className, valueClassName, description }: StatCardProps) {
   return (
     <div className={cn("glass-card rounded-2xl p-6 transition-all duration-200", className)}>
       <div className="flex items-start justify-between">
@@ -40,4 +41,4 @@ export function StatCard({ icon: Icon, label, value, trend, iconBg = 'bg-primary
       </div>
     </div>
   );
-}
+});
