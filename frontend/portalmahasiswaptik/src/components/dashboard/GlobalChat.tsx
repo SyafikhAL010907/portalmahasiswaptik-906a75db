@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { UserProfileModal } from '@/components/dashboard/UserProfileModal';
+import { getMaskedProfile } from '@/lib/privacy';
 
 interface Message {
     id: string;
@@ -57,7 +58,7 @@ interface ActiveChat {
 }
 
 export function GlobalChat() {
-    const { user } = useAuth();
+    const { user, roles } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [view, setView] = useState<'LIST' | 'ROOM'>('LIST');
     const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
@@ -663,7 +664,8 @@ export function GlobalChat() {
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Menghubungkan...</p>
                                 </div>
                             ) : (
-                                allMembers.map((member) => {
+                                allMembers.map((originalMember) => {
+                                    const member = getMaskedProfile(originalMember, roles?.[0]);
                                     const { label, color } = getUserRole(member.role);
                                     return (
                                         <div
@@ -771,84 +773,87 @@ export function GlobalChat() {
                                             <p className="text-xs font-black uppercase tracking-widest">Searching Pulse...</p>
                                         </div>
                                     ) : (
-                                        (searchTerm ? searchResults : recentChats).map((member, idx) => (
-                                            <div
-                                                key={member.user_id}
-                                                onClick={() => {
-                                                    markAsRead(member.user_id);
-                                                    setRecentChats(prev => prev.map(c =>
-                                                        (c.user_id === member.user_id || (c as any).id === member.user_id) ? { ...c, unread_count: 0 } : c
-                                                    ));
-                                                    openRoom({
-                                                        id: member.user_id,
-                                                        room_id: member.room_id,
-                                                        name: member.full_name,
-                                                        type: 'PRIVATE',
-                                                        avatar_url: member.avatar_url,
-                                                        role: member.role
-                                                    });
-                                                }}
-                                                className={cn(
-                                                    "w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group cursor-pointer overflow-hidden min-w-0",
-                                                    idx !== (searchTerm ? searchResults : recentChats).length - 1 && "border-b border-slate-100 dark:border-white/5"
-                                                )}
-                                            >
-                                                <div onClick={(e) => { e.stopPropagation(); setSelectedProfileId(member.user_id); }} className="relative cursor-pointer">
-                                                    <Avatar className="w-12 h-12 border border-slate-200 dark:border-white/10 group-hover:border-indigo-500/30 transition-colors">
-                                                        <AvatarImage src={member.avatar_url || ''} className="object-cover" />
-                                                        <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase text-xs">
-                                                            {member.full_name?.substring(0, 2)}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                </div>
-                                                <div className="flex-1 min-w-0 overflow-hidden w-0">
-                                                    <div className="flex justify-between items-start mb-0.5 min-w-0 overflow-hidden">
-                                                        <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight text-sm leading-tight flex-1 pr-2">
-                                                            {member.full_name}
-                                                        </h4>
-                                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                                                            {member.last_message_at ? format(new Date(member.last_message_at), 'HH:mm') : ''}
-                                                        </span>
+                                        (searchTerm ? searchResults : recentChats).map((originalMember, idx) => {
+                                            const member = getMaskedProfile(originalMember, roles?.[0]);
+                                            return (
+                                                <div
+                                                    key={member.user_id}
+                                                    onClick={() => {
+                                                        markAsRead(member.user_id);
+                                                        setRecentChats(prev => prev.map(c =>
+                                                            (c.user_id === member.user_id || (c as any).id === member.user_id) ? { ...c, unread_count: 0 } : c
+                                                        ));
+                                                        openRoom({
+                                                            id: member.user_id,
+                                                            room_id: member.room_id,
+                                                            name: member.full_name,
+                                                            type: 'PRIVATE',
+                                                            avatar_url: member.avatar_url,
+                                                            role: member.role
+                                                        });
+                                                    }}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group cursor-pointer overflow-hidden min-w-0",
+                                                        idx !== (searchTerm ? searchResults : recentChats).length - 1 && "border-b border-slate-100 dark:border-white/5"
+                                                    )}
+                                                >
+                                                    <div onClick={(e) => { e.stopPropagation(); setSelectedProfileId(member.user_id); }} className="relative cursor-pointer">
+                                                        <Avatar className="w-12 h-12 border border-slate-200 dark:border-white/10 group-hover:border-indigo-500/30 transition-colors">
+                                                            <AvatarImage src={member.avatar_url || ''} className="object-cover" />
+                                                            <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase text-xs">
+                                                                {member.full_name?.substring(0, 2)}
+                                                            </AvatarFallback>
+                                                        </Avatar>
                                                     </div>
-                                                    <div className="flex justify-between items-end min-w-0 overflow-hidden w-full">
-                                                        <div className="flex-1 min-w-0 overflow-hidden pr-2">
-                                                            <p className={cn(
-                                                                "text-xs truncate text-left transition-colors block w-full",
-                                                                (member.unread_count && member.unread_count > 0)
-                                                                    ? "text-slate-900 dark:text-slate-200 font-bold"
-                                                                    : "text-slate-500 dark:text-slate-500 font-medium"
-                                                            )}>
-                                                                {member.last_message || 'Belum ada pesan'}
-                                                            </p>
+                                                    <div className="flex-1 min-w-0 overflow-hidden w-0">
+                                                        <div className="flex justify-between items-start mb-0.5 min-w-0 overflow-hidden">
+                                                            <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight text-sm leading-tight flex-1 pr-2">
+                                                                {member.full_name}
+                                                            </h4>
+                                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                                                                {member.last_message_at ? format(new Date(member.last_message_at), 'HH:mm') : ''}
+                                                            </span>
                                                         </div>
-                                                        <div className="flex flex-col items-end gap-1 shrink-0">
-                                                            {member.unread_count && member.unread_count > 0 ? (
-                                                                <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-green-500/30 animate-in zoom-in duration-300">
-                                                                    {member.unread_count}
-                                                                </div>
-                                                            ) : (
-                                                                (() => {
-                                                                    const { label, color } = getUserRole(member.role);
-                                                                    return (
-                                                                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-black tracking-tighter uppercase", color)}>
-                                                                            {label}
-                                                                        </span>
-                                                                    );
-                                                                })()
-                                                            )}
-                                                            {!searchTerm && (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); deleteConversation(member.user_id, e); }}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all -mb-1 -mr-1"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            )}
+                                                        <div className="flex justify-between items-end min-w-0 overflow-hidden w-full">
+                                                            <div className="flex-1 min-w-0 overflow-hidden pr-2">
+                                                                <p className={cn(
+                                                                    "text-xs truncate text-left transition-colors block w-full",
+                                                                    (member.unread_count && member.unread_count > 0)
+                                                                        ? "text-slate-900 dark:text-slate-200 font-bold"
+                                                                        : "text-slate-500 dark:text-slate-500 font-medium"
+                                                                )}>
+                                                                    {member.last_message || 'Belum ada pesan'}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                                                {member.unread_count && member.unread_count > 0 ? (
+                                                                    <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-green-500/30 animate-in zoom-in duration-300">
+                                                                        {member.unread_count}
+                                                                    </div>
+                                                                ) : (
+                                                                    (() => {
+                                                                        const { label, color } = getUserRole(member.role);
+                                                                        return (
+                                                                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-black tracking-tighter uppercase", color)}>
+                                                                                {label}
+                                                                            </span>
+                                                                        );
+                                                                    })()
+                                                                )}
+                                                                {!searchTerm && (
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); deleteConversation(member.user_id, e); }}
+                                                                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all -mb-1 -mr-1"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
 
                                     {!isLoadingList && (searchTerm ? searchResults : recentChats).length === 0 && (
@@ -886,24 +891,43 @@ export function GlobalChat() {
                                     }}
                                     className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 group"
                                 >
-                                    <Avatar className="w-8 h-8 sm:w-10 sm:h-10 border border-slate-200 dark:border-white/10 group-hover:border-indigo-500/50 transition-colors shadow-sm shrink-0">
-                                        {activeChat?.type === 'GROUP' ? (
-                                            <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-bold uppercase text-[10px]">
-                                                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <AvatarImage src={activeChat?.avatar_url || ''} className="object-cover" />
-                                                <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase">
-                                                    {activeChat?.name?.substring(0, 2)}
-                                                </AvatarFallback>
-                                            </>
-                                        )}
-                                    </Avatar>
+                                    {(() => {
+                                        let displayName = activeChat?.name;
+                                        let displayAvatar = activeChat?.avatar_url;
+
+                                        // Apply Ghost Mode manually for ActiveChat header since it has different shape
+                                        if (activeChat?.type === 'PRIVATE' && (activeChat.role || '').toLowerCase() === 'admin_dev' && (roles?.[0] || '').toLowerCase() !== 'admin_dev') {
+                                            displayName = 'Admin System';
+                                            displayAvatar = null;
+                                        }
+
+                                        return (
+                                            <Avatar className="w-8 h-8 sm:w-10 sm:h-10 border border-slate-200 dark:border-white/10 group-hover:border-indigo-500/50 transition-colors shadow-sm shrink-0">
+                                                {activeChat?.type === 'GROUP' ? (
+                                                    <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-bold uppercase text-[10px]">
+                                                        <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <AvatarImage src={displayAvatar || ''} className="object-cover" />
+                                                        <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase">
+                                                            {displayName?.substring(0, 2)}
+                                                        </AvatarFallback>
+                                                    </>
+                                                )}
+                                            </Avatar>
+                                        );
+                                    })()}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <h4 className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-100 truncate uppercase tracking-tighter group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                {activeChat?.name}
+                                                {(() => {
+                                                    let displayName = activeChat?.name;
+                                                    if (activeChat?.type === 'PRIVATE' && (activeChat.role || '').toLowerCase() === 'admin_dev' && (roles?.[0] || '').toLowerCase() !== 'admin_dev') {
+                                                        displayName = 'Admin System';
+                                                    }
+                                                    return displayName;
+                                                })()}
                                             </h4>
                                             {activeChat?.type === 'PRIVATE' && getRoleBadge(activeChat.role || null)}
                                             {activeChat?.type === 'GROUP' && <Users size={12} className="text-indigo-500" />}
@@ -941,7 +965,10 @@ export function GlobalChat() {
                                             <Loader2 className="animate-spin text-indigo-500 w-6 h-6" />
                                         </div>
                                     ) : (
-                                        messages.map((msg) => {
+                                        messages.map((originalMsg) => {
+                                            const maskedProfile = getMaskedProfile(originalMsg.profiles, roles?.[0]);
+                                            const msg = { ...originalMsg, profiles: maskedProfile };
+
                                             const isMe = msg.user_id === user.id;
                                             const isGroup = activeChat?.type === 'GROUP';
                                             return (

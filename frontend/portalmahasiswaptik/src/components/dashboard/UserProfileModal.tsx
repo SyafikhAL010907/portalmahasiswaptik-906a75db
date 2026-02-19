@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { getMaskedProfile } from '@/lib/privacy';
 import {
     Dialog,
     DialogContent,
@@ -17,6 +19,7 @@ interface UserProfileModalProps {
 }
 
 export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalProps) {
+    const { roles } = useAuth();
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(false);
 
@@ -50,10 +53,15 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
         }
     };
 
+    // Apply Ghost Mode
+    const maskedProfile = useMemo(() => {
+        return getMaskedProfile(profile, roles?.[0]);
+    }, [profile, roles]);
+
     const handleWhatsAppChat = () => {
-        if (profile?.whatsapp) {
+        if (maskedProfile?.whatsapp) {
             // Karena sudah di-convert di Profile.tsx, kita bisa langsung buka
-            window.open(profile.whatsapp, '_blank', 'noopener,noreferrer');
+            window.open(maskedProfile.whatsapp, '_blank', 'noopener,noreferrer');
         }
     };
 
@@ -73,15 +81,15 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                     <div className="h-[400px] flex items-center justify-center">
                         <Loader2 className="w-8 h-8 text-primary animate-spin" />
                     </div>
-                ) : profile ? (
+                ) : maskedProfile ? (
                     <div className="flex flex-col">
                         {/* Header / Cover Area */}
                         <div className="h-32 bg-gradient-to-r from-blue-500 to-purple-600 relative">
                             <div className="absolute -bottom-16 left-1/2 -translate-x-1/2">
                                 <Avatar className="w-32 h-32 border-4 border-white dark:border-slate-950 shadow-2xl">
-                                    <AvatarImage src={profile.avatar_url || ''} className="object-cover" />
+                                    <AvatarImage src={maskedProfile.avatar_url || ''} className="object-cover" />
                                     <AvatarFallback className="bg-slate-100 dark:bg-slate-900 text-4xl font-black text-blue-500">
-                                        {profile.full_name?.split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                        {maskedProfile.full_name?.split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()}
                                     </AvatarFallback>
                                 </Avatar>
                             </div>
@@ -90,11 +98,11 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                         {/* Content Area */}
                         <div className="pt-20 pb-8 px-6 text-center space-y-6">
                             <div>
-                                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-1">{profile.full_name}</h2>
+                                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-1">{maskedProfile.full_name}</h2>
                                 <div className="flex items-center justify-center gap-2 mb-2">
-                                    <p className="text-xs font-mono text-blue-500 dark:text-blue-400 tracking-widest">{profile.nim}</p>
+                                    <p className="text-xs font-mono text-blue-500 dark:text-blue-400 tracking-widest">{maskedProfile.nim}</p>
                                     {(() => {
-                                        const raw = (profile.role || '').trim();
+                                        const raw = (maskedProfile.role || '').trim();
                                         const r = raw.toLowerCase();
 
                                         let label = 'MAHASISWA';
@@ -130,7 +138,7 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                                 <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-3 border border-slate-100 dark:border-white/5">
                                     <GraduationCap className="w-4 h-4 text-purple-500 dark:text-purple-400 mx-auto mb-1" />
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black">Kelas</p>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{profile.classes?.name || '---'}</p>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{maskedProfile.classes?.name || '---'}</p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-3 border border-slate-100 dark:border-white/5">
                                     <Hash className="w-4 h-4 text-blue-500 dark:text-blue-400 mx-auto mb-1" />
@@ -140,7 +148,7 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                             </div>
 
                             <div className="space-y-3">
-                                {profile.whatsapp && (
+                                {maskedProfile.whatsapp && (
                                     <Button
                                         onClick={handleWhatsAppChat}
                                         className="w-full h-12 font-bold rounded-2xl gap-2 shadow-lg transition-all duration-300 bg-green-600 hover:bg-green-700 text-white shadow-green-900/20"
