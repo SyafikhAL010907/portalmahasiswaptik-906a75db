@@ -27,6 +27,9 @@ import { GlobalChat } from "./components/dashboard/GlobalChat";
 import Features from "./pages/Features";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import SplashScreen from "@/components/ui/SplashScreen";
 
 const queryClient = new QueryClient();
 
@@ -43,44 +46,69 @@ const ProtectedGlobalChat = () => {
   return <GlobalChat />;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <ProtectedGlobalChat />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/dashboard" element={<DashboardLayout />}>
-                <Route index element={<Dashboard />} />
-                <Route path="schedule" element={<Schedule />} />
-                <Route path="finance" element={<Finance />} />
-                <Route path="ipk-simulator" element={<IPKSimulator />} />
-                <Route path="repository" element={<Repository />} />
-                <Route path="scan-qr" element={<ScanQR />} />
-                <Route path="qr-generator" element={<QRGenerator />} />
-                <Route path="attendance-history" element={<AttendanceHistory />} />
-                <Route path="payment" element={<Payment />} />
-                <Route path="announcements" element={<Announcements />} />
-                <Route path="competitions" element={<Competitions />} />
-                <Route path="leaderboard" element={<Leaderboard />} />
-                <Route path="users" element={<UserManagement />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="change-password" element={<ChangePassword />} />
-              </Route>
-              <Route path="/features" element={<Features />} />
-              <Route path="/about" element={<About />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 3000); // 3 seconds splash screen
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <AnimatePresence mode="wait">
+                {showSplash ? (
+                  <SplashScreen key="splash" finishLoading={() => setShowSplash(false)} />
+                ) : (
+                  <motion.div
+                    key="app"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5, ease: "easeInOut" }}
+                    className="min-h-screen"
+                  >
+                    <ProtectedGlobalChat />
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/dashboard" element={<DashboardLayout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="schedule" element={<Schedule />} />
+                        <Route path="finance" element={<Finance />} />
+                        <Route path="ipk-simulator" element={<IPKSimulator />} />
+                        <Route path="repository" element={<Repository />} />
+                        <Route path="scan-qr" element={<ScanQR />} />
+                        <Route path="qr-generator" element={<QRGenerator />} />
+                        <Route path="attendance-history" element={<AttendanceHistory />} />
+                        <Route path="payment" element={<Payment />} />
+                        <Route path="announcements" element={<Announcements />} />
+                        <Route path="competitions" element={<Competitions />} />
+                        <Route path="leaderboard" element={<Leaderboard />} />
+                        <Route path="users" element={<UserManagement />} />
+                        <Route path="profile" element={<Profile />} />
+                        <Route path="change-password" element={<ChangePassword />} />
+                      </Route>
+                      <Route path="/features" element={<Features />} />
+                      <Route path="/about" element={<About />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </TooltipProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
