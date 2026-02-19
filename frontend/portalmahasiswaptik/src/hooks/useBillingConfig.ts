@@ -3,146 +3,101 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export const useBillingConfig = (onConfigUpdated?: () => void) => {
-    const [billingStart, setBillingStart] = useState<number>(1); // Default Januari
-    const [billingEnd, setBillingEnd] = useState<number>(6);     // Default Juni
-    const [selectedMonth, setSelectedMonth] = useState<number>(0); // Default Lifetime
+    const [billingStart, setBillingStart] = useState<number>(1);
+    const [billingEnd, setBillingEnd] = useState<number>(6);
+    const [selectedMonth, setSelectedMonth] = useState<number>(0);
     const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
     const [isLoadingConfig, setIsLoadingConfig] = useState(true);
-    const [hasServerError, setHasServerError] = useState(false);
 
-    const fetchGlobalConfig = useCallback(async (isBackground = false, force = false) => {
-        // Stop background polling if server is down, BUT allow force (real-time/manual) to retry
-        if (hasServerError && isBackground && !force) return;
-
+    const fetchGlobalSettings = useCallback(async (isBackground = false) => {
         try {
             if (!isBackground) setIsLoadingConfig(true);
 
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                console.warn("⚠️ useBillingConfig: No active session found.");
-                setIsLoadingConfig(false);
-                return;
+            // Fetch central billing range from global_settings
+            const { data, error } = await supabase
+                .from('global_settings')
+                .select('value')
+                .eq('key', 'billing_range')
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (data && data.value) {
+                const range = data.value as { start: number, end: number, selected?: number };
+                setBillingStart(range.start || 1);
+                setBillingEnd(range.end || 6);
+                if (range.selected !== undefined) {
+                    setSelectedMonth(range.selected);
+                }
             }
-
-            const baseUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:9000/api`;
-            const response = await fetch(`${baseUrl}/config/billing-range`, {
-                headers: { 'Authorization': `Bearer ${session.access_token}` }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('📦 useBillingConfig: Data fetched from API:', data);
-
-                // Use functional updates to avoid stale state
-                if (data.start_month !== undefined) setBillingStart(data.start_month);
-                if (data.end_month !== undefined) setBillingEnd(data.end_month);
-                if (data.selected_month !== undefined) setSelectedMonth(data.selected_month);
-                setHasServerError(false); // Reset on success
-            } else {
-                console.error("❌ useBillingConfig: API error", response.status);
-                if (response.status === 500) setHasServerError(true);
-            }
-        } catch (error) {
-            console.error("❌ useBillingConfig: Fetch failed:", error);
+        } catch (error: any) {
+            console.error("❌ useBillingConfig: Global Settings Fetch failed:", error);
         } finally {
             setIsLoadingConfig(false);
         }
     }, []);
 
-    // FETCH GLOBAL CONFIG ON MOUNT & REAL-TIME
     useEffect(() => {
-        console.log("🚀 useBillingConfig: Initializing sync...");
-        fetchGlobalConfig();
+        console.log("🚀 useBillingConfig: Initializing Global Sync...");
+        fetchGlobalSettings();
 
-        // Supabase Real-time channel for global_configs
+        // Listen for ANY change in global_settings to sync across admins
         const channel = supabase
-            .channel('global_config_realtime')
+            .channel('global_settings_sync')
             .on(
                 'postgres_changes',
                 {
-                    event: '*', // Listen to ALL events (INSERT, UPDATE, DELETE)
+                    event: 'UPDATE',
                     schema: 'public',
-                    table: 'global_configs'
+                    table: 'global_settings',
+                    filter: 'key=eq.billing_range'
                 },
                 (payload) => {
-                    console.log('🔄 useBillingConfig: Real-time update detected!', payload);
-                    fetchGlobalConfig(true, true); // Use force=true to recover from server error
+                    console.log('🔄 useBillingConfig: Global sync update detected!', payload);
+                    const newVal = payload.new?.value as { start: number, end: number, selected?: number };
+                    if (newVal) {
+                        setBillingStart(newVal.start);
+                        setBillingEnd(newVal.end);
+                        if (newVal.selected !== undefined) {
+                            setSelectedMonth(newVal.selected);
+                        }
+                    } else {
+                        // Fallback if payload is incomplete
+                        fetchGlobalSettings(true);
+                    }
                 }
             )
-            .subscribe((status) => {
-                console.log('🔌 useBillingConfig: Subscription Status:', status);
-                if (status === 'SUBSCRIBED') {
-                    console.log('✅ useBillingConfig: Ready to receive real-time updates.');
-                }
-            });
-
-        // Polling Backup (every 10s) as requested for extra safety
-        let poller: any;
-        if (!hasServerError) {
-            poller = setInterval(() => {
-                fetchGlobalConfig(true);
-            }, 10000);
-        }
+            .subscribe();
 
         return () => {
-            console.log("🛑 useBillingConfig: Cleaning up sync...");
             supabase.removeChannel(channel);
-            if (poller) clearInterval(poller);
         };
-    }, [fetchGlobalConfig, hasServerError]);
+    }, [fetchGlobalSettings]);
 
-    // UPDATE GLOBAL CONFIG
     const updateBillingRange = async (start: number, end: number, currentSelected: number) => {
-        console.log('📤 useBillingConfig: Updating Global Config...', {
-            start_month: start,
-            end_month: end,
-            selected_month: currentSelected
-        });
-
-        // Optimistic Update
+        // --- OPTIMISTIC UPDATE ---
         setBillingStart(start);
         setBillingEnd(end);
         setSelectedMonth(currentSelected);
-
         setIsUpdatingConfig(true);
+
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("No session found. Please re-login.");
-
-            const baseUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:9000/api`;
-            console.log(`🔗 useBillingConfig: POST to ${baseUrl}/config/save-range`);
-
-            const response = await fetch(`${baseUrl}/config/save-range`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    start_month: start,
-                    end_month: end,
-                    selected_month: currentSelected
+            const { error } = await supabase
+                .from('global_settings')
+                .update({
+                    value: { start, end, selected: currentSelected }
                 })
-            });
+                .eq('key', 'billing_range');
 
-            if (response.ok) {
-                const result = await response.json();
-                console.log('✅ useBillingConfig: Save success!', result);
-                toast.success("Konfigurasi berhasil disimpan ke server!");
-                setHasServerError(false);
-                if (onConfigUpdated) onConfigUpdated();
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.error("❌ useBillingConfig: Save failed", response.status, errorData);
+            if (error) throw error;
 
-                if (response.status === 500) setHasServerError(true);
-                throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
-            }
+            toast.success("Setelan Global diperbarui! 🌐", { duration: 1500 });
+            if (onConfigUpdated) onConfigUpdated();
         } catch (error: any) {
-            console.error("❌ useBillingConfig: Sync error:", error);
-            toast.error(`Gagal sinkronisasi: ${error.message || "Network Error / CORS"}`);
-            // Revert state on failure to match server truth
-            fetchGlobalConfig(true);
+            console.error("❌ useBillingConfig: Save error:", error);
+            toast.error(`Gagal update global: ${error.message}`);
+            // Revert on error
+            fetchGlobalSettings(true);
         } finally {
             setIsUpdatingConfig(false);
         }

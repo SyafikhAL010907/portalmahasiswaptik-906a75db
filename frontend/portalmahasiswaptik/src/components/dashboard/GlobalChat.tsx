@@ -84,9 +84,26 @@ export function GlobalChat() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const readChatIds = useRef<Set<string>>(new Set());
+    const scrollTimeoutRef = useRef<any>(null);
+
+    // Clear timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        };
+    }, []);
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+            if (messagesEndRef.current && document.body.contains(messagesEndRef.current)) {
+                try {
+                    messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+                } catch (err) {
+                    console.warn("scrollToBottom suppressed error:", err);
+                }
+            }
+        }, 100);
     };
 
     const totalUnread = useMemo(() => {

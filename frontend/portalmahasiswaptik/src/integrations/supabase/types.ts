@@ -177,6 +177,42 @@ export type Database = {
           }
         ]
       }
+      global_configs: {
+        Row: {
+          key: string
+          value: string
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          value: string
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          value?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      global_settings: {
+        Row: {
+          key: string
+          value: Json
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          value: Json
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          value?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       classes: {
         Row: {
           created_at: string
@@ -371,6 +407,13 @@ export type Database = {
           nim: string
           updated_at: string
           user_id: string
+          whatsapp: string | null
+          payment_status: string | null
+          payment_expires_at: string | null
+          last_selected_class: string | null
+          last_selected_month: number | null
+          billing_start_month: number | null
+          billing_end_month: number | null
         }
         Insert: {
           avatar_url?: string | null
@@ -381,6 +424,11 @@ export type Database = {
           nim: string
           updated_at?: string
           user_id: string
+          whatsapp?: string | null
+          payment_status?: string | null
+          payment_expires_at?: string | null
+          last_selected_class?: string | null
+          last_selected_month?: number | null
         }
         Update: {
           avatar_url?: string | null
@@ -391,6 +439,11 @@ export type Database = {
           nim?: string
           updated_at?: string
           user_id?: string
+          whatsapp?: string | null
+          payment_status?: string | null
+          payment_expires_at?: string | null
+          last_selected_class?: string | null
+          last_selected_month?: number | null
         }
         Relationships: [
           {

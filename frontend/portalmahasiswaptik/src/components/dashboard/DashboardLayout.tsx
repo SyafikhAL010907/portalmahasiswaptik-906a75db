@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { usePaymentMonitor } from '@/hooks/usePaymentMonitor';
 import { RoleBasedSidebar } from './RoleBasedSidebar';
 import { TopNavbar } from './TopNavbar';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';

@@ -131,6 +131,37 @@ export function PaymentNotificationCenter() {
         }
     };
 
+    // 🚀 REAL-TIME SYNC: Listen for changes in weekly_dues
+    useEffect(() => {
+        if (!hasAccess) return;
+
+        const channel = supabase
+            .channel('admin_payment_updates')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'weekly_dues'
+                },
+                (payload) => {
+                    const statusNew = (payload.new as any)?.status;
+                    const statusOld = (payload.old as any)?.status;
+
+                    // Trigger refresh if any record becomes pending OR stops being pending (cancelled/paid)
+                    if (statusNew === 'pending' || statusOld === 'pending') {
+                        console.log("🔄 Admn Queue: Refreshing due to status change", payload.eventType);
+                        fetchData();
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [hasAccess]);
+
     // Fetch on mount
     useEffect(() => {
         if (hasAccess) {
@@ -139,6 +170,9 @@ export function PaymentNotificationCenter() {
     }, [hasAccess]);
 
     const handleConfirm = async () => {
+        // 🚀 REMOTE KILL-SWITCH SIGNAL (LOCAL)
+        window.dispatchEvent(new Event('force-close-qr'));
+
         if (selectedStudentIds.length === 0) return;
         setIsSubmitting(true);
 
@@ -177,11 +211,39 @@ export function PaymentNotificationCenter() {
         }
     };
 
-    const handleDismiss = (studentId: string) => {
-        setDismissedStudentIds(prev => new Set(prev).add(studentId));
-        // Also remove from selection if selected
-        if (selectedStudentIds.includes(studentId)) {
-            setSelectedStudentIds(prev => prev.filter(id => id !== studentId));
+    const handleDismiss = async (studentId: string) => {
+        // 🚀 REMOTE KILL-SWITCH SIGNAL (LOCAL)
+        window.dispatchEvent(new Event('force-close-qr'));
+
+        const student = pendingPayments.find(p => p.student_id === studentId);
+        if (!student) return;
+
+        const toastId = toast.loading("Membatalkan pembayaran...");
+        try {
+            // 1. Revert weekly_dues for this student
+            const { error: duesError } = await supabase
+                .from('weekly_dues')
+                .update({ status: 'unpaid' })
+                .in('id', student.week_ids);
+
+            if (duesError) throw duesError;
+
+            // 2. Clear profile status
+            const { error: profileError } = await (supabase as any)
+                .from('profiles')
+                .update({ payment_status: 'unpaid', payment_expires_at: null })
+                .eq('user_id', studentId); // We use user_id because it's what's in grouped[studentId]
+
+            if (profileError) throw profileError;
+
+            toast.success("Pembayaran dibatalkan.", { id: toastId });
+            setDismissedStudentIds(prev => new Set(prev).add(studentId));
+            if (selectedStudentIds.includes(studentId)) {
+                setSelectedStudentIds(prev => prev.filter(id => id !== studentId));
+            }
+        } catch (err: any) {
+            console.error("Dismiss error:", err);
+            toast.error("Gagal membatalkan: " + err.message, { id: toastId });
         }
     };
 

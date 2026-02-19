@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar } from 'lucide-react';
+import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar, X } from 'lucide-react';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -76,7 +76,7 @@ export default function Payment() {
             }
 
             setShowQRIS(true);
-            toast.info("Sesi pembayaran dikembalikan. Waktu terus berjalan!");
+            toast.info("Pembayaran sedang diproses. Silakan cek status di antrean konfirmasi.");
           } else {
             // Expired while away
             handleCleanupExpiredSession(session.items);
@@ -145,12 +145,17 @@ export default function Payment() {
 
   }, [activePeriod, rawDues]);
 
-  // 4. STRICT TIMER LOGIC
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     if (showQRIS) {
       interval = setInterval(() => {
+        // EXTRA SAFETY: If UI is closed, kill timer immediately
+        if (!showQRIS) {
+          clearInterval(interval);
+          return;
+        }
+
         const savedSession = localStorage.getItem('payment_session');
         if (savedSession) {
           const session = JSON.parse(savedSession);
@@ -160,13 +165,10 @@ export default function Payment() {
           if (remaining <= 0) {
             setTimeLeft(0);
             clearInterval(interval);
-            handleAutoCancel(); // Trigger cancel
+            cancelPayment('timeout'); // Unified
           } else {
             setTimeLeft(remaining);
           }
-        } else {
-          // Fallback
-          if (timeLeft > 0) setTimeLeft(prev => prev - 1);
         }
       }, 1000);
     }
@@ -174,82 +176,94 @@ export default function Payment() {
     return () => clearInterval(interval);
   }, [showQRIS]);
 
-  // 5. AUTO-SUCCESS CHECK (POLLING)
+  // 5. REAL-TIME SUCCESS & UI UPDATE (JALUR GANDA: DATABASE & CUSTOM EVENT)
   useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
-
-    const checkPaymentStatus = async () => {
-      // Get items from state or localStorage
-      let itemsToCheck = pendingVerifyItems;
-      if (itemsToCheck.length === 0) {
-        const savedSession = localStorage.getItem('payment_session');
-        if (savedSession) {
-          itemsToCheck = JSON.parse(savedSession).items;
-        }
-      }
-
-      if (!itemsToCheck || itemsToCheck.length === 0) return;
-
-      const studentId = itemsToCheck[0].student_id;
-      const currentYear = new Date().getFullYear();
-
-      try {
-        const { data, error } = await supabase
-          .from('weekly_dues')
-          .select('month, week_number, status')
-          .eq('student_id', studentId)
-          .eq('year', currentYear)
-          .in('status', ['paid']);
-
-        if (error) {
-          console.error("Polling check failed:", error);
-          return;
-        }
-
-        // Check if ALL pending items are now in the 'paid' list
-        // Note: 'data' contains only PAID items from the query
-        const paidItems = (data as any[]) || [];
-
-        const allPaid = itemsToCheck.every(pending =>
-          paidItems.some(paid => paid.month === pending.month && paid.week_number === pending.week_number)
-        );
-
-        if (allPaid && itemsToCheck.length > 0) {
-          clearInterval(pollInterval);
-          handlePaymentSuccess();
-        }
-
-      } catch (err) {
-        console.error("Polling error:", err);
-      }
+    // 🚀 1. JALUR PINTAS: Nangkep sinyal langsung dari tombol X di komponen Antrean
+    const handleForceClose = () => {
+      console.log("🚨 Tombol di Antrean diklik! Paksa tutup QR...");
+      handleManualClose(); // <--- INI FUNGSI NUTUPNYA
     };
+    window.addEventListener('force-close-qr', handleForceClose);
 
-    if (showQRIS) {
-      // Initial check immediately
-      checkPaymentStatus();
-
-      // Poll every 5 seconds
-      pollInterval = setInterval(checkPaymentStatus, 5000);
+    if (!studentData?.user_id) {
+       return () => window.removeEventListener('force-close-qr', handleForceClose);
     }
 
-    return () => clearInterval(pollInterval);
-  }, [showQRIS, pendingVerifyItems]);
+    // 🚀 2. JALUR DATABASE: Pantau tabel profiles (Karena Antrean pasti update status user di sini)
+    const profileChannel = supabase
+      .channel(`profile_kill_switch_${studentData.user_id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `user_id=eq.${studentData.user_id}` },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated.payment_status === 'paid' || updated.payment_status === 'unpaid') {
+            handleManualClose();
+            if (updated.payment_status === 'paid') toast.success("PEMBAYARAN LUNAS!");
+          }
+        }
+      ).subscribe();
 
-  const handlePaymentSuccess = () => {
+    // 🚀 3. JALUR DATABASE: Pantau weekly_dues (Sekarang Auto-Refresh Rincian)
+    const duesChannel = supabase
+      .channel(`dues_kill_switch_${studentData.user_id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'weekly_dues', filter: `student_id=eq.${studentData.user_id}` },
+        (payload) => {
+          console.log("🔄 Realtime Update Diterima:", payload.eventType);
+
+          // 🔥 1. SINKRONISASI INSTAN (Ubah tampilan UI detik ini juga)
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            const updated = payload.new as any;
+            // Langsung ubah warna kuning/merah/hilang sesuai status baru
+            setRawDues(prev => prev.map(d => 
+              (d.month === updated.month && d.week_number === updated.week_number) 
+              ? { ...d, status: updated.status } 
+              : d
+            ));
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const deleted = payload.old as any;
+            // Kalau data antrean dihapus (Ditolak Admin), balikin otomatis jadi hutang merah ('unpaid')
+            setRawDues(prev => prev.map(d => 
+              (d.month === deleted.month && d.week_number === deleted.week_number) 
+              ? { ...d, status: 'unpaid' } 
+              : d
+            ));
+          }
+
+          // 🔥 2. EKSEKUSI SUNTIK MATI QR (Tutup Panel)
+          const status = payload.new ? (payload.new as any).status : null;
+          if (payload.eventType === 'DELETE' || status === 'paid' || status === 'unpaid') {
+            handleManualClose();
+          }
+
+          // 🔥 3. Backup sync dari server diem-diem
+          fetchStudentData(nim, false);
+        }
+      ).subscribe();
+    return () => { 
+      window.removeEventListener('force-close-qr', handleForceClose);
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(duesChannel); 
+    };
+  }, [studentData?.user_id, nim]);
+
+  const handlePaymentSuccess = (confirmedRecord?: any) => {
+    // 🛑 1. STOP TIMER & TUTUP QR DETIK INI JUGA
     setShowQRIS(false);
-    localStorage.removeItem('payment_session');
+    setTimeLeft(0);
 
-    // Play sound or just show success toast
-    toast.dismiss(); // Dismiss any loading toasts
-    toast.success("Pembayaran LUNAS! Terima kasih sudah membayar.", {
-      duration: 5000,
+    // 🛑 2. HAPUS SEMUA JEJAK SESI
+    localStorage.removeItem('payment_session');
+    setPendingVerifyItems([]);
+
+    // 🛑 3. BERSIHKAN NOTIFIKASI
+    toast.dismiss();
+    toast.success("PEMBAYARAN LUNAS! QR ditutup otomatis.", {
       icon: <CheckCircle2 className="w-5 h-5 text-green-500" />
     });
-
-    // Refresh UI
-    if (nim) fetchStudentData(nim, true);
   };
-
   // Revert Logic refactored to be reusable
   const revertItems = async (items: any[]) => {
     if (!items || items.length === 0) return;
@@ -307,10 +321,32 @@ export default function Payment() {
     return true; // Nothing to revert (maybe partial?)
   };
 
-  const handleAutoCancel = async () => {
-    // Read from state OR localStorage to be safe
-    let itemsToProcess = pendingVerifyItems;
+  const cancelPayment = async (reason: 'timeout' | 'manual' = 'manual') => {
+    // 1. INSTANT UI CLEANUP (Requirement 1 & 3)
+    setShowQRIS(false);
+    setTimeLeft(0);
+    setPendingVerifyItems([]);
+    localStorage.removeItem('payment_session');
 
+    // 2. OPTIMISTIC LOCAL STATE UPDATE
+    setRawDues(prev => prev.map(d =>
+      d.status === 'pending' ? { ...d, status: 'unpaid' } : d
+    ));
+
+    // 3. BACKGROUND DATABASE SYNC (Direct Update for instant sync)
+    // We update profiles table first to trigger global auto-reset for other tabs/listeners
+    if (studentData?.id) {
+      await (supabase as any)
+        .from('profiles')
+        .update({
+          payment_status: 'unpaid',
+          payment_expires_at: null
+        })
+        .eq('id', studentData.id);
+    }
+
+    // 4. REVERT WEEKLY DUES (Lazy background sync)
+    let itemsToProcess = pendingVerifyItems;
     if (itemsToProcess.length === 0) {
       const savedSession = localStorage.getItem('payment_session');
       if (savedSession) {
@@ -318,55 +354,60 @@ export default function Payment() {
       }
     }
 
-    if (itemsToProcess.length === 0) {
-      setShowQRIS(false);
-      localStorage.removeItem('payment_session');
-      return;
+    if (itemsToProcess.length > 0) {
+      revertItems(itemsToProcess).catch(err => console.error("Background revert failed:", err));
     }
 
-    const toastId = toast.loading("Waktu habis! Memverifikasi status pembayaran...");
+    if (reason === 'timeout') {
+      toast.info("Waktu pembayaran telah habis.", { duration: 3000 });
+    } else {
+      toast.success("Pembayaran dibatalkan.");
+    }
+  };
+
+  const handleAutoCancel = () => cancelPayment('timeout');
+  const handleManualCancel = () => {
+    // Buttons 'Selesai' and 'X' now only hide the UI
+    setShowQRIS(false);
+  };
+
+  const handleCancelSingleItem = async (month: number, week: number) => {
+    // Optimistic Update
+    setRawDues(prev => prev.map(d =>
+      (d.month === month && d.week_number === week) ? { ...d, status: 'unpaid' } : d
+    ));
 
     try {
-      const isSuccess = await revertItems(itemsToProcess);
+      const { error } = await (supabase as any)
+        .from('weekly_dues')
+        .update({ status: 'unpaid' })
+        .eq('student_id', studentData.user_id)
+        .eq('month', month)
+        .eq('week_number', week)
+        .eq('year', new Date().getFullYear());
 
-      if (isSuccess) {
-        toast.dismiss(toastId);
-        toast.success("Pembayaran berhasil dikonfirmasi tepat waktu!");
-      } else {
-        // TEPAT saat timer 0: Update status di profiles (Requirement)
-        // Note: Using studentData.id for the profile update
-        if (studentData?.id) {
-          try {
-            await supabase
-              .from('profiles')
-              .update({ payment_status: 'unpaid' })
-              .eq('id', studentData.id);
-          } catch (profileUpdateErr) {
-            console.error("Failed to update profile payment_status:", profileUpdateErr);
-          }
-        }
+      if (error) throw error;
+      toast.success(`Berhasil membatalkan Item Minggu ${week}`);
 
-        toast.dismiss(toastId);
-        toast.error("Waktu pembayaran habis! Status pending telah dibatalkan otomatis.");
-      }
+      // KILL-SWITCH LOKAL (Sesuai Request: Tombol X juga harus matikan QR)
+      handleManualClose();
 
-    } catch (error: any) {
-      console.error("Auto-revert error:", error);
-      toast.error("Gagal sinkronisasi data: " + error.message);
-    } finally {
-      setShowQRIS(false);
-      localStorage.removeItem('payment_session'); // STRICT CLEANUP
-
-      // Refresh UI by re-fetching
-      if (nim) fetchStudentData(nim, true);
+    } catch (err: any) {
+      console.error("Cancel single item error:", err);
+      toast.error("Gagal membatalkan item.");
+      // Rollback
+      if (nim) fetchStudentData(nim, false);
     }
   };
 
   const handleManualClose = () => {
-    // User clicked "Selesai / Tutup Panel"
+    // Force stop segalanya sesuai request
     setShowQRIS(false);
+    setTimeLeft(0);
     localStorage.removeItem('payment_session');
-    if (nim) fetchStudentData(nim, true);
+    setPendingVerifyItems([]);
+    toast.dismiss();
+    console.log("Sesi dimatikan manual oleh user.");
   };
 
   // Separated Fetch Logic
@@ -501,6 +542,18 @@ export default function Payment() {
 
         if (error) throw error;
       }
+
+      // 2. Update Profile status and expiry (Server-side)
+      const expiresAt = new Date(Date.now() + 65 * 1000).toISOString(); // 65s for buffer
+      const { error: profileError } = await (supabase as any)
+        .from('profiles')
+        .update({
+          payment_status: 'pending',
+          payment_expires_at: expiresAt
+        })
+        .eq('id', studentData.id);
+
+      if (profileError) throw profileError;
 
       toast.success("Tagihan dibuat! Silakan scan QR di bawah.");
 
@@ -652,9 +705,19 @@ export default function Payment() {
                               {MONTH_NAMES[item.month]} - Minggu {item.week}
                             </label>
                             {item.status === 'pending' ? (
-                              <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
-                                Menunggu Konfirmasi
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
+                                  Menunggu Konfirmasi
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 text-rose-500 hover:bg-rose-500/20"
+                                  onClick={() => handleCancelSingleItem(item.month, item.week)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
                             ) : (
                               <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md w-fit italic">
                                 Hutang Belum Terbayar
@@ -712,7 +775,10 @@ export default function Payment() {
                   <h3 className="font-black text-2xl tracking-tight">QRIS Dana {studentData.classLetter}</h3>
                   <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">PTIK Portal Official Payment</p>
                 </div>
-                <span className="text-[10px] bg-primary text-primary-foreground px-3 py-1.5 rounded-full font-black uppercase tracking-tighter shadow-sm">Verified</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-primary text-primary-foreground px-3 py-1.5 rounded-full font-black uppercase tracking-tighter shadow-sm">Verified</span>
+                  {/* ADMIN-ONLY CLOSE: Manual 'X' removed */}
+                </div>
               </div>
 
               <div className="text-center mb-8 z-10">
@@ -755,13 +821,11 @@ export default function Payment() {
                 </p>
               </div>
 
-              <Button
-                variant="outline"
-                className="w-full border-2 border-purple-500/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 shadow-sm hover:shadow-purple-500/20 rounded-xl px-6 py-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 backdrop-blur-sm font-bold h-12"
-                onClick={handleManualClose}
-              >
-                Selesai / Tutup Panel
-              </Button>
+              <div className="flex flex-col w-full gap-3">
+                <p className="text-[10px] text-center text-muted-foreground italic opacity-70">
+                  Menunggu Konfirmasi Admin...
+                </p>
+              </div>
             </div>
           )}
         </div>

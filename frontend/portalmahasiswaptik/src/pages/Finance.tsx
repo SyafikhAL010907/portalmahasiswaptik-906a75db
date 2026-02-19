@@ -79,8 +79,15 @@ interface UserProfile {
   class_id: string | null;
 }
 
+import { useUserPreferences } from '@/hooks/useUserPreferences';
+
 export default function Finance() {
   const { session } = useAuth();
+  const {
+    last_selected_class,
+    last_selected_month,
+    updatePreference
+  } = useUserPreferences();
 
   // --- STATE ---
   const [classes, setClasses] = useState<ClassData[]>([]);
@@ -102,11 +109,11 @@ export default function Finance() {
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
 
-  // BILLING RANGE STATE (Global Config) - Unified Source of Truth
+  // BILLING RANGE STATE (Global Settings) - Unified Source of Truth
   const {
     billingStart,
     billingEnd,
-    selectedMonth,
+    selectedMonth, // Directly from Global Settings
     isUpdatingConfig,
     isLoadingConfig,
     updateBillingRange
@@ -203,16 +210,25 @@ export default function Finance() {
     const initData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase.from('profiles').select('class_id').eq('user_id', user.id).maybeSingle();
+        const { data: profile } = await supabase.from('profiles').select('class_id, last_selected_class').eq('id', user.id).maybeSingle();
         const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle();
         if (profile && roleData) {
           setCurrentUser({ user_id: user.id, class_id: profile.class_id, role: roleData.role });
+
+          // Apply Sticky Class if exists
+          if (profile.last_selected_class) {
+            setSelectedClassId(profile.last_selected_class);
+          }
         }
       }
       const { data: cls } = await supabase.from('classes').select('id, name').order('name');
       if (cls && cls.length > 0) {
         setClasses(cls);
-        setSelectedClassId(cls[0].id);
+        setSelectedClassId(prev => {
+          if (prev) return prev;
+          const kelasA = cls.find(c => c.name.toLowerCase().includes('kelas a') || c.name === 'A');
+          return kelasA ? kelasA.id : cls[0].id;
+        });
       }
     };
     initData();
@@ -522,6 +538,9 @@ export default function Finance() {
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
     setSelectedClassId(newClassId);
+
+    // Persist Sticky State
+    updatePreference({ last_selected_class: newClassId });
   };
 
   const handleMonthChange = (newMonth: number) => {
@@ -539,9 +558,7 @@ export default function Finance() {
     if (currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') {
       updateBillingRange(billingStart || 1, billingEnd || 6, newMonth);
     } else {
-      // For students, this will just snap back if session doesn't allow saving
-      // to GlobalConfig, but as per user request, we use ONLY the global source.
-      toast.info("Filter sinkron dengan panel Admin.");
+      toast.info("Filter bulan ini sinkron dengan panel Admin.");
     }
   };
 
@@ -1075,44 +1092,44 @@ export default function Finance() {
           <div className="relative px-6 py-6 border-b flex justify-between items-center transition-all duration-500 overflow-hidden
     /* Background Dasar: Putih Bersih di Light, Hitam Deep di Dark */
     bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-900">
-  
-  {/* LAYER GRADASI LIGHT MODE (Paling Pas - Blue 200, Purple 200, Emerald 100) */}
-  <div className="absolute inset-0 opacity-100 dark:opacity-0 pointer-events-none 
+
+            {/* LAYER GRADASI LIGHT MODE (Paling Pas - Blue 200, Purple 200, Emerald 100) */}
+            <div className="absolute inset-0 opacity-100 dark:opacity-0 pointer-events-none 
       bg-gradient-to-br from-blue-200 via-purple-200 to-emerald-100"></div>
-  
-  {/* LAYER GRADASI DARK MODE (Deep & Muted - Tidak Keterangan) 
+
+            {/* LAYER GRADASI DARK MODE (Deep & Muted - Tidak Keterangan) 
       Menggunakan Opacity rendah agar warna pastelnya tetap 'kereng' tapi gelap */}
-  <div className="absolute inset-0 opacity-0 dark:opacity-100 pointer-events-none 
+            <div className="absolute inset-0 opacity-0 dark:opacity-100 pointer-events-none 
       bg-gradient-to-br from-blue-950/90 via-indigo-950/60 to-emerald-950/40"></div>
 
-  {/* Soft White Gloss (Hanya aktif di Light Mode agar tidak silau di Dark) */}
-  <div className="absolute top-0 left-0 w-full h-full opacity-30 dark:opacity-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.8),transparent_60%)]"></div>
+            {/* Soft White Gloss (Hanya aktif di Light Mode agar tidak silau di Dark) */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-30 dark:opacity-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.8),transparent_60%)]"></div>
 
-  <div className="relative z-10 flex flex-col">
-    <h2 className="text-xl md:text-2xl font-black tracking-tight flex items-center gap-3
+            <div className="relative z-10 flex flex-col">
+              <h2 className="text-xl md:text-2xl font-black tracking-tight flex items-center gap-3
         /* Adaptive Text: Hitam Pekat di Light, Putih Bersih di Dark */
         text-slate-950 dark:text-white">
-      <div className="p-2 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-md border border-white/40 dark:border-white/10 shadow-sm">
-        <Wallet className="w-6 h-6 text-slate-900 dark:text-white" />
-      </div>
-      Management Kas Angkatan
-    </h2>
-    <p className="text-xs md:text-sm mt-1 font-bold
+                <div className="p-2 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-md border border-white/40 dark:border-white/10 shadow-sm">
+                  <Wallet className="w-6 h-6 text-slate-900 dark:text-white" />
+                </div>
+                Management Kas Angkatan
+              </h2>
+              <p className="text-xs md:text-sm mt-1 font-bold
         /* Adaptive Subtitle: Slate di Light, Slate Redup di Dark */
         text-slate-700 dark:text-slate-400">
-      Control Panel Keuangan Terpusat
-    </p>
-  </div>
+                Control Panel Keuangan Terpusat
+              </p>
+            </div>
 
-  <div className="hidden md:block relative z-10">
-    <span className="text-[10px] font-black tracking-widest uppercase px-4 py-2 rounded-full border shadow-sm transition-all
+            <div className="hidden md:block relative z-10">
+              <span className="text-[10px] font-black tracking-widest uppercase px-4 py-2 rounded-full border shadow-sm transition-all
         /* Badge: Menyesuaikan Kontras */
         bg-white/40 text-slate-900 border-white/60
         dark:bg-slate-900/60 dark:text-slate-300 dark:border-slate-800">
-      V1-PTIK
-    </span>
-  </div>
-</div>
+                V1-PTIK
+              </span>
+            </div>
+          </div>
 
           {/* TIER 2: CONTROL BAR (Lighter Control Panel) */}
           <div className="bg-white dark:bg-slate-950 px-6 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
