@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LogOut,
   ChevronDown,
-  ChevronRight,
   Menu,
   X,
   User,
@@ -13,7 +12,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Badge } from '@/components/ui/badge';
@@ -26,20 +24,11 @@ import {
   NAVIGATION_MODE_NAVBAR,
 } from '@/lib/navigationConfig';
 
-
-
 const roleLabels: Record<AppRole, string> = {
   admin_dev: 'AdminDev',
   admin_kelas: 'Admin Kelas',
   admin_dosen: 'Dosen',
   mahasiswa: 'Mahasiswa',
-};
-
-const roleColors: Record<AppRole, string> = {
-  admin_dev: 'bg-destructive text-destructive-foreground',
-  admin_kelas: 'bg-primary text-primary-foreground',
-  admin_dosen: 'bg-warning text-warning-foreground',
-  mahasiswa: 'bg-success text-success-foreground',
 };
 
 // Extracted SidebarContent component
@@ -68,7 +57,7 @@ const SidebarContent = ({
   isActive: (path: string) => boolean;
   isParentActive: (children?: MenuItem[]) => boolean;
   checkAccess: (roles?: AppRole[]) => boolean;
-  handleLogout: () => void;
+  handleLogout: (e?: React.MouseEvent) => void;
   navigationMode?: NavigationMode;
   onModeChange?: (mode: NavigationMode) => void;
 }) => {
@@ -282,8 +271,6 @@ const SidebarContent = ({
           </div>
         </button>
 
-
-
         {/* Dark Mode Toggle - Animated Pill */}
         <button
           onClick={toggleTheme}
@@ -333,8 +320,6 @@ const SidebarContent = ({
           </div>
         </button>
 
-
-
         {/* Logout Button */}
         <Button
           variant="ghost"
@@ -349,11 +334,12 @@ const SidebarContent = ({
   );
 };
 
-export function RoleBasedSidebar({
+function RoleBasedSidebarComponent({
   mobileOpen: externalMobileOpen,
   setMobileOpen: setExternalMobileOpen,
   navigationMode = NAVIGATION_MODE_SIDEBAR,
   onModeChange,
+
 }: {
   mobileOpen?: boolean;
   setMobileOpen?: (open: boolean) => void;
@@ -385,9 +371,16 @@ export function RoleBasedSidebar({
 
   const checkAccess = (itemRoles?: AppRole[]) => hasAccess(itemRoles, roles);
 
-  const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
+  const handleLogout = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      window.location.href = '/login';
+    }
   };
 
   const primaryRole = roles[0];
@@ -439,3 +432,5 @@ export function RoleBasedSidebar({
     </>
   );
 }
+
+export const RoleBasedSidebar = React.memo(RoleBasedSidebarComponent);

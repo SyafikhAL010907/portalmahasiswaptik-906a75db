@@ -15,13 +15,13 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ finishLoading }) => {
 
     return (
         <motion.div
-            className="fixed inset-0 flex items-center justify-center z-[9999] overflow-hidden bg-white"
+            className="fixed inset-0 flex items-center justify-center z-[9999] overflow-hidden bg-white pointer-events-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.8, ease: "easeInOut" } }}
+            exit={{ opacity: 0, transition: { duration: 0.8, ease: "easeInOut" }, pointerEvents: "none" }}
         >
             {/* Background with Adaptive Gradients */}
-            <div className="absolute inset-0 w-full h-full will-change-transform">
+            <div className="absolute inset-0 w-full h-full will-change-transform pointer-events-none">
                 {/* Light Mode Mesh Gradient */}
                 <div className="absolute inset-0 bg-[radial-gradient(at_0%_0%,_#E0F2FE_0,_transparent_50%),_radial-gradient(at_50%_0%,_#F3E8FF_0,_transparent_50%),_radial-gradient(at_100%_0%,_#D1FAE5_0,_transparent_50%),_radial-gradient(at_0%_100%,_#F3E8FF_0,_transparent_50%),_radial-gradient(at_100%_100%,_#E0F2FE_0,_transparent_50%)] bg-white mix-blend-multiply transition-opacity duration-1000 dark:opacity-0 animate-mesh-move bg-[length:400%_400%]" />
 
@@ -54,6 +54,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ finishLoading }) => {
                         <img
                             src="/splash-unj.jpg"
                             alt="Logo UNJ"
+                            loading="eager"
+                            decoding="async"
                             className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal"
                         />
                     </motion.div>
@@ -73,6 +75,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ finishLoading }) => {
                         <img
                             src="/pwa-icon.png"
                             alt="Logo BEMP"
+                            loading="eager"
+                            decoding="async"
                             className="w-full h-full object-contain drop-shadow-md"
                         />
                     </motion.div>
