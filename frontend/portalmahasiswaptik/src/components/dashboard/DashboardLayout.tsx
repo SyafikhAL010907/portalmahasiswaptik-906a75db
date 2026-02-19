@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, startTransition } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { usePaymentMonitor } from '@/hooks/usePaymentMonitor';
 import { RoleBasedSidebar } from './RoleBasedSidebar';
@@ -37,9 +37,11 @@ export function DashboardLayout() {
     setIsMobileOpen(false);
   }, [location.pathname]);
 
-  const handleModeChange = (mode: NavigationMode) => {
-    setNavigationMode(mode);
-  };
+  const handleModeChange = useCallback((mode: NavigationMode) => {
+    startTransition(() => {
+      setNavigationMode(mode);
+    });
+  }, []);
 
   const getPageTitle = (pathname: string) => {
     if (pathname === '/dashboard') return 'Dashboard';

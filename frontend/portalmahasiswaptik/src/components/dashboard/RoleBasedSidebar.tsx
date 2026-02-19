@@ -334,6 +334,7 @@ const SidebarContent = ({
   );
 };
 
+// Main Component
 function RoleBasedSidebarComponent({
   mobileOpen: externalMobileOpen,
   setMobileOpen: setExternalMobileOpen,
@@ -357,21 +358,23 @@ function RoleBasedSidebarComponent({
 
   const menuItems = getMenuItems();
 
-  const toggleExpand = (label: string) => {
+  // Optimizing internal handlers with useCallback
+  const toggleExpand = React.useCallback((label: string) => {
     setExpandedItems(prev =>
       prev.includes(label)
         ? prev.filter(item => item !== label)
         : [...prev, label]
     );
-  };
+  }, []);
 
-  const isActive = (path?: string) => path && location.pathname === path;
-  const isParentActive = (children?: MenuItem['children']) =>
-    children?.some(child => location.pathname === child.path);
+  const isActive = React.useCallback((path?: string) => path && location.pathname === path, [location.pathname]);
 
-  const checkAccess = (itemRoles?: AppRole[]) => hasAccess(itemRoles, roles);
+  const isParentActive = React.useCallback((children?: MenuItem['children']) =>
+    children?.some(child => location.pathname === child.path), [location.pathname]);
 
-  const handleLogout = async (e?: React.MouseEvent) => {
+  const checkAccess = React.useCallback((itemRoles?: AppRole[]) => hasAccess(itemRoles, roles), [roles]);
+
+  const handleLogout = React.useCallback(async (e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
     try {
@@ -381,7 +384,7 @@ function RoleBasedSidebarComponent({
     } finally {
       window.location.href = '/login';
     }
-  };
+  }, [signOut]);
 
   const primaryRole = roles[0];
 
@@ -433,7 +436,7 @@ function RoleBasedSidebarComponent({
   );
 }
 
-// Optimization: Prevent unnecessary re-renders of the heavy Sidebar
+// Optimization: Prevent unnecessary re-renders with STRICT prop comparison
 export const RoleBasedSidebar = React.memo(RoleBasedSidebarComponent, (prev, next) => {
   return (
     prev.mobileOpen === next.mobileOpen &&

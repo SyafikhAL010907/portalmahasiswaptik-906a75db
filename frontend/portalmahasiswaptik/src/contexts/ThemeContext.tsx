@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 type Theme = 'light' | 'dark';
 
@@ -26,7 +26,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('ptik-theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     // Check if browser supports View Transition API
     if (!document.startViewTransition) {
       // Fallback for browsers without support
@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.startViewTransition(() => {
       setTheme(prev => prev === 'light' ? 'dark' : 'light');
     });
-  };
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
