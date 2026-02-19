@@ -20,8 +20,13 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ finishLoading }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.8, ease: "easeInOut" }, pointerEvents: "none" }}
         >
-            {/* Background with Adaptive Gradients */}
-            <div className="absolute inset-0 w-full h-full will-change-transform pointer-events-none">
+            {/* Background with Adaptive Gradients - Silent Start: Fade In */}
+            <motion.div
+                className="absolute inset-0 w-full h-full will-change-transform pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
+            >
                 {/* Light Mode Mesh Gradient */}
                 <div className="absolute inset-0 bg-[radial-gradient(at_0%_0%,_#E0F2FE_0,_transparent_50%),_radial-gradient(at_50%_0%,_#F3E8FF_0,_transparent_50%),_radial-gradient(at_100%_0%,_#D1FAE5_0,_transparent_50%),_radial-gradient(at_0%_100%,_#F3E8FF_0,_transparent_50%),_radial-gradient(at_100%_100%,_#E0F2FE_0,_transparent_50%)] bg-white mix-blend-multiply transition-opacity duration-1000 dark:opacity-0 animate-mesh-move bg-[length:400%_400%]" />
 
@@ -29,25 +34,25 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ finishLoading }) => {
                 <div className="absolute inset-0 bg-gradient-to-br from-[#1a103c] via-[#0f172a] to-[#020617] opacity-0 transition-opacity duration-1000 dark:opacity-100">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(139,92,246,0.1),_transparent_70%)] animate-pulse-slow" />
                 </div>
-            </div>
+            </motion.div>
 
             {/* Glassmorphism Container */}
             <motion.div
                 className="relative z-10 flex flex-col items-center gap-8 p-12 rounded-3xl backdrop-blur-xl bg-white/10 dark:bg-black/20 border border-white/20 dark:border-white/10 shadow-2xl will-change-transform"
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
             >
                 <div className="flex items-center gap-8">
-                    {/* Logo UNJ */}
+                    {/* Logo UNJ - Delayed Appearance */}
                     <motion.div
-                        initial={{ scale: 0, opacity: 0 }}
+                        initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{
                             type: "spring",
                             stiffness: 260,
                             damping: 20,
-                            delay: 0.3,
+                            delay: 0.4, // Sequential Delay
                         }}
                         className="w-24 h-24 md:w-32 md:h-32 will-change-transform"
                     >
@@ -60,15 +65,15 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ finishLoading }) => {
                         />
                     </motion.div>
 
-                    {/* Logo BEMP */}
+                    {/* Logo BEMP - Instant Appearance (Silent Start) */}
                     <motion.div
-                        initial={{ scale: 0, opacity: 0 }}
+                        initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{
                             type: "spring",
-                            stiffness: 260,
+                            stiffness: 300,
                             damping: 20,
-                            delay: 0.6,
+                            delay: 0.1, // Almost Instant
                         }}
                         className="w-24 h-24 md:w-32 md:h-32 will-change-transform"
                     >
