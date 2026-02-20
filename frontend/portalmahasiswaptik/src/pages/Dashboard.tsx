@@ -822,7 +822,7 @@ export default function Dashboard() {
           {/* Announcements & Competitions */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-foreground">Informas Terbaru</h2>
+              <h2 className="text-xl font-semibold text-foreground">Informasi Terbaru</h2>
               <div className="flex gap-2">
                 <Link to="/dashboard/competitions">
                   <Button variant="ghost" size="sm" className="gap-1 text-xs">Lomba <ChevronRight className="w-3 h-3" /></Button>
