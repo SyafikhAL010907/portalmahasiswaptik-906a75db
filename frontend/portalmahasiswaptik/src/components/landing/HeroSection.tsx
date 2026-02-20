@@ -43,7 +43,7 @@ export function HeroSection({
 
           {/* Main Heading */}
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            Satu Portal untuk{' '}
+            Satu Portal Untuk{' '}
             <span className="text-gradient bg-clip-text text-transparent bg-gradient-to-r from-primary via-emerald-500 to-indigo-600 dark:from-primary dark:via-success dark:to-primary">
               Semua Kebutuhan
             </span>{' '}
