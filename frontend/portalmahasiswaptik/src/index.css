@@ -144,10 +144,6 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Plus Jakarta Sans', sans-serif;
-
-    /* Optimized Theme Transition */
-    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: background-color, color;
   }
 
   /* Custom Scrollbar Styling */
@@ -253,8 +249,8 @@
   /* Smooth cross-fade for entire viewport */
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation-duration: 200ms;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    animation-duration: 400ms;
+    animation-timing-function: ease-in-out;
   }
 
   /* Disable default morphing, use pure cross-fade */

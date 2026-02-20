@@ -405,7 +405,7 @@ function RoleBasedSidebarComponent({
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden cursor-pointer"
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
@@ -415,13 +415,7 @@ function RoleBasedSidebarComponent({
         "fixed top-0 left-0 h-[100dvh] w-72 floating-sidebar flex flex-col z-[49] transition-transform duration-300 ease-out will-change-transform transform-gpu",
         navigationMode === NAVIGATION_MODE_NAVBAR ? "md:-translate-x-full" : "md:translate-x-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full"
-      )}
-        style={{
-          transform: isMobileOpen
-            ? 'translate3d(0, 0, 0)'
-            : (navigationMode === NAVIGATION_MODE_NAVBAR ? 'translate3d(-100%, 0, 0)' : 'translate3d(0, 0, 0)')
-        }}
-      >
+      )}>
         <SidebarContent
           profile={profile}
           primaryRole={primaryRole}

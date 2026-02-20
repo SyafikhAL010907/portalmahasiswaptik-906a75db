@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, User, Menu, X, Layout, Sun, Moon, Bell, Search, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,33 +41,19 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
 
     const menuItems = getMenuItems();
 
-    // Close menu when route changes (redundant safety)
-    useEffect(() => {
-        if (isOpen) onClose();
-    }, [location.pathname, isOpen, onClose]);
-
     const isActive = (path?: string) => path && location.pathname === path;
     const isParentActive = (children?: MenuItem['children']) => children?.some(child => location.pathname === child.path);
     const checkAccess = (itemRoles?: string[]) => hasAccess(itemRoles as any, roles);
 
     const handleLogout = async () => {
-        onClose(); // Instant close
         await signOut();
         navigate('/login');
     };
 
-    const toggleSidebar = () => {
-        onClose();
-        onModeChange(NAVIGATION_MODE_SIDEBAR);
-    };
-
-    const handleThemeToggle = () => {
-        // Don't close menu for theme toggle, user might want to see the change
-        toggleTheme();
-    };
+    const toggleSidebar = () => onModeChange(NAVIGATION_MODE_SIDEBAR);
 
     return (
-        <AnimatePresence mode='wait'>
+        <AnimatePresence>
             {isOpen && (
                 <>
                     <motion.div
@@ -75,21 +61,16 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[60] md:hidden touch-none cursor-pointer"
-                        onClick={onClose}
-                        style={{ willChange: 'opacity' }}
+                        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[60] md:hidden"
+                        onPointerDown={onClose}
                     />
 
                     <motion.div
                         initial={{ y: -20, opacity: 0, scale: 0.98 }}
                         animate={{ y: 0, opacity: 1, scale: 1 }}
                         exit={{ y: -20, opacity: 0, scale: 0.98 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30, mass: 0.8 }}
-                        style={{
-                            willChange: 'transform, opacity',
-                            transform: 'translate3d(0,0,0)',
-                            backfaceVisibility: 'hidden'
-                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        style={{ willChange: 'transform' }}
                         className={cn(
                             "fixed top-[4.5rem] left-4 right-4 bottom-8 z-[70] md:hidden overflow-hidden font-pj",
                             "bg-slate-50/90 dark:bg-slate-900/60 backdrop-blur-2xl px-6 py-8",
@@ -140,15 +121,15 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                                 to={item.path}
                                                 onClick={onClose}
                                                 className={cn(
-                                                    'relative flex items-center gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-black transition-all duration-300 ease-in-out overflow-hidden group',
+                                                    'relative flex items-center gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-black transition-all duration-500 ease-in-out overflow-hidden group',
                                                     isActive(item.path)
                                                         ? 'bg-blue-600/10 text-slate-900 dark:text-white border-b-2 border-blue-600 dark:border-blue-400 font-bold'
                                                         : 'text-slate-700 dark:text-slate-400 bg-slate-200/20 border border-slate-200/40 backdrop-blur-md dark:bg-white/5 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
                                                 )}
                                             >
-                                                <span className={cn("absolute inset-0 -z-10 opacity-0 group-active:opacity-100 transition-opacity duration-300", "bg-[radial-gradient(circle_at_var(--mouse-x,50%)_var(--mouse-y,50%),rgba(59,130,246,0.25)_0%,rgba(168,85,247,0.1)_50%,transparent_100%)]")} />
+                                                <span className={cn("absolute inset-0 -z-10 opacity-0 group-active:opacity-100 transition-opacity duration-500", "bg-[radial-gradient(circle_at_var(--mouse-x,50%)_var(--mouse-y,50%),rgba(59,130,246,0.25)_0%,rgba(168,85,247,0.1)_50%,transparent_100%)]")} />
                                                 {isActive(item.path) && <span className="absolute inset-0 bg-blue-500/10 blur-2xl animate-pulse" />}
-                                                <item.icon className={cn("w-5 h-5 relative z-10 transition-all duration-300", isActive(item.path) ? "text-blue-500 drop-shadow-[0_0_15px_rgba(59,130,246,0.8)] scale-110" : "text-slate-400")} />
+                                                <item.icon className={cn("w-5 h-5 relative z-10 transition-all duration-500", isActive(item.path) ? "text-blue-500 drop-shadow-[0_0_15px_rgba(59,130,246,0.8)] scale-110" : "text-slate-400")} />
                                                 <span className="relative z-10 uppercase tracking-tight font-pj">{item.label}</span>
                                             </Link>
                                         );
@@ -159,19 +140,19 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                             <button
                                                 onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
                                                 className={cn(
-                                                    'relative w-full flex items-center justify-between gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-bold transition-all duration-300 ease-in-out overflow-hidden group',
+                                                    'relative w-full flex items-center justify-between gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-bold transition-all duration-500 ease-in-out overflow-hidden group',
                                                     isParentActive(accessibleChildren)
                                                         ? 'bg-indigo-500/10 text-slate-900 dark:text-white border-b-2 border-indigo-500 dark:border-indigo-400 font-bold'
                                                         : 'text-slate-700 dark:text-slate-400 bg-slate-200/20 border border-slate-200/40 backdrop-blur-md dark:bg-white/5 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
                                                 )}
                                             >
-                                                <span className={cn("absolute inset-0 -z-10 opacity-0 group-active:opacity-100 transition-opacity duration-300", "bg-[radial-gradient(circle_at_var(--mouse-x,50%)_var(--mouse-y,50%),rgba(168,85,247,0.25)_0%,rgba(59,130,246,0.1)_50%,transparent_100%)]")} />
+                                                <span className={cn("absolute inset-0 -z-10 opacity-0 group-active:opacity-100 transition-opacity duration-500", "bg-[radial-gradient(circle_at_var(--mouse-x,50%)_var(--mouse-y,50%),rgba(168,85,247,0.25)_0%,rgba(59,130,246,0.1)_50%,transparent_100%)]")} />
                                                 {isParentActive(accessibleChildren) && <span className="absolute inset-0 bg-indigo-500/5 blur-2xl animate-pulse" />}
                                                 <div className="flex items-center gap-4 relative z-10">
-                                                    <item.icon className={cn("w-5 h-5 transition-all duration-300", isParentActive(accessibleChildren) ? "text-indigo-500 drop-shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110" : "text-slate-400")} />
+                                                    <item.icon className={cn("w-5 h-5 transition-all duration-500", isParentActive(accessibleChildren) ? "text-indigo-500 drop-shadow-[0_0_15px_rgba(168,85,247,0.8)] scale-110" : "text-slate-400")} />
                                                     <span className="relative z-10 uppercase tracking-tight font-pj">{item.label}</span>
                                                 </div>
-                                                <ChevronDown className={cn('w-4 h-4 transition-transform duration-300 relative z-10', openDropdown === item.label && 'rotate-180')} />
+                                                <ChevronDown className={cn('w-4 h-4 transition-transform duration-500 relative z-10', openDropdown === item.label && 'rotate-180')} />
                                             </button>
                                             <AnimatePresence>
                                                 {openDropdown === item.label && accessibleChildren && (
@@ -179,7 +160,7 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                                         initial={{ height: 0, opacity: 0 }}
                                                         animate={{ height: "auto", opacity: 1 }}
                                                         exit={{ height: 0, opacity: 0 }}
-                                                        transition={{ duration: 0.2 }} // Faster dropdown
+                                                        transition={{ duration: 0.3 }}
                                                         className="ml-6 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 pl-4 overflow-hidden"
                                                     >
                                                         {accessibleChildren.map((child) => (
@@ -188,7 +169,7 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                                                 to={child.path}
                                                                 onClick={onClose}
                                                                 className={cn(
-                                                                    'flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all duration-200',
+                                                                    'flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all duration-300',
                                                                     isActive(child.path)
                                                                         ? 'text-blue-600 bg-blue-50/50 dark:text-blue-400 dark:bg-blue-900/20 shadow-sm'
                                                                         : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100/50 dark:hover:bg-white/5'
@@ -207,14 +188,14 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
 
                                 <div className="pt-6 border-t border-slate-200/50 dark:border-white/5 mt-6 space-y-6">
                                     <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={toggleSidebar} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none active:scale-95">
+                                        <button onClick={toggleSidebar} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none">
                                             <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
                                             <div className="relative z-10 flex flex-col items-center justify-center gap-1">
                                                 <Layout className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300" />
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300">Sidebar</span>
                                             </div>
                                         </button>
-                                        <button onClick={handleThemeToggle} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none active:scale-95">
+                                        <button onClick={toggleTheme} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none">
                                             <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
                                             <div className="relative z-10 flex flex-col items-center justify-center gap-1">
                                                 {theme === 'dark' ? <Sun className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-amber-500 dark:group-hover:text-amber-300" /> : <Moon className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white" />}
@@ -222,7 +203,7 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                             </div>
                                         </button>
                                     </div>
-                                    <Button variant="ghost" className="relative w-full h-16 rounded-[2.5rem] justify-center gap-3 text-rose-500 hover:text-white hover:bg-rose-500 transition-all duration-300 font-black uppercase tracking-[0.2em] overflow-hidden group shadow-lg active:scale-95" onClick={handleLogout}>
+                                    <Button variant="ghost" className="relative w-full h-16 rounded-[2.5rem] justify-center gap-3 text-rose-500 hover:text-white hover:bg-rose-500 transition-all duration-500 font-black uppercase tracking-[0.2em] overflow-hidden group shadow-lg" onClick={handleLogout}>
                                         <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 to-transparent opacity-50" />
                                         <LogOut className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
                                         <span className="relative z-10">LOG OUT</span>
@@ -247,17 +228,13 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
     const { profile, roles, signOut } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-    // State Lock to prevent double-triggers and ghost clicks during animation
-    const isTransitioning = useRef(false);
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     const menuItems = getMenuItems();
 
-    // Force close menu on route change - Strict dependency
     useEffect(() => {
         setMobileMenuOpen(false);
-        // Reset lock on navigation
-        isTransitioning.current = false;
+        setOpenDropdown(null);
     }, [location.pathname]);
 
     // Handle interactive glow mouse tracking
@@ -291,37 +268,6 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
     const toggleSidebar = () => {
         onModeChange(NAVIGATION_MODE_SIDEBAR);
     };
-
-    // Robust Toggle Handler
-    const handleToggleMenu = (e: React.MouseEvent) => {
-        // Stop ALL propagation immediately
-        e.preventDefault();
-        e.stopPropagation();
-        e.nativeEvent.stopImmediatePropagation();
-
-        // If locked, ignore completely
-        if (isTransitioning.current) return;
-
-        // Lock state
-        isTransitioning.current = true;
-
-        // Toggle State
-        setMobileMenuOpen(prev => !prev);
-
-        // Release lock after animation completes (450ms safety buffer for 400ms transition)
-        setTimeout(() => {
-            isTransitioning.current = false;
-        }, 450);
-    };
-
-    // Safe Close Handler (Passed to child)
-    const handleCloseMenu = useCallback(() => {
-        // Prevent closing if we are in the middle of opening animation
-        // This stops "ghost clicks" on the backdrop immediately after opening
-        if (isTransitioning.current) return;
-
-        setMobileMenuOpen(false);
-    }, []);
 
     return (
         <>
@@ -576,7 +522,17 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={handleToggleMenu}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                // Debounce Toggle
+                                if (window.mobileMenuTimeout) return;
+                                setMobileMenuOpen(prev => !prev);
+                                window.mobileMenuTimeout = setTimeout(() => {
+                                    window.mobileMenuTimeout = null;
+                                }, 200); // 200ms cooldown
+                            }}
                             className="md:hidden text-slate-950 dark:text-white touch-none"
                             style={{ touchAction: 'manipulation' }}
                         >
@@ -590,7 +546,7 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
             {/* Mobile Drawer Menu (Memoized) */}
             <MobileMenu
                 isOpen={mobileMenuOpen}
-                onClose={handleCloseMenu}
+                onClose={() => setMobileMenuOpen(false)}
                 onModeChange={onModeChange}
             />
         </>
