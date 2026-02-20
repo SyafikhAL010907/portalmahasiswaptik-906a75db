@@ -69,7 +69,15 @@ const App = () => {
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
       console.log('📡 PWA Radar Initialized:', swUrl);
+      console.log('📡 Radar Active on Desktop'); // 🖥️ Desktop Visibility Log
+
       if (r) {
+        // Force check immediately on startup if in standalone/desktop mode
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+          console.log('🖥️ Standalone Mode Detected: Forcing Initial Update Check...');
+          r.update();
+        }
+
         setInterval(() => {
           console.log('📡 Radar Update Check: Running...');
           r.update();
@@ -140,12 +148,14 @@ const App = () => {
   return (
     <ErrorBoundary FallbackComponent={GlobalErrorFallback} onReset={() => window.location.reload()}>
       <QueryClientProvider client={queryClient}>
+        {/* Render Toasters at the ROOT Level to ensure they are on top of everything */}
+        <Toaster />
+        <Sonner />
+
         <ThemeProvider>
           <BrowserRouter>
             <AuthProvider>
               <TooltipProvider>
-                <Toaster />
-                <Sonner />
                 <AnimatePresence mode="wait">
                   {showSplash && (
                     <SplashScreen key="splash" finishLoading={() => setShowSplash(false)} />
