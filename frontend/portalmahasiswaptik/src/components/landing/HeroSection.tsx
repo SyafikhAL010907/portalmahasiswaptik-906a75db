@@ -32,7 +32,7 @@ export function HeroSection({
 
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center">
-          {/* Badge - Modified by Vasya AI (Clean Version) */}
+          {/* Badge - Modified by Vasya AI (Clean Version)c */}
           <Link
             to="/"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 dark:bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8 animate-fade-in hover:bg-primary/20 transition-colors cursor-pointer"
