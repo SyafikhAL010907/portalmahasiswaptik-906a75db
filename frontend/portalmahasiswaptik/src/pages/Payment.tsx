@@ -186,7 +186,7 @@ export default function Payment() {
     window.addEventListener('force-close-qr', handleForceClose);
 
     if (!studentData?.user_id) {
-       return () => window.removeEventListener('force-close-qr', handleForceClose);
+      return () => window.removeEventListener('force-close-qr', handleForceClose);
     }
 
     // 🚀 2. JALUR DATABASE: Pantau tabel profiles (Karena Antrean pasti update status user di sini)
@@ -217,18 +217,18 @@ export default function Payment() {
           if (payload.eventType === 'UPDATE' && payload.new) {
             const updated = payload.new as any;
             // Langsung ubah warna kuning/merah/hilang sesuai status baru
-            setRawDues(prev => prev.map(d => 
-              (d.month === updated.month && d.week_number === updated.week_number) 
-              ? { ...d, status: updated.status } 
-              : d
+            setRawDues(prev => prev.map(d =>
+              (d.month === updated.month && d.week_number === updated.week_number)
+                ? { ...d, status: updated.status }
+                : d
             ));
           } else if (payload.eventType === 'DELETE' && payload.old) {
             const deleted = payload.old as any;
             // Kalau data antrean dihapus (Ditolak Admin), balikin otomatis jadi hutang merah ('unpaid')
-            setRawDues(prev => prev.map(d => 
-              (d.month === deleted.month && d.week_number === deleted.week_number) 
-              ? { ...d, status: 'unpaid' } 
-              : d
+            setRawDues(prev => prev.map(d =>
+              (d.month === deleted.month && d.week_number === deleted.week_number)
+                ? { ...d, status: 'unpaid' }
+                : d
             ));
           }
 
@@ -242,10 +242,10 @@ export default function Payment() {
           fetchStudentData(nim, false);
         }
       ).subscribe();
-    return () => { 
+    return () => {
       window.removeEventListener('force-close-qr', handleForceClose);
       supabase.removeChannel(profileChannel);
-      supabase.removeChannel(duesChannel); 
+      supabase.removeChannel(duesChannel);
     };
   }, [studentData?.user_id, nim]);
 
@@ -792,6 +792,41 @@ export default function Payment() {
                   alt="QRIS"
                   className="w-64 h-64 object-contain"
                 />
+              </div>
+
+              {/* --- MANUAL TRANSFER SECTION --- */}
+              <div className="w-full max-w-sm bg-muted/30 border border-border/50 rounded-2xl p-5 mb-8 z-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                <p className="text-center text-xs font-black text-muted-foreground uppercase tracking-widest mb-4">
+                  Atau Transfer Manual:
+                </p>
+
+                {(() => {
+                  const classLetter = (studentData.classLetter || 'A').toUpperCase();
+                  const transferMap: Record<string, { provider: string, number: string, color: string, bgColor: string, borderColor: string }> = {
+                    'A': { provider: 'DANA', number: '08568025001', color: 'text-blue-600', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' },
+                    'B': { provider: 'GOPAY', number: '08568025002', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' },
+                    'C': { provider: 'OVO', number: '08568025003', color: 'text-purple-600', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/20' },
+                    'D': { provider: 'DANA', number: '08568025004', color: 'text-blue-600', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' },
+                  };
+
+                  const info = transferMap[classLetter] || transferMap['A'];
+
+                  return (
+                    <div className={cn("flex flex-col items-center p-4 rounded-xl border transition-all hover:scale-[1.01]", info.bgColor, info.borderColor)}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={cn("px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter border", info.color, info.borderColor.replace('20', '30'))}>
+                          {info.provider}
+                        </div>
+                      </div>
+                      <p className={cn("text-2xl md:text-3xl font-black tracking-tight", info.color)}>
+                        {info.number}
+                      </p>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                        a/n Bendahara {studentData.classes?.name || `Kelas ${classLetter}`}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="bg-amber-500/10 border border-amber-500/20 p-5 rounded-2xl flex gap-4 items-start max-w-sm mb-8 z-10">
