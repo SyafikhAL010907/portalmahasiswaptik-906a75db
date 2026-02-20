@@ -67,7 +67,7 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true,
+        skipWaiting: false, // 🛑 JANGAN 'nyolong start': Tunggu user klik UPDATE SEKARANG
         maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // ✅ INCREASED: Avoid system cache blocking for large files
       }
     })

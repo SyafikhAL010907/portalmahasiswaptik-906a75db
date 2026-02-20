@@ -532,7 +532,7 @@ export default function Repository() {
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 8000 }
+        { duration: 7000 }
       );
 
       // Cleanup

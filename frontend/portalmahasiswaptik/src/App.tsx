@@ -105,7 +105,11 @@ const App = () => {
             <span className="text-xs text-muted-foreground">Klik tombol di bawah untuk menerapkan versi terbaru.</span>
           </div>
           <button
-            onClick={() => updateServiceWorker(true)}
+            onClick={() => {
+              // Signal that this is a user-initiated reload
+              (window as any)._pwaUpdating = true;
+              updateServiceWorker(true);
+            }}
             className="w-full bg-primary text-primary-foreground font-bold py-2.5 px-4 rounded-xl active:scale-95 transition-all shadow-md text-sm"
           >
             UPDATE SEKARANG
@@ -118,11 +122,13 @@ const App = () => {
     }
   }, [needRefresh, updateServiceWorker]);
 
-  // Refresh page once new service worker is active
+  // Refresh page once new service worker is active ONLY if triggered by user
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       const handleControllerChange = () => {
-        window.location.reload();
+        if ((window as any)._pwaUpdating) {
+          window.location.reload();
+        }
       };
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
       return () => {

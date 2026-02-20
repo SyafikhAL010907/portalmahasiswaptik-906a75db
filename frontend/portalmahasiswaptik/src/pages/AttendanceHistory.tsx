@@ -939,7 +939,7 @@ export default function AttendanceHistory() {
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 8000 }
+        { duration: 7000 }
       );
 
       // Cleanup
@@ -1011,7 +1011,7 @@ export default function AttendanceHistory() {
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 8000 }
+        { duration: 7000 }
       );
 
       setIsMasterExportOpen(false);
