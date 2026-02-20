@@ -138,6 +138,12 @@ const App = () => {
             onClick={() => {
               // Signal that this is a user-initiated reload
               (window as any)._pwaUpdating = true;
+
+              // 🧪 REDUNDANT SKIP_WAITING: Ensure instant transition
+              if (registrationRef.current?.waiting) {
+                registrationRef.current.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+
               updateServiceWorker(true);
             }}
             className="w-full bg-primary text-primary-foreground font-bold py-2.5 px-4 rounded-xl active:scale-95 transition-all shadow-md text-sm"
@@ -156,8 +162,13 @@ const App = () => {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       const handleControllerChange = () => {
+        // Log for transparency
+        console.log('📡 Service Worker Controller Changed');
         if ((window as any)._pwaUpdating) {
+          console.log('🔄 User-Initiated Update Detected: Reloading Application...');
           window.location.reload();
+        } else {
+          console.log('ℹ️ Background Update: Waiting for user interaction.');
         }
       };
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
