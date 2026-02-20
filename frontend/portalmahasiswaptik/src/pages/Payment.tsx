@@ -57,8 +57,11 @@ export default function Payment() {
   // 2. RESTORE SESSION FROM LOCAL STORAGE ON MOUNT (STRICT)
   useEffect(() => {
     const restoreSession = async () => {
-      // Initial state is now empty by default as per request.
-      // NIM and data details card only show after explicit search.
+      // 1. Initial Reset for Mahasiswa
+      if (isMahasiswa && profile?.nim) {
+        setNim(profile.nim);
+        fetchStudentData(profile.nim, true);
+      }
 
       const savedSession = localStorage.getItem('payment_session');
       if (savedSession) {
@@ -742,7 +745,7 @@ export default function Payment() {
                                 <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
                                   Menunggu Konfirmasi
                                 </span>
-                                {item.status === 'pending' && (userRoles.includes('admin_dev') || userRoles.includes('admin_kelas')) && (
+                                {!isMahasiswa && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
