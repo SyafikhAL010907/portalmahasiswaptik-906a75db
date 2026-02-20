@@ -920,15 +920,32 @@ export default function Finance() {
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
+      link.style.display = 'none';
       link.href = downloadUrl;
       link.setAttribute('download', `Laporan_Keuangan_${selectedClassName || 'Angkatan'}_${selectedYear}.xlsx`);
+
       document.body.appendChild(link);
       link.click();
 
+      // Fallback for some mobile browsers
+      setTimeout(() => {
+        window.open(downloadUrl, '_blank');
+      }, 100);
+
+      toast.success("Excel Berhasil Didownload!", {
+        description: "Cek folder 'Unduhan/Downloads' di File Manager HP Anda.",
+        action: {
+          label: 'LIHAT',
+          onClick: () => window.open(downloadUrl, '_blank')
+        },
+        duration: 8000
+      });
+
       // CLEANUP
-      link.parentNode?.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-      toast.success("Excel berhasil didownload!");
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(link);
+      }, 5000);
 
     } catch (error: any) {
       console.error("Download failed:", error);

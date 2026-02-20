@@ -491,6 +491,56 @@ export default function Repository() {
     );
   };
 
+  const handleDownload = async (file: Material) => {
+    try {
+      if (file.storage_type === 'google_drive') {
+        window.open(file.file_url, '_blank');
+        toast.info("Membuka Google Drive...", {
+          description: "Cek folder 'Unduhan' jika Anda mendownload dari Drive.",
+          duration: 4000
+        });
+        return;
+      }
+
+      toast.info("Menyiapkan file...");
+
+      const response = await fetch(file.file_url);
+      if (!response.ok) throw new Error("Gagal mengambil file");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = file.title;
+      document.body.appendChild(a);
+      a.click();
+
+      // Fallback for mobile
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, 100);
+
+      toast.success("File Berhasil Didownload!", {
+        description: "Cek folder 'Unduhan/Downloads' di File Manager HP Anda.",
+        action: {
+          label: 'LIHAT',
+          onClick: () => window.open(url, '_blank')
+        },
+        duration: 8000
+      });
+
+      // Cleanup
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 5000);
+    } catch (error: any) {
+      console.error("Download error:", error);
+      toast.error("Gagal mendownload file: " + error.message);
+    }
+  };
+
   // --- HELPERS ---
   const getFileIcon = (type: string) => {
     if (type === 'pdf') return <FileText className="w-6 h-6 text-primary" />;
@@ -728,21 +778,9 @@ export default function Repository() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                      <Button variant="pill" size="sm" asChild>
-                        <a
-                          href={file.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => {
-                            if (file.storage_type === 'google_drive') {
-                              // If it's GD, we just open the link (already converted to direct if possible)
-                              return;
-                            }
-                          }}
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          {file.storage_type === 'google_drive' ? `Buka Folder ${selectedCourse?.name || 'Materi Umum'}` : 'Download'}
-                        </a>
+                      <Button variant="pill" size="sm" onClick={() => handleDownload(file)}>
+                        <Download className="w-4 h-4 mr-2" />
+                        {file.storage_type === 'google_drive' ? `Buka Folder ${selectedCourse?.name || 'Materi Umum'}` : 'Download'}
                       </Button>
                       {canManage && (
                         <Button

@@ -912,19 +912,37 @@ export default function AttendanceHistory() {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
 
       const safeCourse = (activeId.courseName || 'Matkul').replace(/\s+/g, '_');
       const safeClass = (activeId.className || 'Kelas').replace(/\s+/g, '_');
       const safeMeeting = (activeId.meetingName || 'Pertemuan').replace(/\s+/g, '_');
-      a.download = `Absensi_${safeCourse}_${safeClass}_${safeMeeting}.xlsx`;
+      const fileName = `Absensi_${safeCourse}_${safeClass}_${safeMeeting}.xlsx`;
+      a.download = fileName;
 
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
-      toast.success("Laporan Presensi berhasil diunduh!");
+      // Fallback for some mobile browsers
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, 100);
+
+      toast.success("Excel Berhasil Didownload!", {
+        description: "Cek folder 'Unduhan/Downloads' di File Manager HP Anda.",
+        action: {
+          label: 'LIHAT',
+          onClick: () => window.open(url, '_blank')
+        },
+        duration: 8000
+      });
+
+      // Cleanup
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 5000);
     } catch (error: any) {
       console.error("Export failed:", error);
       toast.error("Gagal export Excel: " + error.message);
@@ -962,21 +980,39 @@ export default function AttendanceHistory() {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
 
       const className = classes.find(c => c.id === selectedExportClassId)?.name || 'Kelas';
       const safeSubject = (activeId.courseName || 'Subject').replace(/\s+/g, '_');
       const safeClass = className.replace(/\s+/g, '_');
+      const fileName = `Master_Absensi_${safeSubject}_${safeClass}.xlsx`;
 
-      a.download = `Master_Absensi_${safeSubject}_${safeClass}.xlsx`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
-      toast.success("Master Excel berhasil diunduh!");
+      // Fallback for some mobile browsers
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, 100);
+
+      toast.success("Master Excel Berhasil Didownload!", {
+        description: "Cek folder 'Unduhan/Downloads' di File Manager HP Anda.",
+        action: {
+          label: 'LIHAT',
+          onClick: () => window.open(url, '_blank')
+        },
+        duration: 8000
+      });
+
       setIsMasterExportOpen(false);
 
+      // Cleanup
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 5000);
     } catch (error: any) {
       console.error("Master Export Error:", error);
       toast.error("Gagal export master: " + error.message);
