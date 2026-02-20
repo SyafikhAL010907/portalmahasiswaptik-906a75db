@@ -57,11 +57,8 @@ export default function Payment() {
   // 2. RESTORE SESSION FROM LOCAL STORAGE ON MOUNT (STRICT)
   useEffect(() => {
     const restoreSession = async () => {
-      // 1. Initial Reset for Mahasiswa
-      if (isMahasiswa && profile?.nim) {
-        setNim(profile.nim);
-        fetchStudentData(profile.nim, true);
-      }
+      // Initial state is now empty by default as per request.
+      // NIM and data details card only show after explicit search.
 
       const savedSession = localStorage.getItem('payment_session');
       if (savedSession) {
@@ -745,14 +742,16 @@ export default function Payment() {
                                 <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md w-fit italic">
                                   Menunggu Konfirmasi
                                 </span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-rose-500 hover:bg-rose-500/20"
-                                  onClick={() => handleCancelSingleItem(item.month, item.week)}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                {item.status === 'pending' && (userRoles.includes('admin_dev') || userRoles.includes('admin_kelas')) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 text-rose-500 hover:bg-rose-500/20"
+                                    onClick={() => handleCancelSingleItem(item.month, item.week)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md w-fit italic">
