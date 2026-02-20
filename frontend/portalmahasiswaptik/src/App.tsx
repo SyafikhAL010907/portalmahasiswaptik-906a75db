@@ -99,6 +99,19 @@ const App = () => {
     }
   }, [needRefresh, updateServiceWorker]);
 
+  // Refresh page once new service worker is active
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const handleControllerChange = () => {
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+      return () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      };
+    }
+  }, []);
+
   return (
     <ErrorBoundary FallbackComponent={GlobalErrorFallback} onReset={() => window.location.reload()}>
       <QueryClientProvider client={queryClient}>
