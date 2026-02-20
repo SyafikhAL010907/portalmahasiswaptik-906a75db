@@ -10,6 +10,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      style={{ zIndex: 100 }} // 🛡️ Z-INDEX FIX: Always above sidebar (z-[49])
       position="bottom-right"
       offset={80} // Lift toast above floating buttons
       toastOptions={{

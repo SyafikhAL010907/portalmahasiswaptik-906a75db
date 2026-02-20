@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/ui/SplashScreen";
 import { GlobalChat } from "./components/dashboard/GlobalChat";
@@ -62,6 +62,8 @@ const LoadingSpinner = () => (
 );
 
 const App = () => {
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
@@ -69,9 +71,11 @@ const App = () => {
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
       console.log('📡 PWA Radar Initialized:', swUrl);
-      console.log('📡 Radar Active on Desktop'); // 🖥️ Desktop Visibility Log
+      console.log('🖥️ Desktop Radar Active'); // 🖥️ Final Sync Log
 
       if (r) {
+        registrationRef.current = r;
+
         // Force check immediately on startup if in standalone/desktop mode
         if (window.matchMedia('(display-mode: standalone)').matches) {
           console.log('🖥️ Standalone Mode Detected: Forcing Initial Update Check...');
@@ -88,6 +92,24 @@ const App = () => {
       console.error('❌ PWA Radar Error:', error);
     }
   });
+
+  // 📡 FOCUS RADAR: Trigger update check every time the window gets focus
+  useEffect(() => {
+    const handleCheck = () => {
+      if (registrationRef.current && document.visibilityState === 'visible') {
+        console.log('📡 Window Focused/Visible: Checking for updates...');
+        registrationRef.current.update();
+      }
+    };
+
+    window.addEventListener('focus', handleCheck);
+    document.addEventListener('visibilitychange', handleCheck);
+
+    return () => {
+      window.removeEventListener('focus', handleCheck);
+      document.removeEventListener('visibilitychange', handleCheck);
+    };
+  }, []);
 
   const [showSplash, setShowSplash] = useState(true);
 
