@@ -68,7 +68,7 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // Increase limit to 5MB to prevent bottlenecks
+        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // ✅ INCREASED: Avoid system cache blocking for large files
       }
     })
   ].filter(Boolean),

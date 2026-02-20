@@ -67,12 +67,11 @@ const App = () => {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
-      console.log('📡 PWA Radar Active:', r);
-      // Aggressive check every 15 seconds
+    onRegisteredSW(swUrl, r) {
+      console.log('📡 PWA Radar Initialized:', swUrl);
       if (r) {
         setInterval(() => {
-          console.log('🔄 PWA Radar: Checking for updates...');
+          console.log('📡 Radar Update Check: Running...');
           r.update();
         }, 15000);
       }
