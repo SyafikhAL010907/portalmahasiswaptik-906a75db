@@ -14,6 +14,10 @@ import {
 
 const STORAGE_KEY = 'navigation_mode';
 
+import { motion, AnimatePresence } from 'framer-motion';
+
+// ... imports remain the same
+
 // Memoize Outlet to prevent re-renders when sidebar toggles
 const MemoizedOutlet = React.memo(() => <Outlet />);
 
@@ -66,13 +70,24 @@ export default function DashboardLayout() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-300 ease-out">
-        {/* Top Navbar (when mode is navbar) */}
-        {navigationMode === NAVIGATION_MODE_NAVBAR && (
-          <TopNavbar onModeChange={handleModeChange} />
-        )}
+      <div className="min-h-screen bg-background flex flex-col md:flex-row transition-all duration-300 ease-out overflow-x-hidden">
 
-        {/* Mobile Top Bar (when mode is sidebar) */}
+        <AnimatePresence mode="popLayout">
+          {navigationMode === NAVIGATION_MODE_NAVBAR && (
+            <motion.div
+              key="navbar-desktop"
+              initial={{ y: -100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -100, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="fixed top-0 left-0 right-0 z-50 w-full"
+            >
+              <TopNavbar onModeChange={handleModeChange} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile Header - Always show in Sidebar Mode (Mobile) */}
         {navigationMode === NAVIGATION_MODE_SIDEBAR && (
           <header className="md:hidden sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md border-b border-border px-4 h-16 flex items-center justify-between transition-all duration-300 ease-in-out">
             <div className="flex items-center gap-3 overflow-hidden">
@@ -80,7 +95,7 @@ export default function DashboardLayout() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsMobileOpen(!isMobileOpen)}
-                className="text-foreground shrink-0 touch-none" // optimization: touch-none/manipulation
+                className="text-foreground shrink-0 touch-none active:scale-95 transition-transform"
                 style={{ touchAction: 'manipulation' }}
               >
                 {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -99,20 +114,30 @@ export default function DashboardLayout() {
           </header>
         )}
 
-        {/* Sidebar (always rendered but conditionally visible) */}
-        <RoleBasedSidebar
-          mobileOpen={isMobileOpen}
-          setMobileOpen={setIsMobileOpen}
-          navigationMode={navigationMode}
-          onModeChange={handleModeChange}
-        />
+        {/* Sidebar - Conditionally Rendered with AnimatePresence */}
+        <AnimatePresence mode="popLayout">
+          {navigationMode === NAVIGATION_MODE_SIDEBAR && (
+            <motion.div
+              key="sidebar"
+              initial={{ x: -300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -300, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "circOut" }}
+              className="z-[49]"
+            >
+              <RoleBasedSidebar
+                mobileOpen={isMobileOpen}
+                setMobileOpen={setIsMobileOpen}
+                navigationMode={navigationMode}
+                onModeChange={handleModeChange}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <main
-          style={{
-            marginLeft: navigationMode === NAVIGATION_MODE_NAVBAR ? '0' : undefined
-          }}
           className={cn(
-            "flex-1 transition-all duration-300 ease-out will-change-transform transform-gpu",
+            "flex-1 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] will-change-transform transform-gpu",
             // CRITICAL AGGRESSIVE MARGIN FIX
             navigationMode === NAVIGATION_MODE_SIDEBAR
               ? "md:ml-72 ml-0 pt-6 md:pt-8" // Sidebar mode: margin left for desktop only
@@ -157,4 +182,5 @@ export default function DashboardLayout() {
     </ProtectedRoute>
   );
 }
+
 
