@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, User, Menu, X, Layout, Sun, Moon, Bell, Search, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -248,11 +248,16 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
     const { theme, toggleTheme } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+    // State Lock to prevent double-triggers and ghost clicks during animation
+    const isTransitioning = useRef(false);
+
     const menuItems = getMenuItems();
 
-    // Force close menu on route change - additional safety layer
+    // Force close menu on route change - Strict dependency
     useEffect(() => {
         setMobileMenuOpen(false);
+        // Reset lock on navigation
+        isTransitioning.current = false;
     }, [location.pathname]);
 
     // Handle interactive glow mouse tracking
@@ -286,6 +291,37 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
     const toggleSidebar = () => {
         onModeChange(NAVIGATION_MODE_SIDEBAR);
     };
+
+    // Robust Toggle Handler
+    const handleToggleMenu = (e: React.MouseEvent) => {
+        // Stop ALL propagation immediately
+        e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+
+        // If locked, ignore completely
+        if (isTransitioning.current) return;
+
+        // Lock state
+        isTransitioning.current = true;
+
+        // Toggle State
+        setMobileMenuOpen(prev => !prev);
+
+        // Release lock after animation completes (450ms safety buffer for 400ms transition)
+        setTimeout(() => {
+            isTransitioning.current = false;
+        }, 450);
+    };
+
+    // Safe Close Handler (Passed to child)
+    const handleCloseMenu = useCallback(() => {
+        // Prevent closing if we are in the middle of opening animation
+        // This stops "ghost clicks" on the backdrop immediately after opening
+        if (isTransitioning.current) return;
+
+        setMobileMenuOpen(false);
+    }, []);
 
     return (
         <>
@@ -540,17 +576,7 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-
-                                // Debounce Toggle
-                                if (window.mobileMenuTimeout) return;
-                                setMobileMenuOpen(prev => !prev);
-                                window.mobileMenuTimeout = setTimeout(() => {
-                                    window.mobileMenuTimeout = null;
-                                }, 200); // 200ms cooldown
-                            }}
+                            onClick={handleToggleMenu}
                             className="md:hidden text-slate-950 dark:text-white touch-none"
                             style={{ touchAction: 'manipulation' }}
                         >
@@ -564,7 +590,7 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
             {/* Mobile Drawer Menu (Memoized) */}
             <MobileMenu
                 isOpen={mobileMenuOpen}
-                onClose={() => setMobileMenuOpen(false)}
+                onClose={handleCloseMenu}
                 onModeChange={onModeChange}
             />
         </>
