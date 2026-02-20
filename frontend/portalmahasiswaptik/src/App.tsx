@@ -11,6 +11,8 @@ import SplashScreen from "@/components/ui/SplashScreen";
 import { GlobalChat } from "./components/dashboard/GlobalChat";
 import { ErrorBoundary } from "react-error-boundary";
 import { GlobalErrorFallback } from "@/components/ui/GlobalErrorFallback";
+import { useRegisterSW } from 'virtual:pwa-register/react';
+import { toast } from 'sonner';
 
 // Lazy Load Pages & Components
 const Index = lazy(() => import("./pages/Index"));
@@ -69,6 +71,33 @@ const App = () => {
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
+
+  useEffect(() => {
+    if (needRefresh) {
+      toast.info(
+        <div className="flex flex-col gap-3 w-full">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-sm text-foreground">Pembaruan Sistem Tersedia!</span>
+            <span className="text-xs text-muted-foreground">Klik tombol di bawah untuk menerapkan versi terbaru.</span>
+          </div>
+          <button
+            onClick={() => updateServiceWorker(true)}
+            className="w-full bg-primary text-primary-foreground font-bold py-2.5 px-4 rounded-xl active:scale-95 transition-all shadow-md text-sm"
+          >
+            UPDATE SEKARANG
+          </button>
+        </div>,
+        {
+          duration: Infinity, // Permanent toast
+        }
+      );
+    }
+  }, [needRefresh, updateServiceWorker]);
 
   return (
     <ErrorBoundary FallbackComponent={GlobalErrorFallback} onReset={() => window.location.reload()}>
