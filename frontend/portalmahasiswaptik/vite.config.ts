@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: 'autoUpdate',
+   registerType: 'prompt', // JANGAN 'autoUpdate'
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'splash-unj.jpg', 'pwa-icon.png'],
       manifest: {
         name: 'Portal PTIK',

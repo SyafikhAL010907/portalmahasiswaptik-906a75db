@@ -38,12 +38,12 @@ export function HeroSection({
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 dark:bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8 animate-fade-in hover:bg-primary/20 transition-colors cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Portal Angkatann PTIK 2025</span>
+            <span>Portal Angkatan PTIK 2025</span>
           </Link>
 
           {/* Main Heading */}
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            Satu Portall untuk{' '}
+            Satu Portal untuk{' '}
             <span className="text-gradient bg-clip-text text-transparent bg-gradient-to-r from-primary via-emerald-500 to-indigo-600 dark:from-primary dark:via-success dark:to-primary">
               Semua Kebutuhan
             </span>{' '}
