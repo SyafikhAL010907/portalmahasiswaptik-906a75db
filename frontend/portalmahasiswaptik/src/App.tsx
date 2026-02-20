@@ -70,8 +70,7 @@ const App = () => {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
-      console.log('📡 PWA Radar Initialized:', swUrl);
-      console.log('🖥️ Radar Update Active'); // 🖥️ Final Sync Log
+      console.log('🌍 Global Radar: Monitoring All Pages...'); // 🌍 Global Monitoring Log
 
       if (r) {
         registrationRef.current = r;
@@ -83,7 +82,7 @@ const App = () => {
         }
 
         setInterval(() => {
-          console.log('📡 Radar Update Check: Running...');
+          console.log('🌍 Global Radar Check: Pulsing...');
           r.update();
         }, 15000);
       }
@@ -97,7 +96,7 @@ const App = () => {
   useEffect(() => {
     const handleCheck = () => {
       if (registrationRef.current && document.visibilityState === 'visible') {
-        console.log('📡 Window Focused/Visible: Checking for updates...');
+        console.log('🌍 Global Radar: Window Focus/Visibility Detected. Checking updates...');
         registrationRef.current.update();
       }
     };
