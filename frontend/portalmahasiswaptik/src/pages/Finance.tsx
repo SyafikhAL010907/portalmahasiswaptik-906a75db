@@ -922,24 +922,23 @@ export default function Finance() {
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = downloadUrl;
-      link.setAttribute('download', `Laporan_Keuangan_${selectedClassName || 'Angkatan'}_${selectedYear}.xlsx`);
+      const fileName = `Laporan_Keuangan_${selectedClassName || 'Angkatan'}_${selectedYear}.xlsx`;
+      link.setAttribute('download', fileName);
 
       document.body.appendChild(link);
       link.click();
 
-      // Fallback for some mobile browsers
-      setTimeout(() => {
-        window.open(downloadUrl, '_blank');
-      }, 100);
       toast.success(
         <div className="flex flex-col gap-3 w-full">
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-sm text-foreground">Excel Berhasil!</span>
-            <span className="text-xs text-muted-foreground">Cek folder 'Unduhan' di browser atau HP Anda.</span>
+            <span className="text-xs text-muted-foreground">File disimpan sebagai: <span className="font-mono text-[10px] break-all">{fileName}</span></span>
           </div>
           <button
             onClick={() => {
-              toast.info("Cek menu 'Downloads' atau 'Unduhan' di pojok browser Chrome/HP Anda.");
+              toast.info(`File disimpan sebagai ${fileName}! Silakan cek menu 'Downloads' atau 'Unduhan' di browser Chrome Anda.`, {
+                duration: 6000
+              });
             }}
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
           >
