@@ -71,7 +71,7 @@ const App = () => {
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
       console.log('📡 PWA Radar Initialized:', swUrl);
-      console.log('🖥️ Desktop Radar Active'); // 🖥️ Final Sync Log
+      console.log('🖥️ Radar Update Active'); // 🖥️ Final Sync Log
 
       if (r) {
         registrationRef.current = r;
