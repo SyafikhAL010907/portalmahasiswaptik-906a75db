@@ -62,6 +62,26 @@ const LoadingSpinner = () => (
 );
 
 const App = () => {
+  const {
+    offlineReady: [offlineReady, setOfflineReady],
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log('📡 PWA Radar Active:', r);
+      // Aggressive check every 15 seconds
+      if (r) {
+        setInterval(() => {
+          console.log('🔄 PWA Radar: Checking for updates...');
+          r.update();
+        }, 15000);
+      }
+    },
+    onRegisterError(error) {
+      console.error('❌ PWA Radar Error:', error);
+    }
+  });
+
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
@@ -71,26 +91,6 @@ const App = () => {
     }, 3000);
     return () => clearTimeout(timer);
   }, []);
-
-  const {
-    offlineReady: [offlineReady, setOfflineReady],
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(r) {
-      console.log('SW Registered:', r);
-      // Force update check every 30 seconds
-      if (r) {
-        setInterval(() => {
-          console.log('Checking for PWA updates...');
-          r.update();
-        }, 30000);
-      }
-    },
-    onRegisterError(error) {
-      console.error('SW registration error', error);
-    }
-  });
 
   // Aggressive Logging for Mobile Debug
   useEffect(() => {
