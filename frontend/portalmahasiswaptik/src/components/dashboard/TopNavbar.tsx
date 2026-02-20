@@ -119,7 +119,10 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                             <Link
                                                 key={item.label}
                                                 to={item.path}
-                                                onClick={onClose}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onClose();
+                                                }}
                                                 className={cn(
                                                     'relative flex items-center gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-black transition-all duration-500 ease-in-out overflow-hidden group',
                                                     isActive(item.path)
@@ -138,7 +141,10 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                     return (
                                         <div key={item.label} className="space-y-1">
                                             <button
-                                                onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdown(openDropdown === item.label ? null : item.label);
+                                                }}
                                                 className={cn(
                                                     'relative w-full flex items-center justify-between gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-bold transition-all duration-500 ease-in-out overflow-hidden group',
                                                     isParentActive(accessibleChildren)
@@ -167,7 +173,10 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                                             <Link
                                                                 key={child.path}
                                                                 to={child.path}
-                                                                onClick={onClose}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onClose();
+                                                                }}
                                                                 className={cn(
                                                                     'flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all duration-300',
                                                                     isActive(child.path)
@@ -188,14 +197,14 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
 
                                 <div className="pt-6 border-t border-slate-200/50 dark:border-white/5 mt-6 space-y-6">
                                     <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={toggleSidebar} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none">
+                                        <button onClick={(e) => { e.stopPropagation(); toggleSidebar(); }} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none">
                                             <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
                                             <div className="relative z-10 flex flex-col items-center justify-center gap-1">
                                                 <Layout className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300" />
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white group-active:text-indigo-600 dark:group-active:text-white transition-colors duration-300">Sidebar</span>
                                             </div>
                                         </button>
-                                        <button onClick={toggleTheme} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none">
+                                        <button onClick={(e) => { e.stopPropagation(); toggleTheme(); }} className="group relative flex items-center justify-center gap-3 p-4 w-full rounded-2xl border bg-white/60 border-slate-200/60 dark:bg-slate-800/40 dark:border-white/5 overflow-hidden transition-all duration-300 shadow-sm dark:shadow-none">
                                             <div className="absolute inset-0 bg-gradient-to-tr from-purple-400/50 via-blue-400/50 to-emerald-300/50 blur-xl opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-300 ease-in-out" />
                                             <div className="relative z-10 flex flex-col items-center justify-center gap-1">
                                                 {theme === 'dark' ? <Sun className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-amber-500 dark:group-hover:text-amber-300" /> : <Moon className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-white" />}
@@ -203,7 +212,7 @@ const MobileMenu = React.memo(({ isOpen, onClose, onModeChange }: { isOpen: bool
                                             </div>
                                         </button>
                                     </div>
-                                    <Button variant="ghost" className="relative w-full h-16 rounded-[2.5rem] justify-center gap-3 text-rose-500 hover:text-white hover:bg-rose-500 transition-all duration-500 font-black uppercase tracking-[0.2em] overflow-hidden group shadow-lg" onClick={handleLogout}>
+                                    <Button variant="ghost" className="relative w-full h-16 rounded-[2.5rem] justify-center gap-3 text-rose-500 hover:text-white hover:bg-rose-500 transition-all duration-500 font-black uppercase tracking-[0.2em] overflow-hidden group shadow-lg" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
                                         <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 to-transparent opacity-50" />
                                         <LogOut className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
                                         <span className="relative z-10">LOG OUT</span>
