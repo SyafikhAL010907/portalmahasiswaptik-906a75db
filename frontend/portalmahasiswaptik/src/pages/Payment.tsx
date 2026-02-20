@@ -173,35 +173,51 @@ export default function Payment() {
 
   }, [activePeriod, rawDues]);
 
+  // 4. STABLE TIMER LOGIC (Requirement: No stuck at 0:01)
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     if (showQRIS) {
-      interval = setInterval(() => {
-        // EXTRA SAFETY: If UI is closed, kill timer immediately
-        if (!showQRIS) {
-          clearInterval(interval);
-          return;
-        }
-
+      // Force initial sync
+      const syncTimer = () => {
         const savedSession = localStorage.getItem('payment_session');
         if (savedSession) {
-          const session = JSON.parse(savedSession);
-          const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
-          const remaining = 60 - elapsed;
+          try {
+            const session = JSON.parse(savedSession);
+            const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+            const remaining = 60 - elapsed;
 
-          if (remaining <= 0) {
-            setTimeLeft(0);
-            clearInterval(interval);
-            cancelPayment('timeout'); // Unified
-          } else {
-            setTimeLeft(remaining);
+            if (remaining <= 0) {
+              setTimeLeft(0);
+              cancelPayment('timeout');
+              return false; // Stop
+            } else {
+              setTimeLeft(remaining);
+              return true; // Continue
+            }
+          } catch (e) {
+            console.error("Timer Sync Error:", e);
+            cancelPayment('manual');
+            return false;
           }
         }
-      }, 1000);
+        return false;
+      };
+
+      // Initial check
+      if (syncTimer()) {
+        interval = setInterval(() => {
+          const isAlive = syncTimer();
+          if (!isAlive) {
+            clearInterval(interval);
+          }
+        }, 1000);
+      }
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [showQRIS]);
 
   // 5. REAL-TIME SUCCESS & UI UPDATE (JALUR GANDA: DATABASE & CUSTOM EVENT)
@@ -350,11 +366,18 @@ export default function Payment() {
   };
 
   const cancelPayment = async (reason: 'timeout' | 'manual' = 'manual') => {
-    // 1. INSTANT UI CLEANUP (Requirement 1 & 3)
+    // 1. INSTANT UI CLEANUP (Mandatory & Atomic)
     setShowQRIS(false);
     setTimeLeft(0);
     setPendingVerifyItems([]);
     localStorage.removeItem('payment_session');
+    toast.dismiss();
+
+    if (reason === 'timeout') {
+      toast.error("Waktu pembayaran habis! Status pending telah dibatalkan otomatis.", { duration: 4000 });
+    } else {
+      toast.success("Pembayaran dibatalkan.");
+    }
 
     // 2. OPTIMISTIC LOCAL STATE UPDATE
     setRawDues(prev => prev.map(d =>
@@ -362,34 +385,22 @@ export default function Payment() {
     ));
 
     // 3. BACKGROUND DATABASE SYNC (Direct Update for instant sync)
-    // We update profiles table first to trigger global auto-reset for other tabs/listeners
     if (studentData?.id) {
-      await (supabase as any)
-        .from('profiles')
-        .update({
-          payment_status: 'unpaid',
-          payment_expires_at: null
-        })
-        .eq('id', studentData.id);
-    }
+      try {
+        await (supabase as any)
+          .from('profiles')
+          .update({
+            payment_status: 'unpaid',
+            payment_expires_at: null
+          })
+          .eq('id', studentData.id);
 
-    // 4. REVERT WEEKLY DUES (Lazy background sync)
-    let itemsToProcess = pendingVerifyItems;
-    if (itemsToProcess.length === 0) {
-      const savedSession = localStorage.getItem('payment_session');
-      if (savedSession) {
-        itemsToProcess = JSON.parse(savedSession).items;
+        if (pendingVerifyItems.length > 0) {
+          await revertItems(pendingVerifyItems);
+        }
+      } catch (err) {
+        console.error("Background sync failed during cancelPayment:", err);
       }
-    }
-
-    if (itemsToProcess.length > 0) {
-      revertItems(itemsToProcess).catch(err => console.error("Background revert failed:", err));
-    }
-
-    if (reason === 'timeout') {
-      toast.info("Waktu pembayaran telah habis.", { duration: 3000 });
-    } else {
-      toast.success("Pembayaran dibatalkan.");
     }
   };
 
