@@ -219,57 +219,59 @@ const SidebarContent = ({
 
       {/* Bottom Section */}
       <div className="p-4 border-t border-sidebar-border space-y-3">
-        {/* Layout Mode Switcher - Animated Pill */}
-        <button
-          onClick={() => {
-            const newMode = navigationMode === NAVIGATION_MODE_SIDEBAR ? NAVIGATION_MODE_NAVBAR : NAVIGATION_MODE_SIDEBAR;
-            onModeChange?.(newMode);
-          }}
-          className={cn(
-            "relative w-full h-12 rounded-full transition-all duration-200 overflow-visible group",
-            "bg-white/5 dark:bg-white/10 backdrop-blur-md",
-            "cursor-pointer hover:scale-[1.02] active:scale-95",
-            "hover:shadow-lg hover:shadow-blue-300/20 dark:hover:shadow-purple-500/30"
-          )}
-        >
-          {/* Holographic Glow Background */}
-          <span className={cn(
-            "absolute inset-0 -z-10 opacity-0 group-hover:opacity-100 transition-all duration-500 blur-2xl rounded-full",
-            "bg-gradient-to-r from-blue-400/15 via-purple-400/15 to-emerald-400/15",
-            "dark:from-blue-500/25 dark:via-purple-500/25 dark:to-emerald-500/25"
-          )} />
+        {/* Layout Mode Switcher - Hidden on Mobile */}
+        <div className="hidden md:block">
+          <button
+            onClick={() => {
+              const newMode = navigationMode === NAVIGATION_MODE_SIDEBAR ? NAVIGATION_MODE_NAVBAR : NAVIGATION_MODE_SIDEBAR;
+              onModeChange?.(newMode);
+            }}
+            className={cn(
+              "relative w-full h-12 rounded-full transition-all duration-200 overflow-visible group",
+              "bg-white/5 dark:bg-white/10 backdrop-blur-md",
+              "cursor-pointer hover:scale-[1.02] active:scale-95",
+              "hover:shadow-lg hover:shadow-blue-300/20 dark:hover:shadow-purple-500/30"
+            )}
+          >
+            {/* Holographic Glow Background */}
+            <span className={cn(
+              "absolute inset-0 -z-10 opacity-0 group-hover:opacity-100 transition-all duration-500 blur-2xl rounded-full",
+              "bg-gradient-to-r from-blue-400/15 via-purple-400/15 to-emerald-400/15",
+              "dark:from-blue-500/25 dark:via-purple-500/25 dark:to-emerald-500/25"
+            )} />
 
-          {/* Centered Text - Always in the middle */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span
+            {/* Centered Text - Always in the middle */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span
+                className={cn(
+                  "text-sm text-slate-950 dark:text-white font-medium transition-opacity duration-300",
+                  "px-12" // Space for icons on both sides
+                )}
+                style={{
+                  opacity: 1
+                }}
+              >
+                {navigationMode === NAVIGATION_MODE_SIDEBAR ? 'Switch To NavBar' : 'Switch To SideBar'}
+              </span>
+            </div>
+
+            {/* Sliding Icon Thumb */}
+            <div
               className={cn(
-                "text-sm text-slate-950 dark:text-white font-medium transition-opacity duration-300",
-                "px-12" // Space for icons on both sides
+                "absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center",
+                "bg-gradient-to-br from-blue-500 to-purple-500 dark:from-blue-600/40 dark:via-cyan-500/40 dark:to-emerald-500/40",
+                "border border-white/0 dark:border-white/20",
+                "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                "pointer-events-none"
               )}
               style={{
-                opacity: 1
+                left: navigationMode === NAVIGATION_MODE_SIDEBAR ? '4px' : 'calc(100% - 44px)'
               }}
             >
-              {navigationMode === NAVIGATION_MODE_SIDEBAR ? 'Switch To NavBar' : 'Switch To SideBar'}
-            </span>
-          </div>
-
-          {/* Sliding Icon Thumb */}
-          <div
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center",
-              "bg-gradient-to-br from-blue-500 to-purple-500 dark:from-blue-600/40 dark:via-cyan-500/40 dark:to-emerald-500/40",
-              "border border-white/0 dark:border-white/20",
-              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              "pointer-events-none"
-            )}
-            style={{
-              left: navigationMode === NAVIGATION_MODE_SIDEBAR ? '4px' : 'calc(100% - 44px)'
-            }}
-          >
-            <Columns className="w-5 h-5 text-white" />
-          </div>
-        </button>
+              <Columns className="w-5 h-5 text-white" />
+            </div>
+          </button>
+        </div>
 
         {/* Dark Mode Toggle - Animated Pill */}
         <button
