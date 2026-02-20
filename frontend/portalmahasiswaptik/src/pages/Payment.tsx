@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn, formatIDR } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { PaymentNotificationCenter } from '@/components/dashboard/PaymentNotificationCenter';
 
@@ -33,6 +34,10 @@ export default function Payment() {
   const [selectedWeeks, setSelectedWeeks] = useState<string[]>([]);
   const [paymentAmount, setPaymentAmount] = useState(0);
 
+  // Auth context for strict isolation
+  const { profile, roles: userRoles } = useAuth();
+  const isMahasiswa = userRoles.includes('mahasiswa');
+
   // Auto-Revert Logic States
   const [timeLeft, setTimeLeft] = useState(0);
   const [pendingVerifyItems, setPendingVerifyItems] = useState<any[]>([]); // Items currently being paid
@@ -49,13 +54,27 @@ export default function Payment() {
     }
   }, [billingStart, billingEnd]);
 
-  // 2. RESTORE SESSION FROM LOCAL STORAGE ON MOUNT
+  // 2. RESTORE SESSION FROM LOCAL STORAGE ON MOUNT (STRICT)
   useEffect(() => {
     const restoreSession = async () => {
+      // 1. Initial Reset for Mahasiswa
+      if (isMahasiswa && profile?.nim) {
+        setNim(profile.nim);
+        fetchStudentData(profile.nim, true);
+      }
+
       const savedSession = localStorage.getItem('payment_session');
       if (savedSession) {
         try {
           const session = JSON.parse(savedSession);
+
+          // STRICT: Verify NIM matches current user
+          if (profile?.nim && session.nim !== profile.nim) {
+            console.warn("🔐 Payment Isolation: Session NIM mismatch. Purging.");
+            localStorage.removeItem('payment_session');
+            return;
+          }
+
           // Calculate remaining time
           const elapsedSeconds = Math.floor((Date.now() - session.startTime) / 1000);
           const remaining = 60 - elapsedSeconds;
@@ -87,8 +106,17 @@ export default function Payment() {
         }
       }
     };
+
     restoreSession();
-  }, []);
+
+    // Cleanup on unmount
+    return () => {
+      setShowQRIS(false);
+      setTimeLeft(0);
+      setPendingVerifyItems([]);
+      toast.dismiss();
+    };
+  }, [profile?.nim]);
 
   // Helper to clean up expired session immediately on load
   const handleCleanupExpiredSession = async (items: any[]) => {
@@ -435,6 +463,14 @@ export default function Payment() {
       if (profileError) throw profileError;
       if (!profile) {
         if (shouldReset) toast.error("NIM tidak ditemukan!");
+        return;
+      }
+
+      // STRICT ISOLATION: Mahasiswa can only fetch their own data
+      if (isMahasiswa && profile.nim !== nimToFetch) {
+        console.error("🔐 Payment Isolation: unauthorized fetch attempt blocked.");
+        toast.error("Anda hanya dapat melihat data tagihan Anda sendiri!");
+        if (shouldReset) setNim(userRoles.includes('mahasiswa') ? (useAuth().profile?.nim || '') : '');
         return;
       }
 

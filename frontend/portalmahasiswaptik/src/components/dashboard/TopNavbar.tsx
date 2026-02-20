@@ -44,6 +44,7 @@ const MobileMenu = React.memo(({ onClose }: { onClose: () => void }) => {
 
     const handleLogout = async () => {
         await signOut();
+        localStorage.clear(); // Safety total cleanup
         navigate('/login');
     };
 
@@ -259,6 +260,7 @@ export function TopNavbarInternal({ onModeChange }: TopNavbarProps) {
 
     const handleLogout = async () => {
         await signOut();
+        localStorage.clear(); // Safety total cleanup
         navigate('/login');
     };
 

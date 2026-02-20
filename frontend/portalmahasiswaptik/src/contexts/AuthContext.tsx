@@ -186,6 +186,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Clear all storage to prevent session leaking and stale data
+    localStorage.clear();
+    sessionStorage.clear();
+
     setUser(null);
     setSession(null);
     setProfile(null);

@@ -384,6 +384,7 @@ function RoleBasedSidebarComponent({
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      localStorage.clear(); // Safety total cleanup
       window.location.href = '/login';
     }
   }, [signOut]);
