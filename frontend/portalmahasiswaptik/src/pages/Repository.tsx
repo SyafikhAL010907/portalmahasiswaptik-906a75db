@@ -525,13 +525,15 @@ export default function Repository() {
         <div className="flex flex-col gap-3 w-full">
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-sm text-foreground">File Berhasil!</span>
-            <span className="text-xs text-muted-foreground">Klik LIHAT untuk membuka file.</span>
+            <span className="text-xs text-muted-foreground">Cek folder 'Unduhan' di browser atau HP Anda.</span>
           </div>
           <button
-            onClick={() => window.open(url, '_blank')}
+            onClick={() => {
+              toast.info("Cek menu 'Downloads' atau 'Unduhan' di pojok browser Chrome/HP Anda.");
+            }}
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
           >
-            LIHAT
+            LIHAT DOWNLOAD
           </button>
         </div>,
         { duration: 8000 }

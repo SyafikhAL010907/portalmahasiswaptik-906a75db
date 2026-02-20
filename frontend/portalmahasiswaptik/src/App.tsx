@@ -73,9 +73,29 @@ const App = () => {
   }, []);
 
   const {
+    offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log('SW Registered:', r);
+      // Force update check every 30 seconds
+      if (r) {
+        setInterval(() => {
+          console.log('Checking for PWA updates...');
+          r.update();
+        }, 30000);
+      }
+    },
+    onRegisterError(error) {
+      console.error('SW registration error', error);
+    }
+  });
+
+  // Aggressive Logging for Mobile Debug
+  useEffect(() => {
+    console.log('🔄 PWA Status:', { needRefresh, offlineReady });
+  }, [needRefresh, offlineReady]);
 
   useEffect(() => {
     if (needRefresh) {
@@ -93,7 +113,7 @@ const App = () => {
           </button>
         </div>,
         {
-          duration: Infinity, // Permanent toast
+          duration: Infinity, // Tetap muncul sampai diklik
         }
       );
     }
