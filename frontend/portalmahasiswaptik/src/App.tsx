@@ -70,7 +70,8 @@ const App = () => {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
-      console.log('🌍 Global Radar: Monitoring All Pages...'); // 🌍 Global Monitoring Log
+      console.log('📡 PWA Radar Initialized:', swUrl);
+      console.log('🖥️ Radar Update Active'); // 🖥️ Final Sync Log
 
       if (r) {
         registrationRef.current = r;
@@ -82,7 +83,7 @@ const App = () => {
         }
 
         setInterval(() => {
-          console.log('🌍 Global Radar Check: Pulsing...');
+          console.log('📡 Radar Update Check: Running...');
           r.update();
         }, 15000);
       }
@@ -96,7 +97,7 @@ const App = () => {
   useEffect(() => {
     const handleCheck = () => {
       if (registrationRef.current && document.visibilityState === 'visible') {
-        console.log('🌍 Global Radar: Window Focus/Visibility Detected. Checking updates...');
+        console.log('📡 Window Focused/Visible: Checking for updates...');
         registrationRef.current.update();
       }
     };
@@ -134,16 +135,35 @@ const App = () => {
             <span className="text-xs text-muted-foreground">Klik tombol di bawah untuk menerapkan versi terbaru.</span>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
+              console.log('👆 User clicked UPDATE SEKARANG');
               // Signal that this is a user-initiated reload
               (window as any)._pwaUpdating = true;
 
-              // 🧪 REDUNDANT SKIP_WAITING: Ensure instant transition
-              if (registrationRef.current?.waiting) {
-                registrationRef.current.waiting.postMessage({ type: 'SKIP_WAITING' });
-              }
+              try {
+                // 1. Get freshest registration if ref is stale/null
+                const registration = registrationRef.current || await navigator.serviceWorker.getRegistration();
 
-              updateServiceWorker(true);
+                if (registration?.waiting) {
+                  console.log('🧪 Sending SKIP_WAITING via explicit message...');
+                  registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+
+                // 2. Call the built-in update function
+                console.log('📡 Calling updateServiceWorker...');
+                updateServiceWorker(true);
+
+                // 3. SAFETY FALLBACK: If controllerchange doesn't fire in 3s, force it
+                setTimeout(() => {
+                  console.log('⏱️ Safety Timeout: Forcing reload after update attempt...');
+                  window.location.reload();
+                }, 3000);
+
+              } catch (err) {
+                console.error('❌ Update button execution failed:', err);
+                // Last ditch effort
+                window.location.reload();
+              }
             }}
             className="w-full bg-primary text-primary-foreground font-bold py-2.5 px-4 rounded-xl active:scale-95 transition-all shadow-md text-sm"
           >
