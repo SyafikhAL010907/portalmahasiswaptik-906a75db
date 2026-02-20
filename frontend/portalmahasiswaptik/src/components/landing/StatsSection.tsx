@@ -25,7 +25,7 @@ export function StatsSection({
               <Wallet className="w-8 h-8 text-emerald-600 dark:text-success" />
             </div>
             <div className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              {aggregatedBalance && aggregatedBalance > 0 ? formatIDR(aggregatedBalance) : '...'}
+              {aggregatedBalance && aggregatedBalance > 0 ? formatIDR(aggregatedBalance) : '-'}
             </div>
             <div className="text-slate-500 dark:text-slate-400 font-bold text-sm">Total Saldo Bersih Angkatan (Aggregated)</div>
             <div className="mt-4 inline-flex items-center gap-1 text-emerald-600 dark:text-success text-sm font-medium">
@@ -40,7 +40,7 @@ export function StatsSection({
               <Users className="w-8 h-8 text-primary" />
             </div>
             <div className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              {stats && stats.total_students ? stats.total_students : '...'}
+              {stats && stats.total_students ? stats.total_students : '-'}
             </div>
             <div className="text-slate-500 dark:text-slate-400">Total Mahasiswa</div>
             {stats && stats.class_breakdown && (
@@ -66,7 +66,7 @@ export function StatsSection({
               <div className="text-2xl font-bold text-primary dark:text-accent-foreground">%</div>
             </div>
             <div className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
-              {attendancePercentage && attendancePercentage > 0 ? `${attendancePercentage}%` : '...'}
+              {attendancePercentage && attendancePercentage > 0 ? `${attendancePercentage}%` : '-'}
             </div>
             <div className="text-slate-500 dark:text-slate-400">Tingkat Kehadiran {semesterName || 'Semester Aktif'}</div>
             <div className="mt-4 w-full bg-muted rounded-full h-2.5">

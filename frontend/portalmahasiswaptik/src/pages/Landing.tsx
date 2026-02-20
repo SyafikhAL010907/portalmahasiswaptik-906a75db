@@ -29,12 +29,12 @@ export default function Landing() {
         const { data, error } = await (supabase as any).rpc('get_landing_stats');
 
         if (error) {
-          console.error('❌ [DEBUG] FAILED to fetch landing stats:', error);
+          console.error('❌ [DEBUG] Stats Fetch Error:', error);
           return;
         }
 
         if (data) {
-          console.log('✅ [DEBUG] Landing stats fetched successfully:', data);
+          console.log('📊 Stats Fetch Data:', data);
           setStats(data as unknown as LandingStats);
 
           // The RPC now calculates the accurate net balance (1.035.000)

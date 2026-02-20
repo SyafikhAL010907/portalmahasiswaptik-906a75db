@@ -73,9 +73,9 @@ export function HeroSection({
           {/* Stats Preview */}
           <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
             {[
-              { label: 'Mahasiswa', value: stats ? `${stats.total_students}+` : '120+' },
-              { label: 'Kelas', value: stats ? stats.total_classes.toString() : '3' },
-              { label: 'Materi Semester 2', value: stats ? `${stats.total_subjects}` : '40+' },
+              { label: 'Mahasiswa', value: stats ? `${stats.total_students}+` : '-' },
+              { label: 'Kelas', value: stats ? stats.total_classes.toString() : '-' },
+              { label: 'Materi Semester 2', value: stats ? `${stats.total_subjects}` : '-' },
               { label: 'Semester', value: '2' },
             ].map((stat, index) => (
               <div
