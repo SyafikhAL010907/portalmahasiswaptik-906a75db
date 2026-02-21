@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil } from 'lucide-react';
+import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -153,8 +153,9 @@ export default function Repository() {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // Access allowed for 'admin_dev' and 'admin_kelas'
-        const hasAccess = (profile as any)?.role === 'admin_dev' || (profile as any)?.role === 'admin_kelas';
+        // Access allowed for 'admin_dev', 'admin_kelas', and 'admin kelas'
+        const role = (profile as any)?.role;
+        const hasAccess = role === 'admin_dev' || role === 'admin_kelas' || role === 'admin kelas';
         setCanManage(hasAccess);
       }
     };
@@ -163,6 +164,7 @@ export default function Repository() {
 
   // --- FETCH DATA ---
   const fetchSemesters = async () => {
+    setIsLoading(true);
     try {
       const { data, error } = await supabase.from('semesters').select('*').order('id');
       if (error && error.code === '42P01') {
@@ -171,6 +173,8 @@ export default function Repository() {
       if (data) setSemesters(data);
     } catch (err) {
       console.error("Error fetching semesters", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -259,14 +263,34 @@ export default function Repository() {
     try {
       if (isEditingCourse) {
         // Update
-        const { error } = await supabase.from('subjects')
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log("🛠️ Attempting to update course:", courseForm.id, "to:", courseForm.name);
+        console.log("👤 Current User ID:", user?.id);
+
+        const { data, error, status } = await supabase.from('subjects')
           .update({
             name: courseForm.name,
             code: courseForm.code || 'TBA',
           })
-          .eq('id', courseForm.id);
+          .eq('id', courseForm.id)
+          .select(); // Get affected rows
 
-        if (error) throw error;
+        console.log("📡 Supabase response status:", status, "data length:", data?.length);
+
+        if (error) {
+          console.error("❌ Supabase update error:", error);
+          throw error;
+        }
+
+        if (!data || data.length === 0) {
+          toast.error("Gagal: Akses Ditolak atau data tidak ditemukan.");
+          setIsLoading(false);
+          return;
+        }
+
+        // Update local state immediately for better UX
+        setSubjects(prev => prev.map(s => s.id === courseForm.id ? { ...s, name: courseForm.name, code: courseForm.code || 'TBA' } : s));
+
         toast.success("Mata kuliah diperbarui");
       } else {
         // Insert
@@ -281,7 +305,7 @@ export default function Repository() {
       }
 
       setIsCourseDialogOpen(false);
-      fetchSubjects(selectedSemester.id);
+      await fetchSubjects(selectedSemester.id);
     } catch (err: any) {
       toast.error("Gagal menyimpan mata kuliah: " + err.message);
     } finally {
@@ -314,15 +338,34 @@ export default function Repository() {
     setIsLoading(true);
     try {
       if (isEditingSemester) {
-        const { error } = await supabase.from('semesters').update({ name: semesterForm.name }).eq('id', semesterForm.id);
-        if (error) throw error;
+        console.log("🛠️ Attempting to update semester:", semesterForm.id, "to:", semesterForm.name);
+        const { data, error, status } = await supabase.from('semesters')
+          .update({ name: semesterForm.name })
+          .eq('id', semesterForm.id)
+          .select();
+
+        console.log("📡 Supabase response status:", status, "data length:", data?.length);
+
+        if (error) {
+          console.error("❌ Supabase update error:", error);
+          throw error;
+        }
+
+        if (!data || data.length === 0) {
+          toast.error("Gagal: Akses Ditolak atau data tidak ditemukan.");
+          setIsLoading(false);
+          return;
+        }
+
+        // Update local state immediately
+        setSemesters(prev => prev.map(s => s.id === semesterForm.id ? { ...s, name: semesterForm.name } : s));
       } else {
         const { error } = await supabase.from('semesters').insert({ name: semesterForm.name });
         if (error) throw error;
       }
       toast.success(isEditingSemester ? "Semester diperbarui" : "Semester ditambahkan");
       setIsSemesterDialogOpen(false);
-      fetchSemesters();
+      await fetchSemesters();
     } catch (err: any) {
       toast.error("Gagal menyimpan semester: " + err.message);
     } finally {
@@ -584,29 +627,29 @@ export default function Repository() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-10">
+    <div className="space-y-6 pt-12 md:pt-0 pb-10 px-4 md:px-0 max-w-full">
       {/* Header with Breadcrumb */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-4">
           {view !== 'semesters' && (
-            <Button variant="ghost" size="icon" onClick={handleBack} className="rounded-full bg-muted/50">
+            <Button variant="ghost" size="icon" onClick={handleBack} className="rounded-full bg-muted/50 flex-shrink-0 mt-1 sm:mt-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           )}
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Repository Materi</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground leading-tight">Repository Materi</h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
               <span>Repository</span>
               {selectedSemester && (
                 <>
-                  <ChevronRight className="w-4 h-4" />
-                  <span>{selectedSemester.name}</span>
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  <span className="break-words">{selectedSemester.name}</span>
                 </>
               )}
               {selectedCourse && (
                 <>
-                  <ChevronRight className="w-4 h-4" />
-                  <span className="truncate max-w-[200px]">{selectedCourse.name}</span>
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                  <span className="break-words">{selectedCourse.name}</span>
                 </>
               )}
             </div>
@@ -615,19 +658,19 @@ export default function Repository() {
 
         {/* Add Actions */}
         {canManage && (
-          <div>
+          <div className="w-full sm:w-auto flex justify-start sm:justify-end">
             {view === 'semesters' && (
-              <Button onClick={() => { setSemesterForm({ id: 0, name: '' }); setIsEditingSemester(false); setIsSemesterDialogOpen(true); }} className="rounded-xl gap-2 shadow-lg">
+              <Button onClick={() => { setSemesterForm({ id: 0, name: '' }); setIsEditingSemester(false); setIsSemesterDialogOpen(true); }} className="w-full sm:w-auto rounded-xl gap-2 shadow-lg">
                 <Plus className="w-4 h-4" /> Tambah Semester
               </Button>
             )}
             {view === 'courses' && (
-              <Button onClick={handleResetCourseForm} className="rounded-xl gap-2 shadow-lg">
+              <Button onClick={handleResetCourseForm} className="w-full sm:w-auto rounded-xl gap-2 shadow-lg">
                 <Plus className="w-4 h-4" /> Tambah Matkul
               </Button>
             )}
             {view === 'files' && (
-              <Button onClick={() => setIsAddMaterialOpen(true)} className="rounded-xl gap-2 shadow-lg">
+              <Button onClick={() => setIsAddMaterialOpen(true)} className="w-full sm:w-auto rounded-xl gap-2 shadow-lg">
                 <Plus className="w-4 h-4" /> Upload Materi
               </Button>
             )}
@@ -637,9 +680,9 @@ export default function Repository() {
 
       {/* 1. Semester Selection */}
       {view === 'semesters' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {semesters.map((semester, idx) => (
-            <div key={semester.id} className="relative group">
+            <div key={semester.id} className="relative group w-full">
               <PremiumCard
                 onClick={() => handleSelectSemester(semester)}
                 variant="pastel"
@@ -648,18 +691,29 @@ export default function Repository() {
                 subtitle="Klik untuk lihat matkul"
                 gradient={semester.gradient || SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].gradient}
                 iconClassName={`${SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].iconBg} ${SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].iconColor}`}
-                className={SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].shadowColor}
+                className={cn("w-full", SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].shadowColor)}
+                actions={canManage && (
+                  <div className="flex gap-3 items-center px-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-10 w-10 sm:h-8 sm:w-8 bg-black/40 text-white hover:bg-black/60 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center p-0"
+                      onClick={(e) => openEditSemester(semester, e)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-10 w-10 sm:h-8 sm:w-8 bg-red-500/90 text-white hover:bg-red-600 backdrop-blur-md border border-red-400/20 rounded-full flex items-center justify-center p-0"
+                      onClick={(e) => handleDeleteSemester(semester.id, e)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+                actionsClassName="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
               />
-              {canManage && (
-                <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button size="icon" variant="ghost" className="h-8 w-8 bg-black/20 text-white hover:bg-black/30" onClick={(e) => openEditSemester(semester, e)}>
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 bg-red-500/80 text-white hover:bg-red-600" onClick={(e) => handleDeleteSemester(semester.id, e)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -673,7 +727,7 @@ export default function Repository() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {subjects.length === 0 ? (
-                <div className="col-span-full text-center py-10 text-muted-foreground">Belum ada mata kuliah.</div>
+                <div className="col-span-full text-center py-10 text-muted-foreground glass-card rounded-xl">Belum ada mata kuliah.</div>
               ) : (
                 subjects.map((course, idx) => {
                   const subjectPastels = [
@@ -686,7 +740,7 @@ export default function Repository() {
                   ];
                   const pastel = subjectPastels[idx % subjectPastels.length];
                   return (
-                    <div key={course.id} className="relative group">
+                    <div key={course.id} className="relative group w-full">
                       <PremiumCard
                         variant="pastel"
                         icon={FileText}
@@ -694,29 +748,30 @@ export default function Repository() {
                         subtitle={course.code}
                         gradient={pastel.gradient}
                         iconClassName={`${pastel.iconBg} ${pastel.iconColor}`}
-                        className={pastel.shadowColor}
+                        className={cn("w-full", pastel.shadowColor)}
                         onClick={() => handleSelectCourse(course)}
+                        actions={canManage && (
+                          <div className="flex gap-3 items-center px-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-10 w-10 sm:h-8 sm:w-8 bg-slate-100/90 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-sm rounded-full flex items-center justify-center p-0"
+                              onClick={(e) => handleEditCourseClick(course, e)}
+                            >
+                              <Pencil className="w-4 h-4 text-blue-500" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-10 w-10 sm:h-8 sm:w-8 bg-red-50/90 hover:bg-red-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 backdrop-blur-md border border-red-200/50 dark:border-rose-900/50 shadow-sm rounded-full flex items-center justify-center p-0"
+                              onClick={(e) => handleDeleteCourse(course.id, e)}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          </div>
+                        )}
+                        actionsClassName="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
                       />
-                      {canManage && (
-                        <div className="absolute top-4 right-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
-                            onClick={(e) => handleEditCourseClick(course, e)}
-                          >
-                            <Pencil className="w-4 h-4 text-blue-500" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
-                            onClick={(e) => handleDeleteCourse(course.id, e)}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   );
                 })
@@ -761,37 +816,41 @@ export default function Repository() {
                 filteredMaterials.map((file) => (
                   <div
                     key={file.id}
-                    className="glass-card rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:shadow-soft transition-shadow"
+                    className="glass-card rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:shadow-soft transition-shadow w-full"
                   >
-                    <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
+                    <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1 pr-4">
                       <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0",
                         file.file_type === 'pdf' ? 'bg-primary/10' :
                           file.file_type === 'video' ? 'bg-destructive/10' : 'bg-accent/10'
                       )}>
                         {getFileIcon(file.file_type)}
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-medium text-foreground truncate max-w-[200px] sm:max-w-md">{file.title}</h4>
-                        {file.storage_type !== 'google_drive' && (
-                          <div className="flex gap-2 text-xs text-muted-foreground">
-                            {file.file_size && <span>{(file.file_size / 1024 / 1024).toFixed(2)} MB</span>}
-                            <span>•</span>
-                            <span>{new Date(file.created_at).toLocaleDateString()}</span>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium text-foreground truncate leading-snug">{file.title}</h4>
+                        {file.storage_type !== 'google_drive' ? (
+                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
+                            {file.file_size && <span className="flex-shrink-0">{(file.file_size / 1024 / 1024).toFixed(2)} MB</span>}
+                            <span className="hidden sm:inline">•</span>
+                            <span className="flex-shrink-0">{new Date(file.created_at).toLocaleDateString()}</span>
                           </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground mt-1">Google Drive Content</div>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      <Button variant="pill" size="sm" onClick={() => handleDownload(file)}>
+                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-muted/30">
+                      <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
                         <Download className="w-4 h-4 mr-2" />
-                        {file.storage_type === 'google_drive' ? `Buka Folder ${selectedCourse?.name || 'Materi Umum'}` : 'Download'}
+                        <span className="truncate">
+                          {file.storage_type === 'google_drive' ? `Buka Drive` : 'Download'}
+                        </span>
                       </Button>
                       {canManage && (
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="text-destructive hover:bg-destructive/10"
+                          className="h-10 w-10 sm:h-9 sm:w-9 text-destructive hover:bg-destructive/10 bg-destructive/5 sm:bg-transparent flex-shrink-0 rounded-full"
                           onClick={() => handleDeleteMaterial(file.id, file.file_url)}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -808,32 +867,57 @@ export default function Repository() {
 
       {/* --- ADD/EDIT COURSE DIALOG --- */}
       <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEditingCourse ? 'Edit Mata Kuliah' : 'Tambah Mata Kuliah'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+        <DialogContent className="sm:max-w-md border-none glass-card p-0 overflow-hidden">
+          <div className="bg-primary/10 px-6 py-6 border-b border-primary/20 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shadow-inner">
+              <BookOpen className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <DialogHeader className="p-0">
+                <DialogTitle className="text-xl font-bold text-foreground leading-none">
+                  {isEditingCourse ? 'Edit Mata Kuliah' : 'Tambah Mata Kuliah'}
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isEditingCourse ? 'Perbarui informasi mata kuliah Anda.' : 'Tambahkan mata kuliah baru ke semester ini.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
             <div className="space-y-2">
-              <Label>Nama Mata Kuliah</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold text-muted-foreground ml-1">Nama Mata Kuliah</Label>
+                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Required</span>
+              </div>
               <Input
                 placeholder="Contoh: Algoritma & Pemrograman"
                 value={courseForm.name}
                 onChange={(e) => setCourseForm({ ...courseForm, name: e.target.value })}
+                className="rounded-xl border-muted/30 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label>Kode Mata Kuliah</Label>
+              <Label className="text-sm font-semibold text-muted-foreground ml-1">Kode Mata Kuliah</Label>
               <Input
                 placeholder="Contoh: TIK123"
                 value={courseForm.code}
                 onChange={(e) => setCourseForm({ ...courseForm, code: e.target.value })}
+                className="rounded-xl border-muted/30 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all h-11"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCourseDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleSaveCourse} disabled={isLoading}>
-              {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+
+          <DialogFooter className="p-6 pt-0 flex sm:justify-end gap-3">
+            <Button variant="ghost" onClick={() => setIsCourseDialogOpen(false)} className="rounded-xl hover:bg-muted/50 font-medium">
+              Batal
+            </Button>
+            <Button
+              onClick={handleSaveCourse}
+              disabled={isLoading}
+              className="rounded-xl px-8 primary-gradient shadow-lg shadow-primary/20 hover:shadow-primary/40 active:scale-95 transition-all font-bold gap-2 h-11"
+            >
+              {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Plus className="w-4 h-4" />}
               Simpan
             </Button>
           </DialogFooter>
@@ -842,55 +926,92 @@ export default function Repository() {
 
       {/* --- ADD MATERIAL DIALOG --- */}
       <Dialog open={isAddMaterialOpen} onOpenChange={setIsAddMaterialOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Upload Materi</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+        <DialogContent className="sm:max-w-md border-none glass-card p-0 overflow-hidden">
+          <div className="bg-success/10 px-6 py-6 border-b border-success/20 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-success/20 flex items-center justify-center shadow-inner">
+              <UploadCloud className="w-6 h-6 text-success" />
+            </div>
+            <div>
+              <DialogHeader className="p-0">
+                <DialogTitle className="text-xl font-bold text-foreground leading-none">
+                  Upload Materi
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground mt-1">
+                Berbagi materi belajar untuk teman-teman seangkatan.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
             <div className="space-y-2">
-              <Label>Judul Materi</Label>
+              <Label className="text-sm font-semibold text-muted-foreground ml-1">Judul Materi</Label>
               <Input
                 placeholder="Contoh: Slide Pertemuan 1"
                 value={materialForm.title}
                 onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
+                className="rounded-xl border-muted/30 focus:border-success/50 bg-background/50 backdrop-blur-sm transition-all h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label>Deskripsi (Opsional)</Label>
+              <Label className="text-sm font-semibold text-muted-foreground ml-1">Deskripsi (Opsional)</Label>
               <Textarea
                 placeholder="Deskripsi singkat..."
                 value={materialForm.description}
                 onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
+                className="rounded-xl border-muted/30 focus:border-success/50 bg-background/50 backdrop-blur-sm transition-all min-h-[100px]"
               />
             </div>
             <div className="space-y-2">
-              <Label>File (PDF, Doc, Image, Video)</Label>
-              <Input
-                type="file"
-                onChange={handleFileChange}
-              />
+              <Label className="text-sm font-semibold text-muted-foreground ml-1">Pilih File</Label>
+              <div className="relative group">
+                <Input
+                  type="file"
+                  onChange={handleFileChange}
+                  className="rounded-xl border-dashed border-2 border-muted/50 hover:border-success/50 transition-colors bg-background/30 h-16 pt-5"
+                />
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex items-center justify-center text-xs text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
+                  <div className="flex flex-col items-center gap-1">
+                    <Plus className="w-4 h-4 mb-1" />
+                    <span>Klik atau drag file ke sini</span>
+                  </div>
+                </div>
+              </div>
+
               {isFileTooLarge && isLoading && (
-                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 p-3 rounded-lg mt-2 flex items-center gap-3">
-                  <Loader2 className="animate-spin w-4 h-4 text-blue-600" />
-                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-                    Sedang Mengunggah ke Google Drive...
-                  </p>
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 p-4 rounded-xl mt-3 flex items-center gap-4 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
+                    <Loader2 className="animate-spin w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold text-blue-700 dark:text-blue-400">Sedang Mengunggah...</h5>
+                    <p className="text-[10px] text-blue-600/80 dark:text-blue-400/80 font-medium">
+                      Mengunggah ke Google Drive Cloud Storage
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddMaterialOpen(false)}>Batal</Button>
-            <Button onClick={handleAddMaterial} disabled={isLoading}>
+
+          <DialogFooter className="p-6 pt-0 flex sm:justify-end gap-3">
+            <Button variant="ghost" onClick={() => setIsAddMaterialOpen(false)} className="rounded-xl hover:bg-muted/50">
+              Batal
+            </Button>
+            <Button
+              onClick={handleAddMaterial}
+              disabled={isLoading}
+              className="rounded-xl px-10 bg-success hover:bg-success/90 text-white shadow-lg shadow-success/20 hover:shadow-success/40 active:scale-95 transition-all font-bold gap-2 h-11"
+            >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                  {isFileTooLarge ? 'Sabar, Lagi Upload...' : 'Simpan...'}
+                  <Loader2 className="animate-spin w-4 h-4" />
+                  {isFileTooLarge ? 'Sabar...' : 'Simpan...'}
                 </>
               ) : (
                 <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Simpan
+                  <Plus className="w-4 h-4" />
+                  Simpan Materi
                 </>
               )}
             </Button>
@@ -900,25 +1021,47 @@ export default function Repository() {
 
       {/* --- ADD/EDIT SEMESTER DIALOG --- */}
       <Dialog open={isSemesterDialogOpen} onOpenChange={setIsSemesterDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEditingSemester ? 'Edit Semester' : 'Tambah Semester'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+        <DialogContent className="sm:max-w-md border-none glass-card p-0 overflow-hidden">
+          <div className="bg-primary/10 px-6 py-6 border-b border-primary/20 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shadow-inner">
+              <Calendar className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <DialogHeader className="p-0">
+                <DialogTitle className="text-xl font-bold text-foreground leading-none">
+                  {isEditingSemester ? 'Edit Semester' : 'Tambah Semester'}
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isEditingSemester ? 'Perbarui nama semester ini.' : 'Buat folder semester baru.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
             <div className="space-y-2">
-              <Label>Nama Semester</Label>
+              <Label className="text-sm font-semibold text-muted-foreground ml-1">Nama Semester</Label>
               <Input
                 placeholder="Contoh: Semester 9"
                 value={semesterForm.name}
                 onChange={(e) => setSemesterForm({ ...semesterForm, name: e.target.value })}
+                className="rounded-xl border-muted/30 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all h-11 text-lg font-medium"
               />
+              <p className="text-[10px] text-muted-foreground ml-1 italic">* Contoh: Semester 1, Semester 2, dst.</p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSemesterDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleSaveSemester} disabled={isLoading}>
-              {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              Simpan
+
+          <DialogFooter className="p-6 pt-0 flex sm:justify-end gap-3">
+            <Button variant="ghost" onClick={() => setIsSemesterDialogOpen(false)} className="rounded-xl hover:bg-muted/50 font-medium">
+              Batal
+            </Button>
+            <Button
+              onClick={handleSaveSemester}
+              disabled={isLoading}
+              className="rounded-xl px-10 primary-gradient shadow-lg shadow-primary/20 hover:shadow-primary/40 active:scale-95 transition-all font-bold gap-2 h-11"
+            >
+              {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {isEditingSemester ? 'Update' : 'Simpan'}
             </Button>
           </DialogFooter>
         </DialogContent>

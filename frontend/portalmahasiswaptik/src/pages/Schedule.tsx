@@ -251,10 +251,10 @@ export default function Schedule() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ongoing': return 'border-l-4 border-l-blue-500 bg-blue-500/5';
-      case 'next': return 'border-l-4 border-l-violet-500 bg-violet-500/5';
-      case 'finished': return 'border-l-4 border-l-slate-400 bg-slate-400/5 opacity-60 grayscale';
-      default: return 'border-l-4 border-l-muted';
+      case 'ongoing': return 'border-l-4 border-l-blue-500';
+      case 'next': return 'border-l-4 border-l-violet-500';
+      case 'finished': return 'border-l-4 border-l-slate-400 opacity-70 grayscale';
+      default: return 'border-l-4 border-l-transparent';
     }
   };
 
@@ -419,44 +419,42 @@ export default function Schedule() {
               <div
                 key={schedule.id}
                 className={cn(
-                  "glass-card rounded-2xl p-6 transition-all duration-300 hover:shadow-soft group relative",
+                  "rounded-2xl p-6 transition-all duration-300 hover:shadow-xl group relative border border-transparent shadow-lg",
+                  "bg-slate-900 text-white dark:bg-white dark:text-slate-900",
                   getStatusColor(status)
                 )}
               >
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-start justify-between">
-                      {/* PRIMARY: Course Name - ULTRA FORCE BLACK */}
-                      <h3
-                        className="!text-black dark:!text-white !font-extrabold !text-2xl tracking-tight"
-                        style={{ color: '#000000', fontWeight: 900, filter: 'drop-shadow(0 0 0.5px rgba(0,0,0,0.3))' }}
-                      >
+                      {/* PRIMARY: Course Name */}
+                      <h3 className="font-extrabold text-2xl tracking-tight">
                         {schedule.subjects?.name || 'Unknown Subject'}
                       </h3>
                       {getStatusBadge(status)}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      {/* PRIMARY: Time - FORCE BLACK BOLD */}
+                      {/* PRIMARY: Time */}
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-blue-500" />
-                        <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                        <Clock className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                        <span className="font-bold opacity-90">
                           {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)} WIB
                         </span>
                       </div>
 
-                      {/* SECONDARY: Room - FORCE BLACK */}
+                      {/* SECONDARY: Room */}
                       <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-rose-500" />
-                        <span className="text-slate-500 dark:text-slate-400 text-xs">Ruang:</span>
-                        <span className="!text-gray-900 dark:!text-gray-100 !font-bold">{schedule.room}</span>
+                        <MapPin className="w-4 h-4 text-rose-400 dark:text-rose-600" />
+                        <span className="opacity-70 text-xs">Ruang:</span>
+                        <span className="font-bold">{schedule.room}</span>
                       </div>
 
-                      {/* SECONDARY: Lecturer - FORCE BLACK */}
+                      {/* SECONDARY: Lecturer */}
                       <div className="flex items-center gap-2 sm:col-span-2">
-                        <User className="w-4 h-4 text-blue-500" />
-                        <span className="text-slate-500 dark:text-slate-400 text-xs">Dosen:</span>
-                        <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                        <User className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                        <span className="opacity-70 text-xs">Dosen:</span>
+                        <span className="font-bold">
                           {schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}
                         </span>
                       </div>

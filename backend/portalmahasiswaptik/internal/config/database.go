@@ -103,6 +103,38 @@ func autoMigrate(db *gorm.DB) error {
 	db.Exec(`INSERT INTO global_configs (key, value) VALUES ('billing_end_month', '6') ON CONFLICT (key) DO NOTHING`)
 	db.Exec(`INSERT INTO global_configs (key, value) VALUES ('billing_selected_month', '0') ON CONFLICT (key) DO NOTHING`)
 
+	// ✅ USER REQUESTED: Database Cascading Delete (Enforce Integrity)
+	// 1. subjects -> semesters
+	db.Exec(`
+		DO $$ 
+		BEGIN 
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_subjects_semesters') THEN
+				ALTER TABLE subjects 
+				ADD CONSTRAINT fk_subjects_semesters 
+				FOREIGN KEY (semester) REFERENCES semesters(id) 
+				ON DELETE CASCADE;
+			END IF;
+		END $$;
+	`)
+
+	// 2. materials -> subjects
+	db.Exec(`
+		DO $$ 
+		BEGIN 
+			-- Drop existing fkey to ensure it's updated to CASCADE
+			IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'materials_subject_id_fkey') THEN
+				ALTER TABLE materials DROP CONSTRAINT materials_subject_id_fkey;
+			END IF;
+			
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_materials_subjects') THEN
+				ALTER TABLE materials 
+				ADD CONSTRAINT fk_materials_subjects 
+				FOREIGN KEY (subject_id) REFERENCES subjects(id) 
+				ON DELETE CASCADE;
+			END IF;
+		END $$;
+	`)
+
 	println("✅ Manual SQL Seed Completed")
 	println("✅ autoMigrate completed")
 	return nil

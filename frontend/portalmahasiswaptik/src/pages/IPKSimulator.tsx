@@ -18,7 +18,13 @@ interface Subject {
     id: string;
     name: string;
     code: string;
+    semester: number;
     sks: number;
+}
+
+interface Semester {
+    id: number;
+    name: string;
 }
 
 // Standar Bobot Nilai Indonesia (SN-Dikti)
@@ -42,63 +48,96 @@ const IPKSimulator = () => {
     const { session } = useAuth();
 
     // State
-    const [semester, setSemester] = useState<string>("1");
+    const [semester, setSemester] = useState<string>("");
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [availableSemesters, setAvailableSemesters] = useState<number[]>([]);
+    const [availableSemesters, setAvailableSemesters] = useState<Semester[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isSemesterLoading, setIsSemesterLoading] = useState(true);
 
     // Initialize with a default value of 3.50
     const [targetIPK, setTargetIPK] = useState<number>(3.50);
     const [simulatedGrades, setSimulatedGrades] = useState<Record<string, string>>({});
 
+    // Fetch Semesters on Mount
+    useEffect(() => {
+        const fetchSemesters = async () => {
+            setIsSemesterLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('semesters')
+                    .select('id, name')
+                    .order('id');
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    // Validasi: Filter semester yang punya ID valid dan tidak kosong
+                    const validData = data.filter(s => s.id !== null && s.id !== undefined && s.id.toString().trim() !== '');
+
+                    if (validData.length > 0) {
+                        setAvailableSemesters(validData);
+                        // Set default semester to the first one available if not set
+                        setSemester(validData[0].id.toString());
+                    } else {
+                        setAvailableSemesters([]);
+                    }
+                } else {
+                    setAvailableSemesters([]);
+                }
+            } catch (err: any) {
+                console.error("Error fetching semesters:", err);
+            } finally {
+                setIsSemesterLoading(false);
+            }
+        };
+        fetchSemesters();
+    }, []);
+
     // Fetch Subjects whenever semester changes
     useEffect(() => {
-    const fetchSubjects = async () => {
-        // Update 1: Safety Check - Pastikan semester ada nilainya sebelum fetch
-        if (!semester) return;
+        const fetchSubjects = async () => {
+            if (!semester || semester.trim() === "") return;
 
-        setLoading(true);
-        setSimulatedGrades({}); // Bersihkan hasil simulasi lama agar tidak "ketiban"
-        
-        try {
-            const { data, error } = await supabase
-                .from('subjects')
-                .select('*')
-                // Update 2: Support Dinamis - Menarik semester berapapun yang dikirim dropdown (1-9+)
-                .eq('semester', parseInt(semester))
-                .order('name');
+            setLoading(true);
+            setSimulatedGrades({});
 
-            if (error) throw error;
+            try {
+                const { data, error } = await supabase
+                    .from('subjects')
+                    .select('*')
+                    .eq('semester', parseInt(semester))
+                    .order('name');
 
-            // Mapping SKS ke 0 tetap dijalankan agar simulator mulai dari angka bersih
-            const safeData = (data || []).map(s => ({
-                ...s,
-                sks: 0 
-            }));
-            
-            setSubjects(safeData);
+                if (error) throw error;
 
-            // Tambahan: Info jika semester yang dipilih (misal sem 9) datanya belum ada di DB
-            if (data?.length === 0) {
+                // Use real SKS from database as per requirement
+                const fetchedSubjects = (data || []).map(s => ({
+                    ...s,
+                    sks: s.sks || 0 // Ensure SKS is at least 0
+                }));
+
+                setSubjects(fetchedSubjects);
+
+                if (data?.length === 0) {
+                    toast({
+                        title: "Informasi",
+                        description: `Belum ada data matkul di semester ini.`,
+                    });
+                }
+
+            } catch (err: any) {
                 toast({
-                    title: "Informasi",
-                    description: `Data mata kuliah Semester ${semester} belum tersedia di database.`,
+                    title: "Gagal memuat mata kuliah",
+                    description: err.message,
+                    variant: "destructive",
                 });
+            } finally {
+                setLoading(false);
             }
+        };
 
-        } catch (err: any) {
-            toast({
-                title: "Gagal memuat mata kuliah",
-                description: err.message,
-                variant: "destructive",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    fetchSubjects();
-}, [semester, toast]); // Dependency tetap di semester agar matkul ganti otomatis
+        fetchSubjects();
+    }, [semester, toast]);
 
     // Handle SKS Update (Local Only - Available for ALL Roles)
     const handleSKSUpdate = (id: string, newSKS: number) => {
@@ -208,20 +247,25 @@ const IPKSimulator = () => {
                                 <ChevronDown className="absolute right-4 w-5 h-5 opacity-70" />
                             </SelectTrigger>
                             <SelectContent className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl shadow-xl">
-                                {availableSemesters.length > 0 ? (
-    availableSemesters.map((num) => (
-        <SelectItem key={num} value={num.toString()} className="focus:bg-purple-50 dark:focus:bg-slate-800 focus:text-purple-900 dark:focus:text-purple-100 cursor-pointer font-medium py-2">
-            Semester {num}
-        </SelectItem>
-    ))
-) : (
-    // Fallback kalau data belum dapet atau kosong
-    [1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-        <SelectItem key={num} value={num.toString()} className="focus:bg-purple-50 dark:focus:bg-slate-800 focus:text-purple-900 dark:focus:text-purple-100 cursor-pointer font-medium py-2">
-            Semester {num}
-        </SelectItem>
-    ))
-)}
+                                {isSemesterLoading ? (
+                                    <SelectItem value="loading" disabled className="text-muted-foreground py-2 italic text-center">
+                                        Memuat semester...
+                                    </SelectItem>
+                                ) : availableSemesters.length > 0 ? (
+                                    availableSemesters.map((sem) => (
+                                        <SelectItem
+                                            key={sem.id}
+                                            value={sem.id.toString()}
+                                            className="focus:bg-purple-50 dark:focus:bg-slate-800 focus:text-purple-900 dark:focus:text-purple-100 cursor-pointer font-medium py-2"
+                                        >
+                                            {sem.name}
+                                        </SelectItem>
+                                    ))
+                                ) : (
+                                    <SelectItem value="none" disabled className="text-muted-foreground py-2 italic text-center">
+                                        Belum ada data
+                                    </SelectItem>
+                                )}
                             </SelectContent>
                         </Select>
                     </div>
@@ -270,7 +314,7 @@ const IPKSimulator = () => {
                     </div>
                 ) : subjects.length === 0 ? (
                     <div className="text-center py-20 text-slate-500 dark:text-gray-500 bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                        <p>Belum ada mata kuliah di semester {semester}.</p>
+                        <p>Belum ada data matkul di semester ini.</p>
                     </div>
                 ) : (
                     subjects.map((subject, index) => (

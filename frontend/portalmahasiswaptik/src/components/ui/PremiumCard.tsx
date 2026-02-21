@@ -7,11 +7,13 @@ interface PremiumCardProps {
     title: string;
     subtitle?: string;
     value?: React.ReactNode;
+    actions?: React.ReactNode; // NEW: slot for management buttons
     gradient?: string;
     onClick?: () => void;
     className?: string;
     iconClassName?: string;
     titleClassName?: string;
+    actionsClassName?: string; // NEW: additional styling for actions
     variant?: 'subtle' | 'bold' | 'pastel'; // NEW: pastel for soft Finance Dashboard style
     centered?: boolean;
 }
@@ -21,11 +23,13 @@ export const PremiumCard = React.memo(function PremiumCard({
     title,
     subtitle,
     value,
+    actions,
     gradient = "from-primary/20 to-primary/5",
     onClick,
     className,
     iconClassName,
     titleClassName,
+    actionsClassName,
     variant = 'subtle',
     centered = false
 }: PremiumCardProps) {
@@ -55,39 +59,51 @@ export const PremiumCard = React.memo(function PremiumCard({
         >
             <div className={cn(
                 "flex gap-4 h-full w-full",
-                centered ? "flex-col items-center text-center justify-center py-2" : "flex-row items-start"
+                centered ? "flex-col items-center text-center justify-center py-2" : "flex-row items-start justify-between"
             )}>
-                {/* CIRCLE ICON CONTAINER for pastel mode */}
                 <div className={cn(
-                    "rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-all",
-                    isPastel ? "w-12 h-12 rounded-full" : (centered ? "w-16 h-16 shadow-md" : "w-14 h-14 shadow-sm"),
-                    isBold ? "bg-white/20 backdrop-blur-xl" : "bg-card/80 backdrop-blur",
-                    iconClassName
+                    "flex flex-1 min-w-0 gap-4",
+                    centered ? "flex-col items-center" : "flex-row items-center"
                 )}>
-                    <Icon className={cn(
-                        isPastel ? "w-6 h-6" : (centered ? "w-8 h-8" : "w-7 h-7"),
-                        isBold ? "text-white" : isPastel ? "" : "text-primary"
-                    )} />
+                    {/* CIRCLE ICON CONTAINER for pastel mode */}
+                    <div className={cn(
+                        "rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-all",
+                        isPastel ? "w-12 h-12 rounded-full" : (centered ? "w-16 h-16 shadow-md" : "w-14 h-14 shadow-sm"),
+                        isBold ? "bg-white/20 backdrop-blur-xl" : "bg-card/80 backdrop-blur",
+                        iconClassName
+                    )}>
+                        <Icon className={cn(
+                            isPastel ? "w-6 h-6" : (centered ? "w-8 h-8" : "w-7 h-7"),
+                            isBold ? "text-white" : isPastel ? "" : "text-primary"
+                        )} />
+                    </div>
+                    <div className={cn(
+                        "min-w-0 flex flex-col h-full grow",
+                        centered ? "items-center" : "justify-center"
+                    )}>
+                        {/* PURE BLACK TEXT for pastel mode */}
+                        <h3 className={cn(
+                            "font-bold leading-tight truncate", // Added truncate here
+                            isBold ? "text-xl text-white" : isPastel ? "text-lg text-slate-900 dark:text-slate-100" : (centered ? "text-xl" : "text-lg text-foreground"),
+                            titleClassName
+                        )}>{title}</h3>
+                        {value !== undefined && <div className={cn(
+                            "font-black mt-1 truncate",
+                            isBold ? "text-3xl text-white" : isPastel ? "text-2xl text-slate-900 dark:text-slate-100" : (centered ? "text-4xl md:text-5xl" : "text-[clamp(1rem,2.2vw,1.5rem)] text-foreground")
+                        )}>{value}</div>}
+                        {subtitle && <p className={cn(
+                            "text-sm font-medium mt-1 max-w-[600px] truncate", // Added truncate here
+                            isBold ? "text-white/80" : isPastel ? "text-slate-600 dark:text-slate-400" : "text-muted-foreground"
+                        )}>{subtitle}</p>}
+                    </div>
                 </div>
-                <div className={cn(
-                    "min-w-0 flex flex-col h-full",
-                    centered ? "items-center" : "flex-1 justify-center"
-                )}>
-                    {/* PURE BLACK TEXT for pastel mode */}
-                    <h3 className={cn(
-                        "font-bold leading-tight",
-                        isBold ? "text-xl text-white" : isPastel ? "text-lg text-slate-900 dark:text-slate-100" : (centered ? "text-xl" : "text-lg text-foreground"),
-                        titleClassName
-                    )}>{title}</h3>
-                    {value !== undefined && <div className={cn(
-                        "font-black mt-1 truncate",
-                        isBold ? "text-3xl text-white" : isPastel ? "text-2xl text-slate-900 dark:text-slate-100" : (centered ? "text-4xl md:text-5xl" : "text-[clamp(1rem,2.2vw,1.5rem)] text-foreground")
-                    )}>{value}</div>}
-                    {subtitle && <p className={cn(
-                        "text-sm font-medium mt-1 max-w-[600px]",
-                        isBold ? "text-white/80" : isPastel ? "text-slate-600 dark:text-slate-400" : "text-muted-foreground"
-                    )}>{subtitle}</p>}
-                </div>
+
+                {/* ACTIONS SLOT */}
+                {actions && (
+                    <div className={cn("flex-shrink-0 flex items-center justify-end z-20", actionsClassName)}>
+                        {actions}
+                    </div>
+                )}
             </div>
         </div>
     );
