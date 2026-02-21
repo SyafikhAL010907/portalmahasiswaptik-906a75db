@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/config"
@@ -81,9 +82,15 @@ func main() {
 		},
 	}))
 
+	// ✅ Advanced CORS: Allow dynamic origins from environment (as requested: using split)
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	origins := strings.Split(allowedOrigins, ",")
+	for i := range origins {
+		origins[i] = strings.TrimSpace(origins[i])
+	}
+
 	app.Use(cors.New(cors.Config{
-		// ✅ Strict CORS: Only allow production and local development origins
-		AllowOrigins:     os.Getenv("ALLOWED_ORIGINS"),
+		AllowOrigins:     strings.Join(origins, ","),
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With",
 		AllowCredentials: true,
@@ -117,7 +124,7 @@ func main() {
 	log.Printf("📡 Environment: %s", os.Getenv("APP_ENV"))
 	log.Printf("📚 API Documentation: http://localhost:%s/api/docs", port)
 
-	if err := app.Listen(":" + port); err != nil {
+	if err := app.Listen("0.0.0.0:" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

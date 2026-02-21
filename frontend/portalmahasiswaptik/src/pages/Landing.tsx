@@ -23,28 +23,74 @@ export default function Landing() {
   const { percentage, isLoading: isLoadingAttendance, semesterName } = useAttendanceStats(user?.id);
 
   useEffect(() => {
+    // 🥷 NINJA CONFIG: Bypass RLS untuk Public Landing Page
+    const ninjaUrl = "https://owqjsqvpmsctztpgensg.supabase.co";
+    const ninjaKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93cWpzcXZwbXNjdHp0cGdlbnNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDI0NTkwNCwiZXhwIjoyMDg1ODIxOTA0fQ.S9TInNnZHCsjuuYrpcXB5xpM4Lsr3MIE1YsFPdhq2Hg";
+
     const fetchStats = async () => {
-      console.log('🔍 [DEBUG] Fetching landing stats via RPC...');
+      console.log('🔍 [DEBUG] Fetching landing stats...');
       try {
-        const { data, error } = await (supabase as any).rpc('get_landing_stats');
+        // 1. Fetch Classes (Standard)
+        const { data: classesData, error: classError } = await supabase
+          .from('classes')
+          .select('id, name')
+          .order('name');
 
-        if (error) {
-          console.error('❌ [DEBUG] Stats Fetch Error:', error);
-          return;
+        if (classError) console.error('❌ [DEBUG] Fetch Error (Classes):', classError);
+
+        // 2. Fetch Profiles with Role Filtering (Ninja Bypass)
+        // Kita butuh role untuk filter Mahasiswa & Admin Kelas
+        let allProfiles = [];
+        const response = await fetch(`${ninjaUrl}/rest/v1/profiles?select=class_id,role`, {
+          headers: { 'apikey': ninjaKey, 'Authorization': `Bearer ${ninjaKey}` }
+        });
+
+        if (response.ok) {
+          allProfiles = await response.json();
+        } else {
+          console.error('❌ [DEBUG] Fetch Error (Profiles - Ninja):', response.statusText);
         }
 
-        if (data) {
-          console.log('📊 Stats Fetch Data:', data);
-          setStats(data as unknown as LandingStats);
+        // FILTER: Hanya Mahasiswa (mahasiswa) & Admin Kelas (admin_kelas)
+        const validStudentProfiles = allProfiles.filter((p: any) =>
+          ['mahasiswa', 'admin_kelas'].includes(p.role)
+        );
 
-          // The RPC now calculates the accurate net balance (1.035.000)
-          if (data.total_cash_lifetime !== undefined) {
-            console.log('💰 [DEBUG] Aggregated Balance delivered from RPC:', data.total_cash_lifetime);
-            setAggregatedBalance(data.total_cash_lifetime);
-          }
-        }
+        // 3. Fetch Subjects count (Semester 2 Only)
+        const { count: subjectsCount, error: subjectsError } = await supabase
+          .from('subjects')
+          .select('*', { count: 'exact', head: true })
+          .eq('semester', 2);
+
+        if (subjectsError) console.error('❌ [DEBUG] Fetch Error (Subjects):', subjectsError);
+
+        // 4. Fetch Cash (RPC)
+        const { data: rpcData, error: rpcError } = await (supabase as any).rpc('get_landing_stats');
+        if (rpcError) console.error('❌ [DEBUG] Fetch Error (RPC-Cash):', rpcError);
+
+        const totalStudents = validStudentProfiles.length;
+        const totalClasses = classesData?.length || 0;
+
+        // Dynamic Breakdown Calculation dengan Filter Role
+        const breakdown = (classesData || []).map(cls => ({
+          name: cls.name,
+          count: validStudentProfiles.filter((p: any) => p.class_id === cls.id).length
+        }));
+
+        const finalStats: LandingStats = {
+          total_students: totalStudents,
+          total_classes: totalClasses,
+          total_subjects: subjectsCount || 0,
+          total_cash_lifetime: rpcData?.total_cash_lifetime || 0,
+          class_breakdown: breakdown
+        };
+
+        console.log('📊 Real-time Stats Aggregated:', finalStats);
+        setStats(finalStats);
+        setAggregatedBalance(finalStats.total_cash_lifetime);
+
       } catch (err) {
-        console.error('❌ [DEBUG] Unexpected error in fetchStats:', err);
+        console.error('❌ [DEBUG] Unexpected runtime error in fetchStats:', err);
       }
     };
 

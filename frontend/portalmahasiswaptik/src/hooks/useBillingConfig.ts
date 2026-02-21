@@ -85,13 +85,26 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
         };
     }, [fetchGlobalSettings]);
 
-    const updateBillingRange = async (start: number, end: number, currentSelected: number) => {
-        // --- OPTIMISTIC UPDATE ---
-        console.log('📤 useBillingConfig: Sending update to Supabase...', { start, end, selected: currentSelected });
+    const updateBillingRange = async (start: number, end: number, currentSelected: number, userRole?: string) => {
+        // --- HARD-CUT ROLE CHECK (V10.2: PARITY 1:1) ---
+        const isAdmin = userRole === 'admin_kelas' || userRole === 'admin_dev';
+
+        // --- OPTIMISTIC UPDATE (Local State) ---
+        // Always update local state so students can see their changes
+        console.log('📤 useBillingConfig: Updating local state...', { start, end, selected: currentSelected, role: userRole });
         setBillingStart(start);
         setBillingEnd(end);
         setSelectedMonth(currentSelected);
+
+        // --- EXIT EARLY FOR NON-ADMINS ---
+        if (!isAdmin) {
+            console.log('💡 useBillingConfig: Student mode - Hardware return (Skip Sync).');
+            return;
+        }
+
+        // --- ADMIN ONLY ZONE ---
         setIsUpdatingConfig(true);
+        console.log('📤 useBillingConfig: Admin detected - Syncing to Supabase...');
 
         try {
             const { data, error } = await supabase
@@ -110,7 +123,7 @@ export const useBillingConfig = (onConfigUpdated?: () => void) => {
             if (!data || data.length === 0) {
                 console.warn('⚠️ Update ditolak! (Cek RLS Policy di Supabase)');
                 toast.error("Gagal mengubah setelan bulan", {
-                    description: "Akses ini khusus untuk Admin Kelas dan AdminDev.",
+                    description: "Pastikan Anda menggunakan akun Admin (Dev/Kelas) yang valid.",
                     duration: 4000
                 });
                 // Revert optimistic update here

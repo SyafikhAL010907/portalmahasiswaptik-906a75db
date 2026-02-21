@@ -100,6 +100,9 @@ export default function Finance() {
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const role = currentUser?.role || '';
+  const isAdmin = role === 'admin_kelas' || role === 'admin_dev';
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{ studentId: string, studentName: string, weekIndex: number } | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -113,11 +116,24 @@ export default function Finance() {
   const {
     billingStart,
     billingEnd,
-    selectedMonth, // Directly from Global Settings
+    selectedMonth: defaultMonth, // Global default from DB
     isUpdatingConfig,
     isLoadingConfig,
     updateBillingRange
   } = useBillingConfig();
+
+  // LOCAL NAVIGATION STATE (Independent View) 🌍
+  const [localMonth, setLocalMonth] = useState<number>(0);
+  const [isLocalMonthInitialized, setIsLocalMonthInitialized] = useState(false);
+
+  // Initialize from global default ONLY ONCE
+  useEffect(() => {
+    if (!isLoadingConfig && !isLocalMonthInitialized) {
+      console.log('🌍 Finance: Setting initial local month from global config:', defaultMonth);
+      setLocalMonth(defaultMonth);
+      setIsLocalMonthInitialized(true);
+    }
+  }, [isLoadingConfig, defaultMonth, isLocalMonthInitialized]);
 
   // GLASS CONFIRMATION STATE
   const [isGlassConfirmOpen, setIsGlassConfirmOpen] = useState(false);
@@ -203,7 +219,7 @@ export default function Finance() {
     { value: 10, label: 'Oktober' }, { value: 11, label: 'November' }, { value: 12, label: 'Desember' }
   ];
 
-  const isLifetime = selectedMonth === 0;
+  const isLifetime = localMonth === 0;
 
   // 1. INIT DATA
   useEffect(() => {
@@ -245,8 +261,8 @@ export default function Finance() {
         const endYear = `${selectedYear}-12-31`;
         query = query.gte('transaction_date', startYear).lte('transaction_date', endYear);
       } else {
-        const mStr = String(selectedMonth).padStart(2, '0');
-        const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+        const mStr = String(localMonth).padStart(2, '0');
+        const lastDay = new Date(selectedYear, localMonth, 0).getDate();
         const startMonth = `${selectedYear}-${mStr}-01`;
         const endMonth = `${selectedYear}-${mStr}-${lastDay}`;
         query = query.gte('transaction_date', startMonth).lte('transaction_date', endMonth);
@@ -275,7 +291,7 @@ export default function Finance() {
     } finally {
       setIsLoadingStats(false);
     }
-  }, [isLifetime, selectedMonth, selectedYear, selectedClassId]);
+  }, [isLifetime, localMonth, selectedYear, selectedClassId]);
 
   const fetchClassStats = useCallback(async () => {
     if (!selectedClassId || !session) return;
@@ -290,8 +306,8 @@ export default function Finance() {
       if (isLifetime) {
         query = query.gte('transaction_date', `${selectedYear}-01-01`).lte('transaction_date', `${selectedYear}-12-31`);
       } else {
-        const mStr = String(selectedMonth).padStart(2, '0');
-        const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+        const mStr = String(localMonth).padStart(2, '0');
+        const lastDay = new Date(selectedYear, localMonth, 0).getDate();
         query = query.gte('transaction_date', `${selectedYear}-${mStr}-01`).lte('transaction_date', `${selectedYear}-${mStr}-${lastDay}`);
       }
 
@@ -315,18 +331,18 @@ export default function Finance() {
     } finally {
       setIsLoadingStats(false);
     }
-  }, [selectedClassId, isLifetime, selectedMonth, selectedYear, session]);
+  }, [selectedClassId, isLifetime, localMonth, selectedYear, session]);
 
   const fetchDuesTotal = useCallback(async () => {
     try {
       let query: any = supabase.from('weekly_dues').select('*', { count: 'exact', head: true }).eq('status', 'paid').eq('year', selectedYear);
       if (!isLifetime) {
-        query = query.eq('month', selectedMonth);
+        query = query.eq('month', localMonth);
       }
       const { count, error } = await query;
       if (!error) setDuesTotal((count || 0) * 5000);
     } catch (err) { console.error(err); }
-  }, [isLifetime, selectedMonth, selectedYear]);
+  }, [isLifetime, localMonth, selectedYear]);
 
   const fetchStudentMatrix = useCallback(async () => {
     if (!selectedClassId) return;
@@ -368,7 +384,7 @@ export default function Finance() {
       if (!isLifetime) {
         // Monthly View
         const statusList = ["unpaid", "unpaid", "unpaid", "unpaid"];
-        studentYearlyDues.filter(d => d.month === selectedMonth).forEach(due => {
+        studentYearlyDues.filter(d => d.month === localMonth).forEach(due => {
           if (due.week_number <= 4) statusList[due.week_number - 1] = due.status;
         });
         return { name: student.full_name, student_id: student.user_id, payments: statusList };
@@ -447,7 +463,7 @@ export default function Finance() {
         };
       }
     });
-  }, [students, yearlyDues, isLifetime, selectedMonth, billingStart, billingEnd]);
+  }, [students, yearlyDues, isLifetime, localMonth, billingStart, billingEnd]);
 
   // ✅ RE-IMPLEMENTED: FETCH GLOBAL DATA (Month/Year/Lifetime) - Independent of selectedClassId
   useEffect(() => {
@@ -455,7 +471,7 @@ export default function Finance() {
       fetchTransactionStats();
       fetchDuesTotal();
     }
-  }, [selectedMonth, selectedYear, isLifetime, session, fetchTransactionStats, fetchDuesTotal]);
+  }, [localMonth, selectedYear, isLifetime, session, fetchTransactionStats, fetchDuesTotal]);
 
   // ✅ RE-IMPLEMENTED: FETCH CLASS-SPECIFIC DATA (Matrix & Class Stats)
   useEffect(() => {
@@ -463,7 +479,7 @@ export default function Finance() {
       fetchClassStats();
       fetchStudentMatrix();
     }
-  }, [selectedClassId, session, fetchClassStats, fetchStudentMatrix]);
+  }, [selectedClassId, localMonth, isLifetime, session, fetchClassStats, fetchStudentMatrix]);
 
   // REAL-TIME SUBSCRIPTIONS for Finance Updates ⚡
   useEffect(() => {
@@ -543,8 +559,8 @@ export default function Finance() {
   };
 
   const handleMonthChange = (newMonth: number) => {
-    console.log(`🖱️ UI: Month changed to ${newMonth} (Current: ${selectedMonth})`);
-    if (newMonth === selectedMonth) return;
+    console.log(`🖱️ UI: Local Month changed to ${newMonth} (Current: ${localMonth})`);
+    if (newMonth === localMonth) return;
 
     // UI Feedback
     setIsLoadingStats(true);
@@ -554,12 +570,8 @@ export default function Finance() {
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
 
-    // Update Global Sync (Hook handles UI Update)
-    if (currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') {
-      updateBillingRange(billingStart || 1, billingEnd || 6, newMonth);
-    } else {
-      toast.info("Filter bulan ini sinkron dengan panel Admin.");
-    }
+    // Update LOCAL state only 🌍 (Decoupled from global_settings sync)
+    setLocalMonth(newMonth);
   };
 
   const toggleLifetime = () => {
@@ -570,14 +582,10 @@ export default function Finance() {
     setManualSummary({ total_income: 0, total_expense: 0, balance: 0 });
     setDuesTotal(0);
 
-    const nextMonth = selectedMonth === 0 ? (new Date().getMonth() + 1) : 0;
+    const nextMonth = localMonth === 0 ? (new Date().getMonth() + 1) : 0;
 
-    // Update Global Sync
-    if (currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') {
-      updateBillingRange(billingStart || 1, billingEnd || 6, nextMonth);
-    } else {
-      toast.info("Tampilan sinkron dengan panel Admin.");
-    }
+    // Update LOCAL state only 🌍
+    setLocalMonth(nextMonth);
   };
 
 
@@ -612,10 +620,10 @@ export default function Finance() {
     }
 
     return incomeTxs.filter(tx =>
-      new Date(tx.transaction_date).getMonth() + 1 === selectedMonth &&
+      new Date(tx.transaction_date).getMonth() + 1 === localMonth &&
       new Date(tx.transaction_date).getFullYear() === selectedYear
     ).reduce((sum, tx) => sum + tx.amount, 0);
-  }, [isLifetime, transactions, selectedMonth, selectedYear]);
+  }, [isLifetime, transactions, localMonth, selectedYear]);
 
   const classSpecificTotalIncome = useMemo(() => {
     // ✅ LOCAL: Validasi Pemasukan Kelas Spesifik (Strict Class ID)
@@ -627,12 +635,12 @@ export default function Finance() {
       filtered = filtered.filter(tx => new Date(tx.transaction_date).getFullYear() === selectedYear);
     } else {
       filtered = filtered.filter(tx =>
-        new Date(tx.transaction_date).getMonth() + 1 === selectedMonth &&
+        new Date(tx.transaction_date).getMonth() + 1 === localMonth &&
         new Date(tx.transaction_date).getFullYear() === selectedYear
       );
     }
     return filtered.reduce((sum, tx) => sum + tx.amount, 0);
-  }, [isLifetime, transactions, selectedClassId, selectedMonth, selectedYear]);
+  }, [isLifetime, transactions, selectedClassId, localMonth, selectedYear]);
 
   const totalPemasukan = useMemo(() => classDuesTotal + classSpecificTotalIncome, [classDuesTotal, classSpecificTotalIncome]);
 
@@ -643,12 +651,12 @@ export default function Finance() {
       filtered = filtered.filter(tx => new Date(tx.transaction_date).getFullYear() === selectedYear);
     } else {
       filtered = filtered.filter(tx =>
-        new Date(tx.transaction_date).getMonth() + 1 === selectedMonth &&
+        new Date(tx.transaction_date).getMonth() + 1 === localMonth &&
         new Date(tx.transaction_date).getFullYear() === selectedYear
       );
     }
     return filtered.reduce((sum, tx) => sum + tx.amount, 0);
-  }, [isLifetime, transactions, selectedMonth, selectedYear]);
+  }, [isLifetime, transactions, localMonth, selectedYear]);
 
   const batchNetBalance = useMemo(() => {
     // ✅ SINGLE SOURCE: Total Iuran (Global) + Total Income Transaksi (Global) - Total Pengeluaran (Global)
@@ -661,29 +669,18 @@ export default function Finance() {
       filtered = filtered.filter(tx => new Date(tx.transaction_date).getFullYear() === selectedYear);
     } else {
       filtered = filtered.filter(tx =>
-        new Date(tx.transaction_date).getMonth() + 1 === selectedMonth &&
+        new Date(tx.transaction_date).getMonth() + 1 === localMonth &&
         new Date(tx.transaction_date).getFullYear() === selectedYear
       );
     }
     return filtered.reduce((sum, tx) => sum + tx.amount, 0);
-  }, [isLifetime, transactions, selectedClassId, selectedMonth, selectedYear]);
+  }, [isLifetime, transactions, selectedClassId, localMonth, selectedYear]);
 
   const saldoBersih = totalPemasukan - totalPengeluaran;
 
   const canEdit = () => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin_dev') return true;
-
-    // admin_kelas restrictions:
-    if (currentUser.role === 'admin_kelas') {
-      // Lifetime mode: NO access (angkatan-wide data, admin_dev only)
-      if (isLifetime) return false;
-
-      // STRICT MODE: Only allow if assigned class matches selected tab
-      return currentUser.class_id === selectedClassId;
-    }
-
-    return false;
+    // ⚔️ 1:1 Parity: Admin Kelas has the same universal edit rights as AdminDev
+    return isAdmin;
   };
 
   const handleCellClick = (studentId: string, studentName: string, weekIdx: number) => {
@@ -694,7 +691,7 @@ export default function Finance() {
   };
 
   const handleUpdateStatus = async (newStatus: string) => {
-    if (!selectedCell || selectedMonth === 0) return;
+    if (!selectedCell || localMonth === 0) return;
     setIsUpdating(true);
     try {
       const { error } = await supabase.from('weekly_dues').upsert({
@@ -702,7 +699,7 @@ export default function Finance() {
         week_number: selectedCell.weekIndex,
         status: newStatus,
         amount: 5000,
-        month: selectedMonth,
+        month: localMonth,
         year: selectedYear
       }, { onConflict: 'student_id, week_number, month, year' });
       if (error) throw error;
@@ -712,7 +709,7 @@ export default function Finance() {
         const others = prev.filter(d =>
           !(d.student_id === selectedCell.studentId &&
             d.week_number === selectedCell.weekIndex &&
-            d.month === selectedMonth &&
+            d.month === localMonth &&
             d.year === selectedYear)
         );
         return [...others, {
@@ -720,7 +717,7 @@ export default function Finance() {
           week_number: selectedCell.weekIndex,
           status: newStatus,
           amount: 5000,
-          month: selectedMonth,
+          month: localMonth,
           year: selectedYear
         }];
       });
@@ -737,13 +734,13 @@ export default function Finance() {
       toast.error("Hanya Admin Developer yang bisa melakukan update massal.");
       return;
     }
-    if (selectedMonth === 0) {
+    if (localMonth === 0) {
       toast.error("Pilih bulan spesifik dulu untuk update massal.");
       return;
     }
 
     const statusLabel = targetStatus === 'paid' ? 'Lunas' : targetStatus === 'pending' ? 'Pending' : 'Belum Bayar';
-    const monthName = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"][selectedMonth];
+    const monthName = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"][localMonth];
 
     openConfirmation(
       `Set Massal ${statusLabel}?`,
@@ -762,7 +759,7 @@ export default function Finance() {
             },
             body: JSON.stringify({
               student_id: studentId,
-              month: selectedMonth,
+              month: localMonth,
               year: selectedYear,
               target_status: targetStatus
             })
@@ -805,7 +802,7 @@ export default function Finance() {
     setIsSubmitting(true);
     try {
       const targetClassId = isLifetime ? newTx.class_id : selectedClassId;
-      const targetMonth = isLifetime ? selectedTransactionMonth : selectedMonth;
+      const targetMonth = isLifetime ? selectedTransactionMonth : localMonth;
       const targetYear = isLifetime ? selectedTransactionYear : selectedYear;
       const payload: any = {
         type: newTx.type,
@@ -816,20 +813,28 @@ export default function Finance() {
         created_by: currentUser.user_id
       };
       if (targetClassId) payload.class_id = targetClassId;
-      const { error } = await supabase.from('transactions').insert([payload]);
+      const { data, error } = await supabase.from('transactions').insert([payload]).select().single();
       if (error) throw error;
+
+      // ✅ HARD SYNC: Wait for all data to refresh before completing
+      await Promise.all([
+        fetchTransactionStats(),
+        fetchClassStats(),
+        fetchDuesTotal()
+      ]);
+
       toast.success("Transaksi ditambahkan");
       setIsAddTxOpen(false);
+
       setNewTx({ type: 'expense', description: '', amount: 0, transaction_date: new Date().toLocaleDateString('en-CA'), category: 'Umum', class_id: undefined });
       setDisplayAmount('');
-      fetchTransactionStats(); fetchClassStats(); fetchDuesTotal();
     } catch (error: any) { toast.error(error.message); } finally { setIsSubmitting(false); }
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    // STRICT CHECK: Only admin_dev can delete transactions
-    if (currentUser?.role !== 'admin_dev') {
-      toast.error("Hanya Admin Developer yang bisa menghapus transaksi.");
+    // 🛡️ 1:1 Parity: Admin Kelas and Admin Dev can delete transactions
+    if (!isAdmin) {
+      toast.error("Hanya Admin yang bisa menghapus transaksi.");
       return;
     }
 
@@ -841,7 +846,14 @@ export default function Finance() {
         try {
           const { error } = await supabase.from('transactions').delete().eq('id', id);
           if (error) throw error;
-          toast.success("Dihapus"); fetchTransactionStats(); fetchClassStats();
+
+          // ✅ HARD SYNC: Force re-fetch and wait
+          await Promise.all([
+            fetchTransactionStats(),
+            fetchClassStats()
+          ]);
+
+          toast.success("Dihapus");
         } catch (err: any) { toast.error(err.message); } finally { setIsDeleting(false); }
       }
     );
@@ -881,7 +893,14 @@ export default function Finance() {
     try {
       const { error } = await supabase.from('transactions').update({ amount: editingTx.amount, description: editingTx.description, category: editingTx.category, transaction_date: editingTx.transaction_date, type: editingTx.type, class_id: editingTx.class_id }).eq('id', editingTx.id);
       if (error) throw error;
-      toast.success("Berhasil diupdate"); setIsEditTxOpen(false); fetchTransactionStats(); fetchClassStats();
+
+      // ✅ HARD SYNC: Force re-fetch and wait
+      await Promise.all([
+        fetchTransactionStats(),
+        fetchClassStats()
+      ]);
+
+      toast.success("Berhasil diupdate"); setIsEditTxOpen(false);
     } catch (err: any) { toast.error(err.message); } finally { setIsUpdating(false); }
   };
 
@@ -971,7 +990,7 @@ export default function Finance() {
             const { error } = await supabase.from('weekly_dues').upsert({
               student_id: student.student_id,
               week_number: week,
-              month: selectedMonth,
+              month: localMonth,
               year: selectedYear,
               amount: status === 'paid' ? 5000 : 0, // Paid = 5000, Bebas = 0
               status: status
@@ -1006,7 +1025,7 @@ export default function Finance() {
           updates.push(supabase.from('weekly_dues').upsert({
             student_id: student.student_id,
             week_number: week,
-            month: selectedMonth,
+            month: localMonth,
             year: selectedYear,
             amount: status === 'paid' ? 5000 : 0,
             status: status
@@ -1030,9 +1049,9 @@ export default function Finance() {
       if (transactionFilter !== 'all' && tx.type !== transactionFilter) return false;
       if (isLifetime) return !tx.class_id;
       const txDate = new Date(tx.transaction_date);
-      return tx.class_id === selectedClassId && txDate.getMonth() + 1 === selectedMonth && txDate.getFullYear() === selectedYear;
+      return tx.class_id === selectedClassId && txDate.getMonth() + 1 === localMonth && txDate.getFullYear() === selectedYear;
     });
-  }, [transactions, transactionFilter, isLifetime, selectedClassId, selectedMonth, selectedYear]);
+  }, [transactions, transactionFilter, isLifetime, selectedClassId, localMonth, selectedYear]);
 
   const totalDisplayedIncome = useMemo(() => displayedTransactions.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0), [displayedTransactions]);
   const totalDisplayedExpense = useMemo(() => displayedTransactions.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0), [displayedTransactions]);
@@ -1047,7 +1066,7 @@ export default function Finance() {
       </div>
 
       {/* STATS GRID - STANDARDIZED PREMIUM CARDS */}
-      <div key={`${selectedClassId}-${selectedMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`} className="animate-in fade-in duration-200">
+      <div key={`${selectedClassId}-${localMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`} className="animate-in fade-in duration-200">
 
         {/* ✅ WIDGET BARU: Aggregate Balance Angkatan (Hanya di Lifetime) */}
         {isLifetime && (
@@ -1163,9 +1182,9 @@ export default function Finance() {
               <div className="relative">
                 <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
                 <Select
-                  value={selectedMonth.toString()}
+                  value={localMonth.toString()}
                   onValueChange={(val) => handleMonthChange(Number(val))}
-                  disabled={isLoadingConfig && selectedMonth === 0} // Only disable if loading and we have nothing
+                  disabled={isLoadingConfig}
                 >
                   <SelectTrigger className="w-full sm:w-[160px] pl-9 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Pilih Periode" />
@@ -1182,10 +1201,10 @@ export default function Finance() {
               </div>
 
               {/* V9.6 Exclusive Admin Control: Only AdminDev & AdminKelas can see this */}
-              {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && isLifetime && (
+              {isAdmin && isLifetime && (
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-md border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-300">
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
-                  <Select value={String(billingStart || 1)} onValueChange={(v) => updateBillingRange(Number(v), billingEnd || 6, selectedMonth)} disabled={isUpdatingConfig}>
+                  <Select value={String(billingStart || 1)} onValueChange={(v) => updateBillingRange(Number(v), billingEnd || 6, localMonth, role)} disabled={isUpdatingConfig}>
                     <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
                       <SelectValue />
                       {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
@@ -1200,7 +1219,7 @@ export default function Finance() {
                   <span className="text-slate-300">|</span>
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mx-1">Sampai</span>
 
-                  <Select value={String(billingEnd || 6)} onValueChange={(v) => updateBillingRange(billingStart || 1, Number(v), selectedMonth)} disabled={isUpdatingConfig}>
+                  <Select value={String(billingEnd || 6)} onValueChange={(v) => updateBillingRange(billingStart || 1, Number(v), localMonth, role)} disabled={isUpdatingConfig}>
                     <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
                       <SelectValue />
                       {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
@@ -1237,7 +1256,7 @@ export default function Finance() {
             {/* RIGHT: ACTION GROUP */}
             <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
               {/* V8.0: Class Actions (Visible ONLY in Monthly View) */}
-              {!isLifetime && ['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
+              {!isLifetime && ['admin_dev', 'admin_kelas'].includes(currentUser?.role || '') && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50">
@@ -1625,7 +1644,7 @@ export default function Finance() {
                         {(currentUser?.role === 'admin_dev' || currentUser?.class_id === tx.class_id) && (
                           <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-primary rounded-xl" onClick={() => handleEditClick(tx)}><Pencil className="w-4 h-4" /></Button>
                         )}
-                        {currentUser?.role === 'admin_dev' && (
+                        {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && (
                           <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive rounded-xl" onClick={() => handleDeleteTransaction(tx.id)} disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button>
                         )}
                       </div>

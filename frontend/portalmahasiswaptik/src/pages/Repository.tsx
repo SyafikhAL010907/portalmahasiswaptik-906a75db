@@ -21,9 +21,8 @@ import ConfirmationModal from '@/components/ui/ConfirmationModal';
 const GOOGLE_DRIVE_FOLDER_LINK = 'https://drive.google.com/drive/folders/1Ar_jm913F57k7WcchYkv8o6ZUbX4s3KP';
 const PARENT_FOLDER_ID = '1b4bby3CRLAX9pL1QKD87HU0Os0slKaIi';
 
-// Dynamically determine backend URL - Use relative path /api to leverage Vite proxy
-// This ensures it works on localhost AND local network IPs
-const API_BASE_URL = window.location.origin;
+// Dynamically determine backend URL - Use import.meta.env.VITE_API_URL for Koyeb Sync
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:9000/api";
 
 // --- INTERFACES ---
 interface Subject {
