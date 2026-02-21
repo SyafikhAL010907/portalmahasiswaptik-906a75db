@@ -90,15 +90,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchRoles = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('user_roles')
+        .from('profiles')
         .select('role')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching roles:', error);
         return [];
       }
-      return (data?.map(r => r.role as AppRole) || []);
+      return (data as any)?.role ? [(data as any).role as AppRole] : [];
     } catch (err) {
       console.error('Error in fetchRoles:', err);
       return [];

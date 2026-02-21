@@ -130,12 +130,13 @@ export default function AttendanceHistory() {
     const checkUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: roles } = await supabase
-          .from('user_roles')
+        const { data: profile } = await supabase
+          .from('profiles')
           .select('role')
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        const rolesList = roles?.map(r => r.role) || [];
+        const rolesList = (profile as any)?.role ? [(profile as any).role] : [];
         const isDev = rolesList.includes('admin_dev');
         const isKelas = rolesList.includes('admin_kelas');
         const isDosen = rolesList.includes('admin_dosen');
@@ -240,8 +241,8 @@ export default function AttendanceHistory() {
       }
 
       const userIds = profiles.map(p => p.user_id);
-      const { data: userRolesData, error: rolesError } = await supabase
-        .from('user_roles')
+      const { data: userRolesData, error: rolesError } = await (supabase as any)
+        .from('profiles')
         .select('user_id, role')
         .in('user_id', userIds);
 

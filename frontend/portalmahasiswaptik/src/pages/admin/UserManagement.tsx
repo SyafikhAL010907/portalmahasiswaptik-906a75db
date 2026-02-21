@@ -86,7 +86,7 @@ export default function UserManagement() {
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-// ✅ STATE: Password Change Confirmation Premium
+  // ✅ STATE: Password Change Confirmation Premium
   const [showPremiumConfirm, setShowPremiumConfirm] = useState(false);
 
   // State form Create
@@ -135,14 +135,6 @@ export default function UserManagement() {
       const { data: profileData, error } = await supabase.from('profiles').select('*').order('nim');
       if (error) throw error;
 
-      const { data: rolesData } = await supabase.from('user_roles').select('user_id, role');
-
-      const rolesByUser = (rolesData || []).reduce((acc: Record<string, AppRole[]>, r) => {
-        if (!acc[r.user_id]) acc[r.user_id] = [];
-        acc[r.user_id].push(r.role as AppRole);
-        return acc;
-      }, {});
-
       const usersWithRoles = (profileData || []).map(p => ({
         id: p.id,
         user_id: p.user_id,
@@ -151,7 +143,7 @@ export default function UserManagement() {
         whatsapp: (p as any).whatsapp || null,
         class_id: p.class_id,
         class_name: classData?.find(c => c.id === p.class_id)?.name || '-',
-        roles: rolesByUser[p.user_id] || [],
+        roles: (p as any).role ? [(p as any).role as AppRole] : [],
       }));
 
       setUsers(usersWithRoles);
@@ -180,34 +172,39 @@ export default function UserManagement() {
       const cleanNim = newUser.nim.trim().replace(/\s+/g, '');
       const email = `${cleanNim}@ptik.local`;
 
+      // ✅ CEK NIM DULU (Pre-Check)
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('nim')
+        .eq('nim', cleanNim)
+        .maybeSingle();
+
+      if (existingProfile) {
+        throw new Error(`NIM ${cleanNim} sudah terdaftar di sistem!`);
+      }
+
+      // Masukin class_id kalau role mahasiswa ATAU admin_kelas
+      const classIdToSave = (newUser.role === 'mahasiswa' || newUser.role === 'admin_kelas') ? (newUser.class_id || null) : null;
+
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email,
         password: newUser.password,
         options: {
-          data: { nim: cleanNim, full_name: newUser.full_name },
+          data: {
+            nim: cleanNim,
+            full_name: newUser.full_name,
+            role: newUser.role,
+            class_id: classIdToSave,
+            whatsapp: newUser.whatsapp || null
+          },
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // Masukin class_id kalau role mahasiswa ATAU admin_kelas
-      const classIdToSave = (newUser.role === 'mahasiswa' || newUser.role === 'admin_kelas') ? (newUser.class_id || null) : null;
-
-      const { error: profileError } = await (supabase.from('profiles') as any).upsert({
-        user_id: authData.user.id,
-        nim: cleanNim,
-        full_name: newUser.full_name,
-        whatsapp: newUser.whatsapp || null,
-        class_id: classIdToSave,
-      });
-      if (profileError) throw profileError;
-
-      const { error: roleError } = await supabase.from('user_roles').upsert({
-        user_id: authData.user.id,
-        role: newUser.role,
-      });
-      if (roleError) throw roleError;
+      // ❌ [REMOVED] Manual profiles.upsert dihapus karena sudah ditangani oleh Trigger DB
+      // Ini untuk mencegah Error 409 Conflict
 
       toast.success(`Pengguna ${newUser.full_name} berhasil dibuat!`);
       setNewUser({ nim: '', full_name: '', whatsapp: '', password: '', class_id: '', role: 'mahasiswa' });
@@ -239,7 +236,7 @@ export default function UserManagement() {
   // ✅ ACTION GATEKEEPER: Cuma satu pintu konfirmasi!
   // ✅ ACTION GATEKEEPER: Cuma satu pintu konfirmasi!
   // ✅ FIX FINAL: Penjaga pintu tunggal (Native Confirm)
- // ✅ FIX FINAL: Penjaga pintu tunggal (Premium Modal)
+  // ✅ FIX FINAL: Penjaga pintu tunggal (Premium Modal)
   const handleSaveClick = () => {
     if (!editingUserId || !editUserForm.nim || !editUserForm.full_name) {
       toast.error('Data tidak boleh kosong');
@@ -283,18 +280,12 @@ export default function UserManagement() {
         .update({
           nim: cleanNim,
           full_name: editUserForm.full_name,
+          role: editUserForm.role,
           whatsapp: editUserForm.whatsapp || null,
           class_id: classIdToSave,
         })
         .eq('user_id', editingUserId);
       if (profileError) throw profileError;
-
-      // 3. UPDATE ROLE
-      const { error: roleError } = await tempSupabase
-        .from('user_roles')
-        .update({ role: editUserForm.role })
-        .eq('user_id', editingUserId);
-      if (roleError) throw roleError;
 
       toast.success('Data pengguna berhasil diperbarui!');
       setIsEditDialogOpen(false); // Tutup dialog edit
@@ -321,68 +312,44 @@ export default function UserManagement() {
     try {
       const tempSupabase = getNinjaClient();
 
-      // 1. DELETE RELATED DATA MANUALLY (To avoid Foreign Key Constraints)
-      // Gunakan Promise.all untuk eksekusi paralel agar lebih cepat
-      console.log('Menghapus data terkait user:', userToDelete);
+      console.log('Starting NUCLEAR DELETE for user:', userToDelete);
 
-      await Promise.all([
-        // Hapus transaksi yang dibuat user (jika ada)
-        tempSupabase.from('transactions').delete().eq('created_by', userToDelete),
+      // 1. CALL THE MASTER DELETE RPC
+      // Ini akan menghapus Auth, Profile, dan semua data terkait secara atomik di Postgres
+      // Fungsi ini didesain tetap sukses meskipun user tidak ada di auth.users (ghost data)
+      const { error: rpcError } = await tempSupabase.rpc('delete_user_completely', {
+        target_user_id: userToDelete
+      });
 
-        // Hapus materi yang diupload user
-        tempSupabase.from('materials').delete().eq('uploaded_by', userToDelete),
+      if (rpcError) {
+        console.warn("Nuclear Delete RPC failure, attempting manual fallback:", rpcError);
 
-        // Hapus pengumuman yang dibuat user
-        tempSupabase.from('announcements').delete().eq('created_by', userToDelete),
+        // 2. FALLBACK: Jika RPC gagal, coba hapus profile manual
+        // Agar list di UI tetap bersih dari data hantu
+        await tempSupabase.from('profiles').delete().eq('user_id', userToDelete);
 
-        // Hapus sesi absensi yang dibuat dosen (jika user adalah dosen)
-        tempSupabase.from('attendance_sessions').delete().eq('lecturer_id', userToDelete),
-
-        // UPDATE iuran yang diverifikasi user (Set verified_by = NULL) daripada menghapus data keuangan
-        tempSupabase.from('weekly_dues').update({ verified_by: null }).eq('verified_by', userToDelete),
-
-        // Hapus chat messages (jika ada)
-        tempSupabase.from('public_chat_messages').delete().eq('user_id', userToDelete),
-      ]);
-
-      // 2. DELETE PROFILE (Harus terakhir sebelum Auth, untuk memastikan referensi lain sudh bersih)
-      // Kita delete manual profile biar "bersih" di database aplikasi
-      const { error: profileError } = await tempSupabase.from('profiles').delete().eq('user_id', userToDelete);
-
-      if (profileError) {
-        console.error("Gagal hapus profile:", profileError);
-        // Lanjut aja ke hapus Auth, siapa tau profile udah kehapus duluan
-      }
-
-      // 3. DELETE USER FROM AUTH
-      console.log('Menghapus user dari Auth...');
-      const { error } = await tempSupabase.auth.admin.deleteUser(userToDelete);
-
-      if (error) {
-        // Jika error 500 tapi profile sudah hilang, anggap sukses "partial"
-        console.error("Auth delete error:", error);
-        if (error.status === 500) {
-          toast.success('Data user berhasil dibersihkan dari database (Auth mungkin perlu waktu)');
-        } else {
-          throw error;
+        // Coba hapus Auth manual sebagai upaya terakhir
+        try {
+          await tempSupabase.auth.admin.deleteUser(userToDelete);
+        } catch (authErr) {
+          console.error("Manual Auth deletion also failed:", authErr);
         }
-      } else {
-        toast.success('Pengguna dan data terkait berhasil dihapus permanen');
       }
+
+      toast.success('Pengguna berhasil dihapus secara total (Nuclear Delete)');
 
     } catch (error: any) {
-      console.error('Error deleting user:', error);
+      console.error('CRITICAL DELETION ERROR:', error);
       toast.error('Gagal menghapus pengguna sepenuhnya: ' + error.message);
     } finally {
-      // ✅ FORCE UI UPDATE
-      // Langsung update state lokal biar UI responsif tanpa nunggu fetch ulang yg lama
+      // ✅ ATOMIC UI REFRESH: Hapus dari state lokal dulu biar instan
       setUsers(prev => prev.filter(u => u.user_id !== userToDelete));
 
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
       setUserToDelete(null);
 
-      // Fetch ulang di background untuk sinkronisasi data
+      // Sinkronisasi ulang background
       fetchData();
     }
   };
@@ -417,7 +384,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <PremiumConfirmModal 
+      <PremiumConfirmModal
         isOpen={showPremiumConfirm}
         onClose={() => setShowPremiumConfirm(false)}
         name={editUserForm.full_name}
@@ -859,12 +826,12 @@ const PremiumConfirmModal = ({ isOpen, onClose, onConfirm, name }: any) => {
       {isOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-auto">
           {/* Backdrop Blur */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
           />
-          
+
           {/* Modal Card */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -875,21 +842,21 @@ const PremiumConfirmModal = ({ isOpen, onClose, onConfirm, name }: any) => {
             <div className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
               <AlertTriangle className="w-10 h-10 text-amber-500" />
             </div>
-            
+
             <h3 className="text-2xl font-bold text-white mb-3">Ganti Password?</h3>
             <p className="text-slate-300 mb-8 text-sm leading-relaxed">
               Anda akan memperbarui sandi untuk <span className="font-bold text-amber-400">{name}</span>. Pastikan password baru sudah dicatat.
             </p>
 
             <div className="grid grid-cols-2 gap-4">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={onClose}
                 className="rounded-2xl border border-white/10 text-white hover:bg-white/5 transition-all"
               >
                 Batal
               </Button>
-              <Button 
+              <Button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();

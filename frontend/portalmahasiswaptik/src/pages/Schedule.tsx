@@ -105,12 +105,13 @@ export default function Schedule() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       // 1. Get Roles
-      const { data: roles } = await supabase
-        .from('user_roles')
+      const { data: roleProfile } = await supabase
+        .from('profiles')
         .select('role')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      const role = roles && roles.length > 0 ? roles[0].role : null;
+      const role = (roleProfile as any)?.role || null;
       setUserRole(role);
 
       // 2. Get Profile for Class ID
@@ -118,10 +119,10 @@ export default function Schedule() {
         .from('profiles')
         .select('class_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
-        setUserClassId(profile.class_id);
+        setUserClassId((profile as any).class_id);
       }
     }
   };
@@ -152,8 +153,8 @@ export default function Schedule() {
 
   const fetchLecturers = async () => {
     // Fetch profiles that have the role 'admin_dosen'
-    const { data: rolesData } = await supabase
-      .from('user_roles')
+    const { data: rolesData } = await (supabase as any)
+      .from('profiles')
       .select('user_id')
       .eq('role', 'admin_dosen');
 

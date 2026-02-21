@@ -148,13 +148,14 @@ export default function Repository() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        const { data: roles } = await supabase
-          .from('user_roles')
+        const { data: profile } = await (supabase as any)
+          .from('profiles')
           .select('role')
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .maybeSingle();
 
         // Access allowed for 'admin_dev' and 'admin_kelas'
-        const hasAccess = roles?.some(r => r.role === 'admin_dev' || r.role === 'admin_kelas') || false;
+        const hasAccess = (profile as any)?.role === 'admin_dev' || (profile as any)?.role === 'admin_kelas';
         setCanManage(hasAccess);
       }
     };

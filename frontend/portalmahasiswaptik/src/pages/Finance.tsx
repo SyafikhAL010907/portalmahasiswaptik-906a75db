@@ -210,14 +210,13 @@ export default function Finance() {
     const initData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase.from('profiles').select('class_id, last_selected_class').eq('id', user.id).maybeSingle();
-        const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle();
-        if (profile && roleData) {
-          setCurrentUser({ user_id: user.id, class_id: profile.class_id, role: roleData.role });
+        const { data: profile } = await supabase.from('profiles').select('class_id, last_selected_class, role').eq('user_id', user.id).maybeSingle();
+        if (profile) {
+          setCurrentUser({ user_id: user.id, class_id: (profile as any).class_id, role: (profile as any).role });
 
           // Apply Sticky Class if exists
-          if (profile.last_selected_class) {
-            setSelectedClassId(profile.last_selected_class);
+          if ((profile as any).last_selected_class) {
+            setSelectedClassId((profile as any).last_selected_class);
           }
         }
       }
@@ -335,12 +334,12 @@ export default function Finance() {
       setIsLoadingMatrix(true);
       setFetchError(null);
 
-      const { data: validRoles, error: roleError } = await supabase.from('user_roles').select('user_id').in('role', ['mahasiswa', 'admin_kelas'] as any);
+      const { data: validRoles, error: roleError } = await (supabase as any).from('profiles').select('user_id').in('role', ['mahasiswa', 'admin_kelas'] as any);
       if (roleError) throw roleError;
       if (!validRoles || validRoles.length === 0) { setStudents([]); setYearlyDues([]); return; }
-      const validUserIds = validRoles.map(r => r.user_id);
+      const validUserIds = (validRoles as any[]).map(r => r.user_id);
 
-      const { data: profileData, error: profilesError } = await supabase.from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).in('user_id', validUserIds).order('nim');
+      const { data: profileData, error: profilesError } = await (supabase as any).from('profiles').select('user_id, full_name').eq('class_id', selectedClassId).in('user_id', validUserIds).order('nim');
       if (profilesError) throw profilesError;
       if (!profileData || profileData.length === 0) { setStudents([]); setYearlyDues([]); return; }
       setStudents(profileData);
