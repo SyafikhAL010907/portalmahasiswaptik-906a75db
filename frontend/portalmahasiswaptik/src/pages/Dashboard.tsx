@@ -775,35 +775,33 @@ export default function Dashboard() {
                         </span>
                       )}
 
-                      {/* PRIMARY: Course Name - ULTRA FORCE BLACK */}
                       <h3
-                        className="!text-black dark:!text-white !font-extrabold !text-2xl mb-3 tracking-tight"
-                        style={{ color: '#000000', fontWeight: 900, filter: 'drop-shadow(0 0 0.5px rgba(0,0,0,0.3))' }}
+                        className="font-extrabold text-2xl mb-3 tracking-tight"
                       >
                         {schedule.subjects?.name}
                       </h3>
 
                       <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 text-sm mt-3">
-                        {/* PRIMARY: Time - FORCE BLACK BOLD */}
+                        {/* PRIMARY: Time */}
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-blue-500" />
-                          <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                          <span className="font-bold opacity-90">
                             {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
                           </span>
                         </div>
 
-                        {/* SECONDARY: Room - FORCE BLACK */}
+                        {/* SECONDARY: Room */}
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4 text-rose-500" />
                           <span className="text-slate-500 dark:text-slate-400 text-xs">Ruang:</span>
-                          <span className="!text-gray-900 dark:!text-gray-100 !font-bold">{schedule.room}</span>
+                          <span className="font-bold">{schedule.room}</span>
                         </div>
 
-                        {/* SECONDARY: Lecturer - FORCE BLACK */}
+                        {/* SECONDARY: Lecturer */}
                         <div className="flex items-center gap-2 col-span-2">
                           <User className="w-4 h-4 text-blue-500" />
                           <span className="text-slate-500 dark:text-slate-400 text-xs">Dosen:</span>
-                          <span className="!text-gray-900 dark:!text-gray-100 !font-bold">
+                          <span className="font-bold">
                             {schedule.profiles?.full_name || 'Belum Ditentukan'}
                           </span>
                         </div>

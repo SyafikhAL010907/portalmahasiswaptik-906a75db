@@ -32,9 +32,9 @@ export function ScheduleCard({ subject, time, room, lecturer, isActive, isNext }
           </span>
         </div>
       )}
-      
+
       <h3 className="font-semibold text-foreground text-lg mb-3 pr-24">{subject}</h3>
-      
+
       <div className="space-y-2 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4" />

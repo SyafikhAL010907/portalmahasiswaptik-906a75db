@@ -11,6 +11,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MaterialTimePicker } from '@/components/ui/material-time-picker';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -42,6 +44,11 @@ interface ClassItem {
   name: string;
 }
 
+interface SemesterItem {
+  id: number;
+  name: string;
+}
+
 interface Profile {
   user_id: string;
   full_name: string;
@@ -57,6 +64,7 @@ export default function Schedule() {
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [semesters, setSemesters] = useState<SemesterItem[]>([]);
   const [lecturers, setLecturers] = useState<Profile[]>([]); // State for lecturers
   const [isLoading, setIsLoading] = useState(false);
 
@@ -69,6 +77,8 @@ export default function Schedule() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [isStartOpen, setIsStartOpen] = useState(false);
+  const [isEndOpen, setIsEndOpen] = useState(false);
   const [formData, setFormData] = useState({
     subject_id: '',
     class_id: '',
@@ -76,7 +86,7 @@ export default function Schedule() {
     start_time: '',
     end_time: '',
     room: '',
-    semester: '1',
+    semester: '',
     lecturer_id: ''
   });
 
@@ -89,6 +99,7 @@ export default function Schedule() {
 
     checkRole();
     fetchClasses();
+    fetchSemesters();
     fetchSubjects();
     fetchLecturers();
   }, []);
@@ -144,6 +155,11 @@ export default function Schedule() {
       setClassList(data);
       if (!selectedClass && data.length > 0) setSelectedClass(data[0].id);
     }
+  };
+
+  const fetchSemesters = async () => {
+    const { data } = await supabase.from('semesters').select('*').order('name');
+    if (data) setSemesters(data);
   };
 
   const fetchSubjects = async () => {
@@ -253,7 +269,7 @@ export default function Schedule() {
     switch (status) {
       case 'ongoing': return 'border-l-4 border-l-blue-500';
       case 'next': return 'border-l-4 border-l-violet-500';
-      case 'finished': return 'border-l-4 border-l-slate-400 opacity-70 grayscale';
+      case 'finished': return 'border-l-4 border-l-slate-400 opacity-70';
       default: return 'border-l-4 border-l-transparent';
     }
   };
@@ -277,7 +293,7 @@ export default function Schedule() {
       start_time: '',
       end_time: '',
       room: '',
-      semester: '1',
+      semester: '',
       lecturer_id: ''
     });
     setIsDialogOpen(true);
@@ -303,10 +319,14 @@ export default function Schedule() {
     if (!confirm("Hapus jadwal ini?")) return;
     try {
       const { error } = await supabase.from('schedules').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Error Deleting Schedule:", error);
+        throw error;
+      }
       toast.success("Jadwal dihapus");
       fetchSchedules();
     } catch (err: any) {
+      console.error("Error Delete Schedule:", err);
       toast.error("Gagal menghapus: " + err.message);
     }
   };
@@ -323,17 +343,24 @@ export default function Schedule() {
 
       if (isEditing && currentId) {
         const { error } = await supabase.from('schedules').update(payload).eq('id', currentId);
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase Error Updating Schedule:", error);
+          throw error;
+        }
         toast.success("Jadwal diperbarui");
       } else {
         const { error } = await supabase.from('schedules').insert([payload]);
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase Error Inserting Schedule:", error);
+          throw error;
+        }
         toast.success("Jadwal ditambahkan");
       }
 
       setIsDialogOpen(false);
       fetchSchedules();
     } catch (err: any) {
+      console.error("Error Submit Schedule:", err);
       toast.error("Gagal menyimpan: " + err.message);
     } finally {
       setIsLoading(false);
@@ -418,59 +445,63 @@ export default function Schedule() {
             return (
               <div
                 key={schedule.id}
-                className={cn(
-                  "rounded-2xl p-6 transition-all duration-300 hover:shadow-xl group relative border border-transparent shadow-lg",
-                  "bg-slate-900 text-white dark:bg-white dark:text-slate-900",
-                  getStatusColor(status)
-                )}
+                className="group rounded-2xl p-[1px] bg-transparent"
               >
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-start justify-between">
-                      {/* PRIMARY: Course Name */}
-                      <h3 className="font-extrabold text-2xl tracking-tight">
-                        {schedule.subjects?.name || 'Unknown Subject'}
-                      </h3>
-                      {getStatusBadge(status)}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      {/* PRIMARY: Time */}
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-blue-400 dark:text-blue-600" />
-                        <span className="font-bold opacity-90">
-                          {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)} WIB
-                        </span>
-                      </div>
-
-                      {/* SECONDARY: Room */}
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-rose-400 dark:text-rose-600" />
-                        <span className="opacity-70 text-xs">Ruang:</span>
-                        <span className="font-bold">{schedule.room}</span>
-                      </div>
-
-                      {/* SECONDARY: Lecturer */}
-                      <div className="flex items-center gap-2 sm:col-span-2">
-                        <User className="w-4 h-4 text-blue-400 dark:text-blue-600" />
-                        <span className="opacity-70 text-xs">Dosen:</span>
-                        <span className="font-bold">
-                          {schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {canManage && (
-                    <div className="flex gap-2 self-end md:self-start">
-                      <Button size="icon" variant="ghost" onClick={() => handleOpenEdit(schedule)}>
-                        <Edit2 className="w-4 h-4 text-warning" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => handleDelete(schedule.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
+                <div
+                  className={cn(
+                    "rounded-2xl p-6 relative w-full h-full",
+                    "bg-transparent border border-border/50 shadow-sm",
+                    getStatusColor(status)
                   )}
+                >
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-start justify-between">
+                        {/* PRIMARY: Course Name */}
+                        <h3 className="font-extrabold text-2xl tracking-tight">
+                          {schedule.subjects?.name || 'Unknown Subject'}
+                        </h3>
+                        {getStatusBadge(status)}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        {/* PRIMARY: Time */}
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                          <span className="font-bold opacity-90">
+                            {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)} WIB
+                          </span>
+                        </div>
+
+                        {/* SECONDARY: Room */}
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-rose-400 dark:text-rose-600" />
+                          <span className="opacity-70 text-xs">Ruang:</span>
+                          <span className="font-bold">{schedule.room}</span>
+                        </div>
+
+                        {/* SECONDARY: Lecturer */}
+                        <div className="flex items-center gap-2 sm:col-span-2">
+                          <User className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                          <span className="opacity-70 text-xs">Dosen:</span>
+                          <span className="font-bold">
+                            {schedule.profiles?.full_name || 'Dosen Belum Ditentukan'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {canManage && (
+                      <div className="flex gap-2 self-end md:self-start transition-opacity duration-300">
+                        <button className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-2 transition-all shadow-md active:scale-95 flex items-center justify-center" onClick={() => handleOpenEdit(schedule)}>
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button className="bg-red-500 hover:bg-red-600 text-white rounded-lg p-2 transition-all shadow-md active:scale-95 flex items-center justify-center" onClick={() => handleDelete(schedule.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -503,11 +534,11 @@ export default function Schedule() {
 
       {/* --- ADD/EDIT DIALOG --- */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Jadwal' : 'Tambah Jadwal'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-3 sm:gap-4 py-2 sm:py-4">
             <div className="grid gap-2">
               <Label>Semester</Label>
               <Select
@@ -518,8 +549,8 @@ export default function Schedule() {
               >
                 <SelectTrigger><SelectValue placeholder="Pilih Semester" /></SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
-                    <SelectItem key={s} value={s.toString()}>Semester {s}</SelectItem>
+                  {semesters.map(s => (
+                    <SelectItem key={s.id} value={s.name}>Semester {s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -532,12 +563,17 @@ export default function Schedule() {
                 onValueChange={(val) => setFormData({ ...formData, subject_id: val })}
                 disabled={!formData.semester}
               >
-                <SelectTrigger><SelectValue placeholder="Pilih Matkul" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder={formData.semester ? "Pilih Mata Kuliah" : "Pilih semester terlebih dahulu"} />
+                </SelectTrigger>
                 <SelectContent>
-                  {subjects
-                    .filter(s => s.semester.toString() === formData.semester)
-                    .map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
-                  }
+                  {subjects.filter(s => s.semester.toString() === formData.semester).length > 0 ? (
+                    subjects
+                      .filter(s => s.semester.toString() === formData.semester)
+                      .map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
+                  ) : (
+                    <SelectItem value="none" disabled>Belum ada mata kuliah di semester ini, silakan tambah di Repository.</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -570,14 +606,56 @@ export default function Schedule() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2">
                 <Label>Jam Mulai</Label>
-                <Input type="time" value={formData.start_time} onChange={(e) => setFormData({ ...formData, start_time: e.target.value })} />
+                <Popover open={isStartOpen} onOpenChange={setIsStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal bg-background">
+                      <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {formData.start_time ? formData.start_time : <span className="text-muted-foreground">Pilih Waktu</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-auto p-0 border-none shadow-none bg-transparent"
+                    align="center"
+                    side="bottom"
+                    sideOffset={8}
+                    avoidCollisions={true}
+                  >
+                    <MaterialTimePicker
+                      time={formData.start_time || "00:00"}
+                      onChange={(t) => setFormData({ ...formData, start_time: t })}
+                      onClose={() => setIsStartOpen(false)}
+                      onClear={() => setFormData({ ...formData, start_time: '' })}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="grid gap-2">
                 <Label>Jam Selesai</Label>
-                <Input type="time" value={formData.end_time} onChange={(e) => setFormData({ ...formData, end_time: e.target.value })} />
+                <Popover open={isEndOpen} onOpenChange={setIsEndOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal bg-background">
+                      <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {formData.end_time ? formData.end_time : <span className="text-muted-foreground">Pilih Waktu</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-auto p-0 border-none shadow-none bg-transparent"
+                    align="center"
+                    side="bottom"
+                    sideOffset={8}
+                    avoidCollisions={true}
+                  >
+                    <MaterialTimePicker
+                      time={formData.end_time || "00:00"}
+                      onChange={(t) => setFormData({ ...formData, end_time: t })}
+                      onClose={() => setIsEndOpen(false)}
+                      onClear={() => setFormData({ ...formData, end_time: '' })}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
