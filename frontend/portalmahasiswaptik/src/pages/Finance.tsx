@@ -1077,7 +1077,7 @@ export default function Finance() {
 
   return (
     <motion.div
-      className="space-y-6 pt-12 md:pt-0 px-4 md:px-4 lg:px-0 w-full max-w-full overflow-x-hidden flex flex-col"
+      className="space-y-6 pt-12 md:pt-0"
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
@@ -1093,22 +1093,23 @@ export default function Finance() {
 
         {/* ✅ WIDGET BARU: Aggregate Balance Angkatan (Hanya di Lifetime) */}
         {isLifetime && (
-          <div className="mb-6 w-full max-w-full overflow-hidden flex justify-center">
+          <div className="mb-6">
             <PremiumCard
               centered={true}
               icon={TrendingUp}
               title="Total Saldo Bersih Angkatan (Aggregated)"
+              titleClassName="whitespace-normal break-words max-w-[280px] sm:max-w-full mx-auto text-center text-sm md:text-base font-bold"
               subtitle="Validasi: Total Iuran (4 Kelas) + Total Hibah - Pengeluaran Angkatan"
+              subtitleClassName="whitespace-normal break-words line-clamp-2 sm:line-clamp-none max-w-[260px] sm:max-w-[600px] mx-auto text-center text-xs md:text-sm mt-1"
               value={isLoadingStats ? <Skeleton className="h-9 w-48 bg-emerald-500/10" /> : formatIDR(batchNetBalance)}
               gradient="from-emerald-500/20 to-emerald-500/5"
               iconClassName="bg-emerald-500/10 text-emerald-600"
-              className="w-full sm:max-w-md md:max-w-none mx-auto"
-              titleClassName="!whitespace-normal !text-wrap text-sm md:text-lg leading-tight mx-auto px-2"
+              className="w-full"
             />
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4 mb-6 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4 mb-6">
           <PremiumCard
             icon={Users}
             title={`Saldo Kas ${selectedClassName}`}
@@ -1116,8 +1117,6 @@ export default function Finance() {
             value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-purple-500/10" /> : formatIDR(classDuesTotal)}
             gradient="from-purple-500/20 to-purple-500/5"
             iconClassName="bg-purple-500/10 text-purple-600"
-            className="w-full sm:max-w-md md:max-w-none mx-auto"
-            titleClassName="!whitespace-normal !text-wrap leading-tight text-sm md:text-base"
           />
           <PremiumCard
             icon={Wallet}
@@ -1126,8 +1125,6 @@ export default function Finance() {
             value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-blue-500/10" /> : formatIDR(totalKasAngkatan)}
             gradient="from-blue-500/20 to-blue-500/5"
             iconClassName="bg-blue-500/10 text-blue-600"
-            className="w-full sm:max-w-md md:max-w-none mx-auto"
-            titleClassName="!whitespace-normal !text-wrap leading-tight text-sm md:text-base"
           />
           <PremiumCard
             icon={Gift}
@@ -1136,8 +1133,6 @@ export default function Finance() {
             value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-orange-500/10" /> : formatIDR(classSpecificTotalIncome)}
             gradient="from-orange-500/20 to-orange-500/5"
             iconClassName="bg-orange-500/10 text-orange-600"
-            className="w-full sm:max-w-md md:max-w-none mx-auto"
-            titleClassName="!whitespace-normal !text-wrap leading-tight text-sm md:text-base"
           />
           <PremiumCard
             icon={Wallet}
@@ -1146,16 +1141,13 @@ export default function Finance() {
             value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-indigo-500/10" /> : formatIDR(saldoBersih)}
             gradient="from-indigo-500/20 to-indigo-500/5"
             iconClassName="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-            titleClassName={cn(saldoBersih < 0 ? "text-rose-500" : "", "!whitespace-normal !text-wrap leading-tight text-sm md:text-base")}
-            className="w-full sm:max-w-md md:max-w-none mx-auto"
+            titleClassName={saldoBersih < 0 ? "text-rose-500" : ""}
           />
         </div>
 
         {isLifetime && currentUser && currentUser.role !== 'admin_dosen' && (
-          <div className="animate-in fade-in duration-200 mb-6 w-full max-w-full overflow-hidden flex justify-center">
-            <div className="w-full sm:max-w-md md:max-w-none">
-              <FinancialChart transactions={transactions} selectedClassId={selectedClassId} selectedClassName={selectedClassName} currentSaldo={saldoBersih} className="w-full" />
-            </div>
+          <div className="animate-in fade-in duration-200 mb-6">
+            <FinancialChart transactions={transactions} selectedClassId={selectedClassId} selectedClassName={selectedClassName} currentSaldo={saldoBersih} className="w-full" />
           </div>
         )}
 

@@ -13,6 +13,7 @@ interface PremiumCardProps {
     className?: string;
     iconClassName?: string;
     titleClassName?: string;
+    subtitleClassName?: string; // NEW: flexible subtitle styling
     actionsClassName?: string; // NEW: additional styling for actions
     variant?: 'subtle' | 'bold' | 'pastel'; // NEW: pastel for soft Finance Dashboard style
     centered?: boolean;
@@ -29,6 +30,7 @@ export const PremiumCard = React.memo(function PremiumCard({
     className,
     iconClassName,
     titleClassName,
+    subtitleClassName,
     actionsClassName,
     variant = 'subtle',
     centered = false
@@ -93,7 +95,8 @@ export const PremiumCard = React.memo(function PremiumCard({
                         )}>{value}</div>}
                         {subtitle && <p className={cn(
                             "text-sm font-medium mt-1 max-w-[600px] truncate", // Added truncate here
-                            isBold ? "text-white/80" : isPastel ? "text-slate-600 dark:text-slate-400" : "text-muted-foreground"
+                            isBold ? "text-white/80" : isPastel ? "text-slate-600 dark:text-slate-400" : "text-muted-foreground",
+                            subtitleClassName
                         )}>{subtitle}</p>}
                     </div>
                 </div>
