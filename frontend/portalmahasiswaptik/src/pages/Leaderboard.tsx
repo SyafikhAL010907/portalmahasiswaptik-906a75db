@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { Trophy, Medal, Crown, TrendingUp, Users, Calendar, Plus, Pencil, Trash2, Award, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,22 @@ interface ClassStat {
   total: number;
   achievements: ClassAchievement[];
 }
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function Leaderboard() {
   const { user, profile, isAdminDev, isAdminKelas, isAdminDosen } = useAuth();
@@ -288,9 +305,15 @@ export default function Leaderboard() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-20">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-20"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Leaderboard Angkatan</h1>
           <p className="text-muted-foreground mt-1">Klasemen prestasi antar kelas PTIK 2025</p>
@@ -300,7 +323,7 @@ export default function Leaderboard() {
             <Plus className="w-4 h-4 mr-2" /> Tambah Prestasi
           </Button>
         )}
-      </div>
+      </motion.div>
 
       {loading ? (
         <div className="space-y-6">
@@ -312,7 +335,7 @@ export default function Leaderboard() {
       ) : (
         <>
           {/* Top Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full mb-6">
+          <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full mb-6">
             {(() => {
               const maxScore = Math.max(...orderedStats.map(s => s.total));
               return orderedStats.map((stat, idx) => (
@@ -333,14 +356,14 @@ export default function Leaderboard() {
                 </div>
               ));
             })()}
-          </div>
+          </motion.div>
 
           {/* Podium Section (Visual) - FIX JARAK DESKTOP (MOBILE TETAP) */}
           {(() => {
             const sortedStats = [...orderedStats].sort((a, b) => b.total - a.total);
 
             return sortedStats.length >= 2 && (
-              <div className="glass-card rounded-3xl p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden relative">
+              <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-3xl p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden relative">
                 <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
                 <h2 className="text-lg md:text-xl font-bold mb-8 md:mb-12 flex items-center gap-2 relative z-10">
                   <TrendingUp className="w-5 h-5 text-primary" />
@@ -430,11 +453,11 @@ export default function Leaderboard() {
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })()}
           {/* Detailed List */}
-          <div className="glass-card rounded-2xl overflow-hidden">
+          <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl overflow-hidden">
             <div className="p-6 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
               <h3 className="font-semibold text-lg flex items-center gap-2">
                 <Award className="w-5 h-5 text-primary" />
@@ -520,7 +543,7 @@ export default function Leaderboard() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         </>
       )}
 
@@ -632,6 +655,6 @@ export default function Leaderboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

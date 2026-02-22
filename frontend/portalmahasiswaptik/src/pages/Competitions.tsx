@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { Award, Calendar, Users, MapPin, ExternalLink, Clock, Trophy, Sparkles, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,22 @@ interface Competition {
 
 const categories = ['Semua', 'Hackathon', 'Design', 'Data Science', 'Programming', 'Startup', 'Security'];
 const formCategories = ['Hackathon', 'Design', 'Data Science', 'Programming', 'Startup', 'Security'];
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function Competitions() {
   const { user, isAdminDev, isAdminKelas, isAdminDosen } = useAuth();
@@ -240,9 +257,15 @@ export default function Competitions() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-20">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-20"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Info Lomba</h1>
           <p className="text-muted-foreground mt-1">Kompetisi dan lomba untuk mahasiswa PTIK</p>
@@ -253,7 +276,7 @@ export default function Competitions() {
             Tambah Lomba
           </Button>
         )}
-      </div>
+      </motion.div>
 
       {/* Category Filter */}
       <div className="flex gap-2 pb-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
@@ -272,14 +295,14 @@ export default function Competitions() {
 
       {/* Loading State */}
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-64 rounded-2xl bg-secondary/20 animate-pulse" />
           ))}
-        </div>
+        </motion.div>
       ) : (
         /* Competition Cards */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredCompetitions.length > 0 ? (
             filteredCompetitions.map((comp) => (
               <div
@@ -391,7 +414,7 @@ export default function Competitions() {
               <p>Belum ada lomba untuk kategori ini</p>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -564,6 +587,6 @@ export default function Competitions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div >
   );
 }

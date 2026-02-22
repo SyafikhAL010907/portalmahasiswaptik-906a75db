@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +69,22 @@ const SEMESTER_GRADIENTS = [
   { gradient: 'from-yellow-50 to-white dark:from-yellow-950/20 dark:to-background', iconBg: 'bg-yellow-100 dark:bg-yellow-900/30', iconColor: 'text-yellow-600 dark:text-yellow-400', shadowColor: 'hover:shadow-yellow-200/50 dark:hover:shadow-yellow-900/50' },
   { gradient: 'from-pink-50 to-white dark:from-pink-950/20 dark:to-background', iconBg: 'bg-pink-100 dark:bg-pink-900/30', iconColor: 'text-pink-600 dark:text-pink-400', shadowColor: 'hover:shadow-pink-200/50 dark:hover:shadow-pink-900/50' },
 ];
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 type ViewState = 'semesters' | 'courses' | 'files';
 
@@ -627,9 +644,15 @@ export default function Repository() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-10 px-4 md:px-0 max-w-full">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-10 px-4 md:px-0 max-w-full"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       {/* Header with Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-4">
           {view !== 'semesters' && (
             <Button variant="ghost" size="icon" onClick={handleBack} className="rounded-full bg-muted/50 flex-shrink-0 mt-1 sm:mt-0">
@@ -676,11 +699,11 @@ export default function Repository() {
             )}
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* 1. Semester Selection */}
       {view === 'semesters' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+        <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {semesters.map((semester, idx) => (
             <div key={semester.id} className="relative group w-full">
               <PremiumCard
@@ -716,16 +739,16 @@ export default function Repository() {
               />
             </div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* 2. Course Selection */}
       {view === 'courses' && selectedSemester && (
         <>
           {isLoading ? (
-            <div className="flex justify-center py-20"><Loader2 className="animate-spin w-10 h-10 text-primary" /></div>
+            <motion.div variants={staggerBottom} layout={false} className="flex justify-center py-20"><Loader2 className="animate-spin w-10 h-10 text-primary" /></motion.div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {subjects.length === 0 ? (
                 <div className="col-span-full text-center py-10 text-muted-foreground glass-card rounded-xl">Belum ada mata kuliah.</div>
               ) : (
@@ -776,14 +799,14 @@ export default function Repository() {
                   );
                 })
               )}
-            </div>
+            </motion.div>
           )}
         </>
       )}
 
       {/* 3. Files List */}
       {view === 'files' && selectedCourse && (
-        <div className="space-y-4">
+        <motion.div variants={staggerBottom} layout={false} className="space-y-4">
           {/* Media Filter */}
           <div className="flex gap-2 flex-wrap">
             {[
@@ -862,7 +885,7 @@ export default function Repository() {
               )}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* --- ADD/EDIT COURSE DIALOG --- */}
@@ -1077,6 +1100,6 @@ export default function Repository() {
         confirmText={modalConfig.confirmText}
         isLoading={isLoading}
       />
-    </div>
+    </motion.div>
   );
 }

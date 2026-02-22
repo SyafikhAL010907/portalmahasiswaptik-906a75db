@@ -1,5 +1,6 @@
 //
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { Megaphone, Calendar, Pin, ChevronRight, Bell, AlertCircle, Info, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,24 @@ const formatDate = (dateString: string) => {
   });
 };
 
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+
 // Extracted Component
 const AnnouncementItem = ({
   item,
@@ -74,7 +93,9 @@ const AnnouncementItem = ({
   setCurrentAnnouncement: (item: Announcement) => void,
   setIsDeleteDialogOpen: (val: boolean) => void
 }) => (
-  <div
+  <motion.div
+    variants={staggerBottom}
+    layout={false}
     className={cn(
       "glass-card rounded-2xl p-5 border-2 transition-all duration-300 cursor-pointer hover-glow-blue relative group",
       getTypeBg(item.priority, item.category),
@@ -147,7 +168,7 @@ const AnnouncementItem = ({
         expandedId === item.id && "rotate-90"
       )} />
     </div>
-  </div>
+  </motion.div>
 );
 
 export default function Announcements() {
@@ -352,7 +373,9 @@ export default function Announcements() {
     setCurrentAnnouncement: (item: Announcement) => void,
     setIsDeleteDialogOpen: (val: boolean) => void
   }) => (
-    <div
+    <motion.div
+      variants={staggerBottom}
+      layout={false}
       className={cn(
         "glass-card rounded-2xl p-5 border-2 transition-all duration-300 cursor-pointer hover-glow-blue relative group",
         getTypeBg(item.priority, item.category),
@@ -425,12 +448,18 @@ export default function Announcements() {
           expandedId === item.id && "rotate-90"
         )} />
       </div>
-    </div>
+    </motion.div>
   );
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-20">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-20"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Pengumuman</h1>
           <p className="text-muted-foreground mt-1">Informasi terbaru untuk angkatan PTIK 2025</p>
@@ -441,10 +470,10 @@ export default function Announcements() {
             Buat Pengumuman
           </Button>
         )}
-      </div>
+      </motion.div>
 
       {/* Category Filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2 w-full whitespace-nowrap scrollbar-hide">
+      <motion.div variants={staggerTop} layout={false} className="flex gap-2 overflow-x-auto pb-2 w-full whitespace-nowrap scrollbar-hide">
         {categories.map((cat) => (
           <Button
             key={cat}
@@ -456,20 +485,20 @@ export default function Announcements() {
             {cat}
           </Button>
         ))}
-      </div>
+      </motion.div>
 
       {/* Loading State */}
       {loading ? (
-        <div className="space-y-4">
+        <motion.div variants={staggerBottom} layout={false} className="space-y-4">
           {[1, 2, 3].map(i => (
             <div key={i} className="p-6 rounded-2xl bg-secondary/20 animate-pulse h-32" />
           ))}
-        </div>
+        </motion.div>
       ) : (
         <>
           {/* Pinned Announcements */}
           {pinnedAnnouncements.length > 0 && (
-            <div className="space-y-3">
+            <motion.div variants={staggerBottom} layout={false} className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
                 <Pin className="w-4 h-4 text-primary" />
                 <span>Disematkan</span>
@@ -486,11 +515,11 @@ export default function Announcements() {
                   setIsDeleteDialogOpen={setIsDeleteDialogOpen}
                 />
               ))}
-            </div>
+            </motion.div>
           )}
 
           {/* Regular Announcements */}
-          <div className="space-y-3">
+          <motion.div variants={staggerBottom} layout={false} className="space-y-3">
             {pinnedAnnouncements.length > 0 && regularAnnouncements.length > 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium mt-6">
                 <Megaphone className="w-4 h-4" />
@@ -518,7 +547,7 @@ export default function Announcements() {
                 </div>
               )
             )}
-          </div>
+          </motion.div>
         </>
       )}
 
@@ -635,6 +664,6 @@ export default function Announcements() {
         </DialogContent>
       </Dialog>
 
-    </div>
+    </motion.div>
   );
 }

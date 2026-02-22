@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { motion, Variants } from 'framer-motion';
 import { useAuth, AppRole } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -19,6 +20,22 @@ import {
     ShieldCheck,
     GraduationCap
 } from "lucide-react";
+
+const staggerContainer: Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.12 }
+    }
+};
+const staggerTop: Variants = {
+    hidden: { opacity: 0, y: -15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function Profile() {
     const { profile, roles, refreshProfile } = useAuth();
@@ -204,9 +221,15 @@ export default function Profile() {
     const primaryRole = roles[0] || "mahasiswa";
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-200">
+        <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            layout={false}
+            className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-200"
+        >
             {/* Header Profile */}
-            <div className="relative group">
+            <motion.div variants={staggerTop} layout={false} className="relative group">
                 <div className="h-32 md:h-48 rounded-3xl bg-gradient-to-r from-primary/20 via-primary/5 to-secondary/30 overflow-hidden border border-border/50">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-from),transparent_40%)]" />
                 </div>
@@ -259,9 +282,9 @@ export default function Profile() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </motion.div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12">
+            <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12">
                 {/* Identity Details (Read Only) */}
                 <Card className="md:col-span-1 shadow-soft border-border/40 bg-card/50 backdrop-blur-sm">
                     <CardHeader>
@@ -344,7 +367,7 @@ export default function Profile() {
                         </form>
                     </CardContent>
                 </Card>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 }

@@ -65,6 +65,22 @@ const roleColors: Record<AppRole, string> = {
   mahasiswa: 'bg-success text-success-foreground',
 };
 
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+
 export default function UserManagement() {
   const { isAdminDev } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
@@ -383,7 +399,13 @@ export default function UserManagement() {
 
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       <PremiumConfirmModal
         isOpen={showPremiumConfirm}
         onClose={() => setShowPremiumConfirm(false)}
@@ -404,7 +426,7 @@ export default function UserManagement() {
         isLoading={isDeleting}
       />
       {/* Header */}
-      <div className="flex flex-col gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Users className="w-7 h-7 text-primary" />
@@ -609,212 +631,215 @@ export default function UserManagement() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative md:col-span-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Cari NIM atau nama..." className="pl-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+      <motion.div variants={staggerTop} layout={false}>
+        <Card>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="relative md:col-span-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Cari NIM atau nama..." className="pl-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              </div>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Filter Kelas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kelas</SelectItem>
+                  {classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>Kelas {cls.name}</SelectItem>))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Filter Role" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Role</SelectItem>
+                  {Object.entries(roleLabels).map(([key, label]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Filter Kelas" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Kelas</SelectItem>
-                {classes.map((cls) => (<SelectItem key={cls.id} value={cls.id}>Kelas {cls.name}</SelectItem>))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Filter Role" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Role</SelectItem>
-                {Object.entries(roleLabels).map(([key, label]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Users List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-      ) : (
-        <Tabs defaultValue="all" className="space-y-4">
-          <div className="w-full overflow-x-auto scrollbar-hide">
-            <TabsList className="bg-card border border-border inline-flex w-auto min-w-full">
-              <TabsTrigger value="all" className="whitespace-nowrap">Semua ({filteredUsers.length})</TabsTrigger>
-              <TabsTrigger value="admin_dev" className="whitespace-nowrap">Admin Dev</TabsTrigger>
-              <TabsTrigger value="admin_kelas" className="whitespace-nowrap">Admin Kelas</TabsTrigger>
-              <TabsTrigger value="admin_dosen" className="whitespace-nowrap">Dosen</TabsTrigger>
-              <TabsTrigger value="mahasiswa" className="whitespace-nowrap">Mahasiswa</TabsTrigger>
-            </TabsList>
-          </div>
+      <motion.div variants={staggerBottom} layout={false}>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        ) : (
+          <Tabs defaultValue="all" className="space-y-4">
+            <div className="w-full overflow-x-auto scrollbar-hide">
+              <TabsList className="bg-card border border-border inline-flex w-auto min-w-full">
+                <TabsTrigger value="all" className="whitespace-nowrap">Semua ({filteredUsers.length})</TabsTrigger>
+                <TabsTrigger value="admin_dev" className="whitespace-nowrap">Admin Dev</TabsTrigger>
+                <TabsTrigger value="admin_kelas" className="whitespace-nowrap">Admin Kelas</TabsTrigger>
+                <TabsTrigger value="admin_dosen" className="whitespace-nowrap">Dosen</TabsTrigger>
+                <TabsTrigger value="mahasiswa" className="whitespace-nowrap">Mahasiswa</TabsTrigger>
+              </TabsList>
+            </div>
 
-          <TabsContent value="all">
-            <div className="space-y-3">
-              {filteredUsers.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12">
-                    <div className="text-center text-muted-foreground">Tidak ada pengguna ditemukan</div>
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredUsers.map((user) => (
-                  <Card key={user.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      {/* Mobile Card Layout */}
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        {/* User Info Section */}
-                        <div className="flex items-start gap-3 flex-1">
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <GraduationCap className="w-6 h-6 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-base">{user.full_name}</p>
-                            <p className="text-sm text-muted-foreground font-medium">{user.nim}</p>
-                            {/* Badges - Mobile Friendly */}
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {user.roles.includes('mahasiswa') && user.class_name !== '-' && (
-                                <Badge variant="outline" className="text-xs">Kelas {user.class_name}</Badge>
-                              )}
-                              {user.roles.map((role) => (
-                                <Badge key={role} className={`${roleColors[role]} text-xs`}>
-                                  {role === 'admin_kelas' && user.class_name !== '-'
-                                    ? `Admin Kelas ${user.class_name}`
-                                    : roleLabels[role]}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2 ml-auto md:ml-0">
-                          <Button variant="outline" size="sm" onClick={() => handleEditClick(user)} className="gap-2">
-                            <Edit className="w-4 h-4" />
-                            <span className="hidden sm:inline">Edit</span>
-                          </Button>
-                          <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(user.user_id)}>
-                            <Trash2 className="w-4 h-4" />
-                            <span className="hidden sm:inline">Hapus</span>
-                          </Button>
-                        </div>
-                      </div>
+            <TabsContent value="all">
+              <div className="space-y-3">
+                {filteredUsers.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-12">
+                      <div className="text-center text-muted-foreground">Tidak ada pengguna ditemukan</div>
                     </CardContent>
                   </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="admin_dev">
-            <div className="grid gap-4">
-              {filteredUsers.filter(u => u.roles.includes('admin_dev')).map(user => (
-                <Card key={user.id} className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center"><Shield className="w-5 h-5 text-destructive" /></div>
-                    <div>
-                      <p className="font-bold">{user.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{user.nim}</p>
-                    </div>
-                  </div>
-                  <Badge className={roleColors['admin_dev']}>Admin Dev</Badge>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="admin_kelas">
-            <div className="grid gap-6">
-              {classes.map(cls => {
-                const adminsInClass = filteredUsers.filter(u => u.roles.includes('admin_kelas') && u.class_id === cls.id);
-                return (
-                  <div key={cls.id} className="space-y-3">
-                    <h3 className="font-bold text-lg border-l-4 border-indigo-500 pl-3">Admin Kelas {cls.name}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {adminsInClass.length === 0 ? (
-                        <p className="text-sm text-muted-foreground italic">Belum ada admin di kelas ini</p>
-                      ) : (
-                        adminsInClass.map(user => (
-                          <Card key={user.id} className="p-4 border-indigo-500/20 bg-indigo-500/5">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-600">{user.full_name.charAt(0)}</div>
-                                <div>
-                                  <p className="font-bold text-sm">{user.full_name}</p>
-                                  <p className="text-[10px] text-muted-foreground">{user.nim}</p>
-                                </div>
-                              </div>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <Card key={user.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        {/* Mobile Card Layout */}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                          {/* User Info Section */}
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <GraduationCap className="w-6 h-6 text-primary" />
                             </div>
-                          </Card>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </TabsContent>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-base">{user.full_name}</p>
+                              <p className="text-sm text-muted-foreground font-medium">{user.nim}</p>
+                              {/* Badges - Mobile Friendly */}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {user.roles.includes('mahasiswa') && user.class_name !== '-' && (
+                                  <Badge variant="outline" className="text-xs">Kelas {user.class_name}</Badge>
+                                )}
+                                {user.roles.map((role) => (
+                                  <Badge key={role} className={`${roleColors[role]} text-xs`}>
+                                    {role === 'admin_kelas' && user.class_name !== '-'
+                                      ? `Admin Kelas ${user.class_name}`
+                                      : roleLabels[role]}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
 
-          <TabsContent value="admin_dosen">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUsers.filter(u => u.roles.includes('admin_dosen')).map(user => (
-                <Card key={user.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600"><BookOpen className="w-5 h-5" /></div>
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 ml-auto md:ml-0">
+                            <Button variant="outline" size="sm" onClick={() => handleEditClick(user)} className="gap-2">
+                              <Edit className="w-4 h-4" />
+                              <span className="hidden sm:inline">Edit</span>
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(user.user_id)}>
+                              <Trash2 className="w-4 h-4" />
+                              <span className="hidden sm:inline">Hapus</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="admin_dev">
+              <div className="grid gap-4">
+                {filteredUsers.filter(u => u.roles.includes('admin_dev')).map(user => (
+                  <Card key={user.id} className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center"><Shield className="w-5 h-5 text-destructive" /></div>
                       <div>
                         <p className="font-bold">{user.full_name}</p>
                         <p className="text-xs text-muted-foreground">{user.nim}</p>
                       </div>
                     </div>
-                    <Badge className={roleColors['admin_dosen']}>Dosen</Badge>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
+                    <Badge className={roleColors['admin_dev']}>Admin Dev</Badge>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
 
-          <TabsContent value="mahasiswa">
-            <div className="grid gap-8">
-              {classes.map((cls) => (
-                <div key={cls.id} className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <h3 className="font-black text-xl flex items-center gap-2">
-                      Kelas {cls.name}
-                      <Badge variant="secondary" className="font-bold">{filteredUsers.filter(u => u.class_id === cls.id && (u.roles.includes('mahasiswa') || u.roles.includes('admin_kelas'))).length} Orang</Badge>
-                    </h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {filteredUsers.filter(u => u.class_id === cls.id && (u.roles.includes('mahasiswa') || u.roles.includes('admin_kelas'))).map((user) => (
-                      <Card key={user.id} className="p-3 hover:shadow-md transition-shadow group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary transition-transform group-hover:scale-110">
-                            {user.full_name.charAt(0)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm truncate">{user.full_name}</p>
-                            <div className="flex items-center gap-1">
-                              <p className="text-[10px] text-muted-foreground font-medium">{user.nim}</p>
-                              {user.roles.includes('admin_kelas') && <Badge className="h-4 px-1 text-[8px] bg-indigo-500">Admin</Badge>}
-                            </div>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
+            <TabsContent value="admin_kelas">
+              <div className="grid gap-6">
+                {classes.map(cls => {
+                  const adminsInClass = filteredUsers.filter(u => u.roles.includes('admin_kelas') && u.class_id === cls.id);
+                  return (
+                    <div key={cls.id} className="space-y-3">
+                      <h3 className="font-bold text-lg border-l-4 border-indigo-500 pl-3">Admin Kelas {cls.name}</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {adminsInClass.length === 0 ? (
+                          <p className="text-sm text-muted-foreground italic">Belum ada admin di kelas ini</p>
+                        ) : (
+                          adminsInClass.map(user => (
+                            <Card key={user.id} className="p-4 border-indigo-500/20 bg-indigo-500/5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-600">{user.full_name.charAt(0)}</div>
+                                  <div>
+                                    <p className="font-bold text-sm">{user.full_name}</p>
+                                    <p className="text-[10px] text-muted-foreground">{user.nim}</p>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
+                              </div>
+                            </Card>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="admin_dosen">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredUsers.filter(u => u.roles.includes('admin_dosen')).map(user => (
+                  <Card key={user.id} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600"><BookOpen className="w-5 h-5" /></div>
+                        <div>
+                          <p className="font-bold">{user.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{user.nim}</p>
                         </div>
-                      </Card>
-                    ))}
+                      </div>
+                      <Badge className={roleColors['admin_dosen']}>Dosen</Badge>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="mahasiswa">
+              <div className="grid gap-8">
+                {classes.map((cls) => (
+                  <div key={cls.id} className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <h3 className="font-black text-xl flex items-center gap-2">
+                        Kelas {cls.name}
+                        <Badge variant="secondary" className="font-bold">{filteredUsers.filter(u => u.class_id === cls.id && (u.roles.includes('mahasiswa') || u.roles.includes('admin_kelas'))).length} Orang</Badge>
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {filteredUsers.filter(u => u.class_id === cls.id && (u.roles.includes('mahasiswa') || u.roles.includes('admin_kelas'))).map((user) => (
+                        <Card key={user.id} className="p-3 hover:shadow-md transition-shadow group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary transition-transform group-hover:scale-110">
+                              {user.full_name.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm truncate">{user.full_name}</p>
+                              <div className="flex items-center gap-1">
+                                <p className="text-[10px] text-muted-foreground font-medium">{user.nim}</p>
+                                {user.roles.includes('admin_kelas') && <Badge className="h-4 px-1 text-[8px] bg-indigo-500">Admin</Badge>}
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleEditClick(user)}><Edit className="w-3 h-3" /></Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
-      )
-      }
-    </div >
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
 // ✅ KOMPONEN MODAL PREMIUM (Ditaruh di luar agar tidak infinite loop)

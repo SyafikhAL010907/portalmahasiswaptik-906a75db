@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Filter, Plus, Trash2, Edit2, Loader2, Clock, MapPin, User, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +56,22 @@ interface Profile {
 }
 
 const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function Schedule() {
   // --- STATE ---
@@ -309,7 +326,7 @@ export default function Schedule() {
       start_time: schedule.start_time,
       end_time: schedule.end_time,
       room: schedule.room,
-      semester: schedule.subjects?.semester?.toString() || '1',
+      semester: schedule.subjects?.semester?.toString() || '',
       lecturer_id: schedule.lecturer_id || ''
     });
     setIsDialogOpen(true);
@@ -377,9 +394,15 @@ export default function Schedule() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-24">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-24"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Jadwal Kuliah</h1>
           <p className="text-muted-foreground mt-1">
@@ -407,10 +430,10 @@ export default function Schedule() {
             </Button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Day Selector */}
-      <div className="glass-card rounded-2xl p-4">
+      <motion.div variants={staggerTop} layout={false} className="glass-card rounded-2xl p-4">
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={goToPrevDay} disabled={currentDayIndex === 0}>
             <ChevronLeft className="w-5 h-5" />
@@ -433,10 +456,10 @@ export default function Schedule() {
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Schedule List */}
-      <div className="space-y-4">
+      <motion.div variants={staggerBottom} layout={false} className="space-y-4">
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin w-8 h-8 text-primary" /></div>
         ) : schedules.length > 0 ? (
@@ -512,10 +535,10 @@ export default function Schedule() {
             <p className="text-muted-foreground">Tidak ada jadwal kuliah untuk hari {selectedDay}</p>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Legend */}
-      <div className="glass-card rounded-2xl p-4">
+      <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-4">
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-blue-500/30" />
@@ -530,7 +553,7 @@ export default function Schedule() {
             <span className="text-muted-foreground">Selesai</span>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* --- ADD/EDIT DIALOG --- */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -550,7 +573,7 @@ export default function Schedule() {
                 <SelectTrigger><SelectValue placeholder="Pilih Semester" /></SelectTrigger>
                 <SelectContent>
                   {semesters.map(s => (
-                    <SelectItem key={s.id} value={s.name}>Semester {s.name}</SelectItem>
+                    <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -567,9 +590,9 @@ export default function Schedule() {
                   <SelectValue placeholder={formData.semester ? "Pilih Mata Kuliah" : "Pilih semester terlebih dahulu"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.filter(s => s.semester.toString() === formData.semester).length > 0 ? (
+                  {subjects.filter(s => Number(s.semester) === Number(formData.semester)).length > 0 ? (
                     subjects
-                      .filter(s => s.semester.toString() === formData.semester)
+                      .filter(s => Number(s.semester) === Number(formData.semester))
                       .map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
                   ) : (
                     <SelectItem value="none" disabled>Belum ada mata kuliah di semester ini, silakan tambah di Repository.</SelectItem>
@@ -672,6 +695,6 @@ export default function Schedule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }

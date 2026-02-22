@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { MessageSquare, Send, X, Users, ArrowLeft, Search, CheckCheck, Loader2, Trash2, User as UserIcon, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,6 +57,22 @@ interface ActiveChat {
     avatar_url?: string | null;
     role?: string | null;
 }
+
+const staggerContainer: Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.12 }
+    }
+};
+const staggerTop: Variants = {
+    hidden: { opacity: 0, y: -15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export function GlobalChat() {
     const { user, roles } = useAuth();
@@ -709,8 +726,8 @@ export function GlobalChat() {
                     "max-sm:right-0 max-sm:left-0 max-sm:mx-auto max-sm:w-full max-sm:h-[100dvh] max-sm:max-h-none max-sm:bottom-0 max-sm:rounded-none max-sm:border-none"
                 )}>
                     {view === 'LIST' ? (
-                        <div className="flex flex-col h-full">
-                            <div className="bg-white dark:bg-slate-900 px-4 py-4 flex items-center justify-between border-b border-slate-100 dark:border-white/5 shrink-0">
+                        <motion.div variants={staggerContainer} initial="hidden" animate="visible" layout={false} className="flex flex-col h-full">
+                            <motion.div variants={staggerTop} layout={false} className="bg-white dark:bg-slate-900 px-4 py-4 flex items-center justify-between border-b border-slate-100 dark:border-white/5 shrink-0">
                                 <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 italic">PORTAL CHAT</h3>
                                 <div className="flex items-center gap-3">
                                     <Button
@@ -721,9 +738,9 @@ export function GlobalChat() {
                                         <X size={20} />
                                     </Button>
                                 </div>
-                            </div>
+                            </motion.div>
 
-                            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center border-b border-slate-100 dark:border-white/5 shrink-0">
+                            <motion.div variants={staggerTop} layout={false} className="p-3 bg-slate-50 dark:bg-slate-900/50 flex items-center border-b border-slate-100 dark:border-white/5 shrink-0">
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                                     <Input
@@ -733,145 +750,147 @@ export function GlobalChat() {
                                         className="pl-10 h-11 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl text-sm focus-visible:ring-indigo-500/50 placeholder:text-slate-500"
                                     />
                                 </div>
-                            </div>
+                            </motion.div>
 
-                            <ScrollArea className="flex-1">
-                                <div className="flex flex-col">
-                                    {!searchTerm && (
-                                        <div
-                                            key="public-group"
-                                            onClick={() => {
-                                                setGroupUnreadCount(0);
-                                                localStorage.setItem(LS_GROUP_READ_KEY, new Date().toISOString());
-                                                openRoom({ id: 'public-group', room_id: 'public-group', name: 'Grup Angkatan 2025', type: 'GROUP' });
-                                            }}
-                                            className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-100 dark:border-white/5 cursor-pointer overflow-hidden min-w-0"
-                                        >
-                                            <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-                                                <Users size={24} />
-                                            </div>
-                                            <div className="flex-1 min-w-0 overflow-hidden pr-2">
-                                                <div className="flex justify-between items-center mb-0.5 min-w-0 overflow-hidden">
-                                                    <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight flex-1 pr-2">Grup Angkatan 2025</h4>
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-black">PUBLIC</span>
+                            <motion.div variants={staggerBottom} layout={false} className="flex-1 flex flex-col overflow-hidden">
+                                <ScrollArea className="flex-1">
+                                    <div className="flex flex-col">
+                                        {!searchTerm && (
+                                            <div
+                                                key="public-group"
+                                                onClick={() => {
+                                                    setGroupUnreadCount(0);
+                                                    localStorage.setItem(LS_GROUP_READ_KEY, new Date().toISOString());
+                                                    openRoom({ id: 'public-group', room_id: 'public-group', name: 'Grup Angkatan 2025', type: 'GROUP' });
+                                                }}
+                                                className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-100 dark:border-white/5 cursor-pointer overflow-hidden min-w-0"
+                                            >
+                                                <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
+                                                    <Users size={24} />
                                                 </div>
-                                                <div className="flex justify-between items-center min-w-0 overflow-hidden w-full">
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate block w-full">Saluran komunikasi utama angkatan</p>
-                                                    {groupUnreadCount > 0 && (
-                                                        <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-red-500/30 animate-in zoom-in duration-300 ml-2 shrink-0">
-                                                            {groupUnreadCount}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {isLoadingList ? (
-                                        <div className="p-10 flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
-                                            <Loader2 className="animate-spin w-8 h-8 text-indigo-500" />
-                                            <p className="text-xs font-black uppercase tracking-widest">Searching Pulse...</p>
-                                        </div>
-                                    ) : (
-                                        (searchTerm ? searchResults : recentChats).map((originalMember, idx) => {
-                                            const member = getMaskedProfile(originalMember, roles?.[0]);
-                                            return (
-                                                <div
-                                                    key={member.user_id}
-                                                    onClick={() => {
-                                                        markAsRead(member.user_id);
-                                                        setRecentChats(prev => prev.map(c =>
-                                                            (c.user_id === member.user_id || (c as any).id === member.user_id) ? { ...c, unread_count: 0 } : c
-                                                        ));
-                                                        openRoom({
-                                                            id: member.user_id,
-                                                            room_id: member.room_id,
-                                                            name: member.full_name,
-                                                            type: 'PRIVATE',
-                                                            avatar_url: member.avatar_url,
-                                                            role: member.role
-                                                        });
-                                                    }}
-                                                    className={cn(
-                                                        "w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group cursor-pointer overflow-hidden min-w-0",
-                                                        idx !== (searchTerm ? searchResults : recentChats).length - 1 && "border-b border-slate-100 dark:border-white/5"
-                                                    )}
-                                                >
-                                                    <div onClick={(e) => { e.stopPropagation(); setSelectedProfileId(member.user_id); }} className="relative cursor-pointer">
-                                                        <Avatar className="w-12 h-12 border border-slate-200 dark:border-white/10 group-hover:border-indigo-500/30 transition-colors">
-                                                            <AvatarImage src={member.avatar_url || ''} className="object-cover" />
-                                                            <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase text-xs">
-                                                                {member.full_name?.substring(0, 2)}
-                                                            </AvatarFallback>
-                                                        </Avatar>
+                                                <div className="flex-1 min-w-0 overflow-hidden pr-2">
+                                                    <div className="flex justify-between items-center mb-0.5 min-w-0 overflow-hidden">
+                                                        <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight flex-1 pr-2">Grup Angkatan 2025</h4>
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-black">PUBLIC</span>
                                                     </div>
-                                                    <div className="flex-1 min-w-0 overflow-hidden w-0">
-                                                        <div className="flex justify-between items-start mb-0.5 min-w-0 overflow-hidden">
-                                                            <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight text-sm leading-tight flex-1 pr-2">
-                                                                {member.full_name}
-                                                            </h4>
-                                                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                                                                {member.last_message_at ? format(new Date(member.last_message_at), 'HH:mm') : ''}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex justify-between items-end min-w-0 overflow-hidden w-full">
-                                                            <div className="flex-1 min-w-0 overflow-hidden pr-2">
-                                                                <p className={cn(
-                                                                    "text-xs truncate text-left transition-colors block w-full",
-                                                                    (member.unread_count && member.unread_count > 0)
-                                                                        ? "text-slate-900 dark:text-slate-200 font-bold"
-                                                                        : "text-slate-500 dark:text-slate-500 font-medium"
-                                                                )}>
-                                                                    {member.last_message || 'Belum ada pesan'}
-                                                                </p>
+                                                    <div className="flex justify-between items-center min-w-0 overflow-hidden w-full">
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate block w-full">Saluran komunikasi utama angkatan</p>
+                                                        {groupUnreadCount > 0 && (
+                                                            <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-red-500/30 animate-in zoom-in duration-300 ml-2 shrink-0">
+                                                                {groupUnreadCount}
                                                             </div>
-                                                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                                                {member.unread_count && member.unread_count > 0 ? (
-                                                                    <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-green-500/30 animate-in zoom-in duration-300">
-                                                                        {member.unread_count}
-                                                                    </div>
-                                                                ) : (
-                                                                    (() => {
-                                                                        const { label, color } = getUserRole(member.role);
-                                                                        return (
-                                                                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-black tracking-tighter uppercase", color)}>
-                                                                                {label}
-                                                                            </span>
-                                                                        );
-                                                                    })()
-                                                                )}
-                                                                {!searchTerm && (
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); deleteConversation(member.user_id, e); }}
-                                                                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all -mb-1 -mr-1"
-                                                                    >
-                                                                        <Trash2 size={14} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            );
-                                        })
-                                    )}
-
-                                    {!isLoadingList && (searchTerm ? searchResults : recentChats).length === 0 && (
-                                        <div className="p-10 text-center flex flex-col items-center gap-4">
-                                            <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-400 dark:text-slate-700">
-                                                <UserIcon size={32} />
                                             </div>
-                                            <p className="text-sm text-slate-500 dark:text-slate-500 font-medium italic">
-                                                {searchTerm ? 'Agen tidak ditemukan' : 'Belum ada riwayat pesan'}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </ScrollArea>
-                        </div>
+                                        )}
+
+                                        {isLoadingList ? (
+                                            <div className="p-10 flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
+                                                <Loader2 className="animate-spin w-8 h-8 text-indigo-500" />
+                                                <p className="text-xs font-black uppercase tracking-widest">Searching Pulse...</p>
+                                            </div>
+                                        ) : (
+                                            (searchTerm ? searchResults : recentChats).map((originalMember, idx) => {
+                                                const member = getMaskedProfile(originalMember, roles?.[0]);
+                                                return (
+                                                    <div
+                                                        key={member.user_id}
+                                                        onClick={() => {
+                                                            markAsRead(member.user_id);
+                                                            setRecentChats(prev => prev.map(c =>
+                                                                (c.user_id === member.user_id || (c as any).id === member.user_id) ? { ...c, unread_count: 0 } : c
+                                                            ));
+                                                            openRoom({
+                                                                id: member.user_id,
+                                                                room_id: member.room_id,
+                                                                name: member.full_name,
+                                                                type: 'PRIVATE',
+                                                                avatar_url: member.avatar_url,
+                                                                role: member.role
+                                                            });
+                                                        }}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group cursor-pointer overflow-hidden min-w-0",
+                                                            idx !== (searchTerm ? searchResults : recentChats).length - 1 && "border-b border-slate-100 dark:border-white/5"
+                                                        )}
+                                                    >
+                                                        <div onClick={(e) => { e.stopPropagation(); setSelectedProfileId(member.user_id); }} className="relative cursor-pointer">
+                                                            <Avatar className="w-12 h-12 border border-slate-200 dark:border-white/10 group-hover:border-indigo-500/30 transition-colors">
+                                                                <AvatarImage src={member.avatar_url || ''} className="object-cover" />
+                                                                <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase text-xs">
+                                                                    {member.full_name?.substring(0, 2)}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0 overflow-hidden w-0">
+                                                            <div className="flex justify-between items-start mb-0.5 min-w-0 overflow-hidden">
+                                                                <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate uppercase tracking-tight text-sm leading-tight flex-1 pr-2">
+                                                                    {member.full_name}
+                                                                </h4>
+                                                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                                                                    {member.last_message_at ? format(new Date(member.last_message_at), 'HH:mm') : ''}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex justify-between items-end min-w-0 overflow-hidden w-full">
+                                                                <div className="flex-1 min-w-0 overflow-hidden pr-2">
+                                                                    <p className={cn(
+                                                                        "text-xs truncate text-left transition-colors block w-full",
+                                                                        (member.unread_count && member.unread_count > 0)
+                                                                            ? "text-slate-900 dark:text-slate-200 font-bold"
+                                                                            : "text-slate-500 dark:text-slate-500 font-medium"
+                                                                    )}>
+                                                                        {member.last_message || 'Belum ada pesan'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex flex-col items-end gap-1 shrink-0">
+                                                                    {member.unread_count && member.unread_count > 0 ? (
+                                                                        <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-green-500/30 animate-in zoom-in duration-300">
+                                                                            {member.unread_count}
+                                                                        </div>
+                                                                    ) : (
+                                                                        (() => {
+                                                                            const { label, color } = getUserRole(member.role);
+                                                                            return (
+                                                                                <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-black tracking-tighter uppercase", color)}>
+                                                                                    {label}
+                                                                                </span>
+                                                                            );
+                                                                        })()
+                                                                    )}
+                                                                    {!searchTerm && (
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); deleteConversation(member.user_id, e); }}
+                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition-all -mb-1 -mr-1"
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+
+                                        {!isLoadingList && (searchTerm ? searchResults : recentChats).length === 0 && (
+                                            <div className="p-10 text-center flex flex-col items-center gap-4">
+                                                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-400 dark:text-slate-700">
+                                                    <UserIcon size={32} />
+                                                </div>
+                                                <p className="text-sm text-slate-500 dark:text-slate-500 font-medium italic">
+                                                    {searchTerm ? 'Agen tidak ditemukan' : 'Belum ada riwayat pesan'}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </ScrollArea>
+                            </motion.div>
+                        </motion.div>
                     ) : (
-                        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
-                            <div className="bg-white dark:bg-slate-900 p-2 sm:p-3 flex items-center gap-2 border-b border-slate-200 dark:border-white/10 shadow-sm shrink-0">
+                        <motion.div variants={staggerContainer} initial="hidden" animate="visible" layout={false} className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
+                            <motion.div variants={staggerTop} layout={false} className="bg-white dark:bg-slate-900 p-2 sm:p-3 flex items-center gap-2 border-b border-slate-200 dark:border-white/10 shadow-sm shrink-0">
                                 <Button
                                     variant="ghost" size="icon"
                                     className="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full h-8 w-8 hover:text-indigo-600 dark:hover:text-white shrink-0"
@@ -956,90 +975,92 @@ export function GlobalChat() {
                                 >
                                     <X size={18} className="sm:w-5 sm:h-5" />
                                 </Button>
-                            </div>
+                            </motion.div>
 
-                            <ScrollArea className="flex-1 p-3 sm:p-4" viewportRef={scrollRef}>
-                                <div className="space-y-4 pb-4">
-                                    {isLoading ? (
-                                        <div className="flex justify-center p-4">
-                                            <Loader2 className="animate-spin text-indigo-500 w-6 h-6" />
-                                        </div>
-                                    ) : (
-                                        messages.map((originalMsg) => {
-                                            const maskedProfile = getMaskedProfile(originalMsg.profiles, roles?.[0]);
-                                            const msg = { ...originalMsg, profiles: maskedProfile };
+                            <motion.div variants={staggerBottom} layout={false} className="flex-1 flex flex-col overflow-hidden">
+                                <ScrollArea className="flex-1 p-3 sm:p-4" viewportRef={scrollRef}>
+                                    <div className="space-y-4 pb-4">
+                                        {isLoading ? (
+                                            <div className="flex justify-center p-4">
+                                                <Loader2 className="animate-spin text-indigo-500 w-6 h-6" />
+                                            </div>
+                                        ) : (
+                                            messages.map((originalMsg) => {
+                                                const maskedProfile = getMaskedProfile(originalMsg.profiles, roles?.[0]);
+                                                const msg = { ...originalMsg, profiles: maskedProfile };
 
-                                            const isMe = msg.user_id === user.id;
-                                            const isGroup = activeChat?.type === 'GROUP';
-                                            return (
-                                                <div key={msg.id} className={cn("flex animate-in fade-in slide-in-from-bottom-2 duration-300 gap-2", isMe ? "justify-end" : "justify-start items-end")}>
-                                                    {isGroup && !isMe && (
-                                                        <div onClick={() => setSelectedProfileId(msg.user_id)} className="shrink-0 mb-1 cursor-pointer hover:scale-110 transition-transform">
-                                                            <Avatar className="w-8 h-8 border border-white/10 shadow-sm">
-                                                                <AvatarImage src={msg.profiles?.avatar_url || ''} className="object-cover" />
-                                                                <AvatarFallback className="bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold">
-                                                                    {msg.profiles?.full_name?.substring(0, 2).toUpperCase()}
-                                                                </AvatarFallback>
-                                                            </Avatar>
-                                                        </div>
-                                                    )}
-                                                    <div className={cn(
-                                                        "max-w-[75%] sm:max-w-[85%] px-4 py-2.5 rounded-2xl shadow-sm relative min-w-[80px] transition-all",
-                                                        isMe ? "bg-indigo-600 text-white rounded-tr-none border border-indigo-500/50" : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700 shadow-sm"
-                                                    )}>
+                                                const isMe = msg.user_id === user.id;
+                                                const isGroup = activeChat?.type === 'GROUP';
+                                                return (
+                                                    <div key={msg.id} className={cn("flex animate-in fade-in slide-in-from-bottom-2 duration-300 gap-2", isMe ? "justify-end" : "justify-start items-end")}>
                                                         {isGroup && !isMe && (
-                                                            <div className="flex items-center gap-2 mb-1.5 border-b border-black/5 dark:border-white/5 pb-1">
-                                                                <button onClick={() => setSelectedProfileId(msg.user_id)} className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase tracking-tighter">
-                                                                    {msg.profiles?.full_name}
-                                                                </button>
-                                                                {getRoleBadge(msg.profiles?.role || null)}
+                                                            <div onClick={() => setSelectedProfileId(msg.user_id)} className="shrink-0 mb-1 cursor-pointer hover:scale-110 transition-transform">
+                                                                <Avatar className="w-8 h-8 border border-white/10 shadow-sm">
+                                                                    <AvatarImage src={msg.profiles?.avatar_url || ''} className="object-cover" />
+                                                                    <AvatarFallback className="bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold">
+                                                                        {msg.profiles?.full_name?.substring(0, 2).toUpperCase()}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
                                                             </div>
                                                         )}
-                                                        <p className="text-sm leading-relaxed pr-8 font-medium break-all break-words">{msg.content}</p>
-                                                        <div className="flex items-center gap-1.5 absolute bottom-1.5 right-2">
-                                                            <span className={cn("text-[8px] font-bold uppercase", isMe ? "text-white/40" : "text-slate-400 dark:text-slate-500")}>
-                                                                {format(new Date(msg.created_at), 'HH:mm')}
-                                                            </span>
-                                                            {isMe && <CheckCheck size={11} className="text-indigo-300" />}
+                                                        <div className={cn(
+                                                            "max-w-[75%] sm:max-w-[85%] px-4 py-2.5 rounded-2xl shadow-sm relative min-w-[80px] transition-all",
+                                                            isMe ? "bg-indigo-600 text-white rounded-tr-none border border-indigo-500/50" : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700 shadow-sm"
+                                                        )}>
+                                                            {isGroup && !isMe && (
+                                                                <div className="flex items-center gap-2 mb-1.5 border-b border-black/5 dark:border-white/5 pb-1">
+                                                                    <button onClick={() => setSelectedProfileId(msg.user_id)} className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase tracking-tighter">
+                                                                        {msg.profiles?.full_name}
+                                                                    </button>
+                                                                    {getRoleBadge(msg.profiles?.role || null)}
+                                                                </div>
+                                                            )}
+                                                            <p className="text-sm leading-relaxed pr-8 font-medium break-all break-words">{msg.content}</p>
+                                                            <div className="flex items-center gap-1.5 absolute bottom-1.5 right-2">
+                                                                <span className={cn("text-[8px] font-bold uppercase", isMe ? "text-white/40" : "text-slate-400 dark:text-slate-500")}>
+                                                                    {format(new Date(msg.created_at), 'HH:mm')}
+                                                                </span>
+                                                                {isMe && <CheckCheck size={11} className="text-indigo-300" />}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                    <div ref={messagesEndRef} />
-                                </div>
-                            </ScrollArea>
+                                                );
+                                            })
+                                        )}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+                                </ScrollArea>
 
-                            <form
-                                onSubmit={handleSendMessage}
-                                className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-white/10 flex items-center gap-3 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] dark:shadow-none sticky bottom-0"
-                            >
-                                <Avatar className="w-9 h-9 border border-slate-200 dark:border-white/10 hidden sm:block shrink-0">
-                                    <AvatarImage src={currentUserProfile?.avatar_url || ''} className="object-cover" />
-                                    <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold">ME</AvatarFallback>
-                                </Avatar>
-                                <Input
-                                    className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-2xl h-11 focus-visible:ring-indigo-500/50 flex-1 placeholder:text-slate-500 text-sm px-4"
-                                    placeholder="Enkripsi pesan..."
-                                    value={newMessage}
-                                    onChange={(e) => setNewMessage(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleSendMessage();
-                                        }
-                                    }}
-                                />
-                                <Button
-                                    type="submit"
-                                    disabled={!newMessage.trim() || isSending}
-                                    className="h-11 w-11 p-0 rounded-2xl bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 text-white flex items-center justify-center shrink-0 border border-indigo-500/50 transition-all hover:scale-105 active:scale-95 disabled:scale-100"
+                                <form
+                                    onSubmit={handleSendMessage}
+                                    className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-white/10 flex items-center gap-3 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] dark:shadow-none sticky bottom-0"
                                 >
-                                    {isSending ? <Loader2 className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5 ml-0.5" />}
-                                </Button>
-                            </form>
-                        </div>
+                                    <Avatar className="w-9 h-9 border border-slate-200 dark:border-white/10 hidden sm:block shrink-0">
+                                        <AvatarImage src={currentUserProfile?.avatar_url || ''} className="object-cover" />
+                                        <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold">ME</AvatarFallback>
+                                    </Avatar>
+                                    <Input
+                                        className="bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-2xl h-11 focus-visible:ring-indigo-500/50 flex-1 placeholder:text-slate-500 text-sm px-4"
+                                        placeholder="Enkripsi pesan..."
+                                        value={newMessage}
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        type="submit"
+                                        disabled={!newMessage.trim() || isSending}
+                                        className="h-11 w-11 p-0 rounded-2xl bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 text-white flex items-center justify-center shrink-0 border border-indigo-500/50 transition-all hover:scale-105 active:scale-95 disabled:scale-100"
+                                    >
+                                        {isSending ? <Loader2 className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5 ml-0.5" />}
+                                    </Button>
+                                </form>
+                            </motion.div>
+                        </motion.div>
                     )}
                 </div>
             )}

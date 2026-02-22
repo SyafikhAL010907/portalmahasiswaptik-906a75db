@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, Variants } from 'framer-motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -61,6 +62,52 @@ interface ScheduleItem {
   subjects?: { name: string };
   profiles?: { full_name: string };
 }
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.12
+    }
+  }
+};
+
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.8,
+      ease: [0.16, 1, 0.3, 1] as any
+    }
+  }
+};
+
+const staggerMiddle: Variants = {
+  hidden: { opacity: 0, y: 5 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.8,
+      ease: [0.16, 1, 0.3, 1] as any
+    }
+  }
+};
+
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.8,
+      ease: [0.16, 1, 0.3, 1] as any
+    }
+  }
+};
 
 export default function Dashboard() {
   const currentHour = new Date().getHours();
@@ -633,10 +680,16 @@ export default function Dashboard() {
 
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-24 animate-in fade-in duration-500">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-24"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
 
       {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
             {greeting}, <span className="text-primary">{userName || '...'}</span>! 👋
@@ -662,10 +715,10 @@ export default function Dashboard() {
             {weather && <div className="text-[10px] text-muted-foreground/60">{weather.location}</div>}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 2. Stats Grid */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 ${userRole === 'Dosen' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
+      <motion.div variants={staggerMiddle} layout={false} className={`grid grid-cols-1 sm:grid-cols-2 ${userRole === 'Dosen' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
         {userRole !== 'Dosen' && (
           <PremiumCard
             icon={Wallet}
@@ -710,7 +763,7 @@ export default function Dashboard() {
             <span className="text-xs text-muted-foreground">Belum ada data prestasi</span>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* 3. Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -719,7 +772,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
 
           {/* Today's Schedule */}
-          <div className="glass-card rounded-2xl p-6">
+          <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-primary" />
@@ -815,10 +868,10 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
 
           {/* Announcements & Competitions */}
-          <div>
+          <motion.div variants={staggerBottom} layout={false}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-foreground">Informasi Terbaru</h2>
               <div className="flex gap-2">
@@ -865,7 +918,7 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
 
         </div>
 
@@ -873,7 +926,7 @@ export default function Dashboard() {
         <div className="space-y-6 order-1 lg:order-2">
 
           {/* Digital Card */}
-          <div className="glass-card rounded-2xl p-6 relative overflow-hidden group w-full border border-border/50">
+          <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6 relative overflow-hidden group w-full border border-border/50">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
             <div className="relative z-10">
@@ -932,10 +985,10 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Quick Actions */}
-          <div className="glass-card rounded-2xl p-6">
+          <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-4">Aksi Cepat</h2>
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Scan Absen - Blue Glow */}
@@ -984,7 +1037,7 @@ export default function Dashboard() {
                 </button>
               </Link>
             </div>
-          </div>
+          </motion.div>
 
         </div>
 
@@ -1013,6 +1066,6 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
-    </div >
+    </motion.div>
   );
 }

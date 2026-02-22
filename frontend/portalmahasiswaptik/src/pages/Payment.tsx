@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { Search, Wallet, CreditCard, AlertCircle, CheckCircle2, Loader2, Calendar, X } from 'lucide-react';
 import { useBillingConfig } from '@/hooks/useBillingConfig';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,22 @@ const MONTH_NAMES = [
   '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function Payment() {
   const [nim, setNim] = useState('');
@@ -659,14 +676,20 @@ export default function Payment() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       <PaymentNotificationCenter />
-      <div className="animate-in fade-in duration-200">
+      <motion.div variants={staggerTop} layout={false}>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Bayar Iuran Kas</h1>
         <p className="text-muted-foreground mt-1">Sinkronisasi Otomatis dengan Matrix Iuran</p>
-      </div>
+      </motion.div>
 
-      <div className="glass-card p-6 rounded-2xl border border-border bg-card/50 shadow-sm animate-in fade-in duration-200">
+      <motion.div variants={staggerTop} layout={false} className="glass-card p-6 rounded-2xl border border-border bg-card/50 shadow-sm">
         <div className="flex flex-col md:flex-row items-center gap-4">
           <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -686,10 +709,10 @@ export default function Payment() {
             {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Cek Detail Tagihan"}
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {studentData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-200">
+        <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Card 1: Rincian Tagihan */}
           <div className="glass-card p-6 rounded-2xl border border-border bg-card shadow-lg">
             <div className="flex items-center gap-4 mb-6 border-b border-border pb-4">
@@ -912,9 +935,9 @@ export default function Payment() {
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
-    </div >
+    </motion.div>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, Variants } from 'framer-motion';
 import {
   Folder, FolderOpen, Users, ChevronRight, ArrowLeft, Calendar,
   CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2,
@@ -55,6 +56,22 @@ const SEMESTER_GRADIENTS = [
 ];
 
 type ViewState = 'semesters' | 'courses' | 'meetings' | 'classes' | 'students';
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function AttendanceHistory() {
   // --- STATE DATA (DYNAMIC) ---
@@ -1048,9 +1065,15 @@ export default function AttendanceHistory() {
   };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0 pb-10">
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0 pb-10"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {view !== 'semesters' && (
             <Button variant="ghost" size="icon" onClick={handleBack} className="rounded-full bg-muted/50 shrink-0">
@@ -1103,13 +1126,13 @@ export default function AttendanceHistory() {
             </>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* LOADING STATE */}
       {isLoading && view !== 'students' && !isAddOpen && !isEditOpen ? (
-        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary w-10 h-10" /></div>
+        <motion.div variants={staggerBottom} layout={false} className="flex justify-center py-20"><Loader2 className="animate-spin text-primary w-10 h-10" /></motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <motion.div variants={staggerBottom} layout={false} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
 
           {/* VIEW SEMESTERS - DYNAMIC & SOFT PASTEL */}
           {view === 'semesters' && semesters.map((sem, idx) => (
@@ -1204,12 +1227,12 @@ export default function AttendanceHistory() {
               )}
             </div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* STUDENT LIST TABLE (Only when view === students) */}
       {view === 'students' && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <motion.div variants={staggerBottom} layout={false} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex justify-between items-center bg-card p-4 rounded-xl border shadow-sm flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" /> Daftar Mahasiswa
@@ -1357,7 +1380,7 @@ export default function AttendanceHistory() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* --- ADD DIALOG --- */}
@@ -1499,7 +1522,7 @@ export default function AttendanceHistory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 }
 

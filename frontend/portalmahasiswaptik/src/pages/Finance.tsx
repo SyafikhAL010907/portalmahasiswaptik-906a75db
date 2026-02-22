@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, Variants } from 'framer-motion';
 import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap, Calendar } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
@@ -80,6 +81,22 @@ interface UserProfile {
 }
 
 import { useUserPreferences } from '@/hooks/useUserPreferences';
+
+const staggerContainer: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12 }
+  }
+};
+const staggerTop: Variants = {
+  hidden: { opacity: 0, y: -15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 export default function Finance() {
   const { session } = useAuth();
@@ -1059,14 +1076,20 @@ export default function Finance() {
   const getStatusIcon = (status: string) => { switch (status) { case 'paid': return <Check className="w-4 h-4" />; case 'pending': return <Clock className="w-4 h-4" />; case 'bebas': return <Unlock className="w-4 h-4" />; case 'unpaid': return <X className="w-4 h-4" />; default: return <span className="text-xs">-</span>; } };
 
   return (
-    <div className="space-y-6 pt-12 md:pt-0">
-      <div>
+    <motion.div
+      className="space-y-6 pt-12 md:pt-0"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      layout={false}
+    >
+      <motion.div variants={staggerTop} layout={false}>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard Keuangan</h1>
         <p className="text-muted-foreground mt-1">Laporan kas angkatan PTIK 2025</p>
-      </div>
+      </motion.div>
 
       {/* STATS GRID - STANDARDIZED PREMIUM CARDS */}
-      <div key={`${selectedClassId}-${localMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`} className="animate-in fade-in duration-200">
+      <motion.div variants={staggerBottom} layout={false} key={`${selectedClassId}-${localMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`} className="animate-in fade-in duration-200">
 
         {/* ✅ WIDGET BARU: Aggregate Balance Angkatan (Hanya di Lifetime) */}
         {isLifetime && (
@@ -1520,11 +1543,11 @@ export default function Finance() {
             </>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* ✅ LOGIKA BARU: Sembunyikan Tabel Transaksi jika di mode Lifetime */}
       {!isLifetime && (
-        <div className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
+        <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
             <h2 className="text-lg font-bold text-foreground">{isLifetime ? "Data Transaksi Angkatan" : "Transaksi Terakhir"}</h2>
             <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 no-scrollbar">
@@ -1670,7 +1693,7 @@ export default function Finance() {
               <div className="flex justify-between items-center"><span className="text-sm font-medium text-muted-foreground">{transactionFilter === 'income' ? 'Total Pemasukan' : 'Total Pengeluaran'}</span><span className={cn("text-lg font-bold", transactionFilter === 'income' ? 'text-blue-500' : 'text-rose-500')}>{formatIDR(transactionFilter === 'income' ? totalDisplayedIncome : totalDisplayedExpense)}</span></div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -1807,6 +1830,6 @@ export default function Finance() {
         variant={modalConfig.variant}
         confirmText={modalConfig.confirmText}
       />
-    </div>
+    </motion.div>
   );
 }

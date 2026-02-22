@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { motion, Variants } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,6 +43,22 @@ const GRADE_VALUES: Record<string, number> = {
 
 // Descending order for calculation: A, A-, B+...
 const VALUE_TO_GRADE = Object.entries(GRADE_VALUES).sort((a, b) => b[1] - a[1]);
+
+const staggerContainer: Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.12 }
+    }
+};
+const staggerTop: Variants = {
+    hidden: { opacity: 0, y: -15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
+const staggerBottom: Variants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
+};
 
 const IPKSimulator = () => {
     const { toast } = useToast();
@@ -225,9 +242,15 @@ const IPKSimulator = () => {
     }, [performCalculation]);
 
     return (
-        <div className="container mx-auto p-4 space-y-6 pb-24 fade-in min-h-screen bg-slate-50 dark:bg-[#050505] transition-colors duration-300">
+        <motion.div
+            className="container mx-auto p-4 space-y-6 pb-24 fade-in min-h-screen bg-slate-50 dark:bg-[#050505] transition-colors duration-300"
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            layout={false}
+        >
             {/* Header */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+            <motion.div variants={staggerTop} layout={false} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 bg-clip-text text-transparent flex items-center gap-2">
                         <GraduationCap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
@@ -270,116 +293,120 @@ const IPKSimulator = () => {
                         </Select>
                     </div>
                 </div>
-            </div>
+            </motion.div>
 
             {/* Target IPK Slider Section */}
-            <Card className="bg-white/80 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 backdrop-blur-md sticky top-4 z-10 shadow-lg border">
-                <CardContent className="p-6">
-                    <div className="flex flex-col gap-6 items-center">
-                        <div className="text-center space-y-2">
-                            <label className="text-sm font-medium text-slate-500 dark:text-gray-400 uppercase tracking-widest">
-                                Target IPK Saya
-                            </label>
-                            <div className="text-6xl font-black bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                                {targetIPK.toFixed(2)}
+            <motion.div variants={staggerTop} layout={false}>
+                <Card className="bg-white/80 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 backdrop-blur-md sticky top-4 z-10 shadow-lg border">
+                    <CardContent className="p-6">
+                        <div className="flex flex-col gap-6 items-center">
+                            <div className="text-center space-y-2">
+                                <label className="text-sm font-medium text-slate-500 dark:text-gray-400 uppercase tracking-widest">
+                                    Target IPK Saya
+                                </label>
+                                <div className="text-6xl font-black bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                                    {targetIPK.toFixed(2)}
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="w-full max-w-2xl px-4">
-                            <input
-                                type="range"
-                                min="1.00"
-                                max="4.00"
-                                step="0.01"
-                                value={targetIPK}
-                                onChange={(e) => setTargetIPK(parseFloat(e.target.value))}
-                                className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                            />
-                            <div className="flex justify-between text-xs text-slate-400 dark:text-gray-600 mt-2 font-mono mb-2">
-                                <span>1.00</span>
-                                <span>2.00</span>
-                                <span>3.00</span>
-                                <span>4.00</span>
+                            <div className="w-full max-w-2xl px-4">
+                                <input
+                                    type="range"
+                                    min="1.00"
+                                    max="4.00"
+                                    step="0.01"
+                                    value={targetIPK}
+                                    onChange={(e) => setTargetIPK(parseFloat(e.target.value))}
+                                    className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                />
+                                <div className="flex justify-between text-xs text-slate-400 dark:text-gray-600 mt-2 font-mono mb-2">
+                                    <span>1.00</span>
+                                    <span>2.00</span>
+                                    <span>3.00</span>
+                                    <span>4.00</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            </motion.div>
 
             {/* Course List */}
             <div className="space-y-4">
                 {loading ? (
-                    <div className="flex justify-center py-20">
+                    <motion.div variants={staggerBottom} layout={false} className="flex justify-center py-20">
                         <Loader2 className="animate-spin w-10 h-10 text-purple-500" />
-                    </div>
+                    </motion.div>
                 ) : subjects.length === 0 ? (
-                    <div className="text-center py-20 text-slate-500 dark:text-gray-500 bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                    <motion.div variants={staggerBottom} layout={false} className="text-center py-20 text-slate-500 dark:text-gray-500 bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
                         <p>Belum ada data matkul di semester ini.</p>
-                    </div>
+                    </motion.div>
                 ) : (
-                    subjects.map((subject, index) => (
-                        <Card key={subject.id} className="relative overflow-hidden border border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/20 dark:hover:shadow-purple-500/30 hover:border-purple-300 dark:hover:border-purple-500/50 hover:bg-purple-50/50 dark:hover:bg-[#110e1b]/80 group">
-                            {/* Grid Layout for Content */}
-                            <CardContent className="p-4 grid grid-cols-[auto_1fr_auto_auto] gap-4 md:gap-6 items-center w-full">
+                    <motion.div variants={staggerBottom} layout={false} className="space-y-4">
+                        {subjects.map((subject, index) => (
+                            <Card key={subject.id} className="relative overflow-hidden border border-slate-200/60 dark:border-slate-800/60 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/20 dark:hover:shadow-purple-500/30 hover:border-purple-300 dark:hover:border-purple-500/50 hover:bg-purple-50/50 dark:hover:bg-[#110e1b]/80 group">
+                                {/* Grid Layout for Content */}
+                                <CardContent className="p-4 grid grid-cols-[auto_1fr_auto_auto] gap-4 md:gap-6 items-center w-full">
 
-                                {/* Col 1: Number */}
-                                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold border border-blue-200 dark:border-blue-500/30">
-                                    {index + 1}
-                                </div>
-
-                                {/* Col 2: Name & Code */}
-                                <div className="min-w-0">
-                                    <h3 className="font-semibold text-slate-900 dark:text-white truncate text-sm md:text-base leading-tight">{subject.name}</h3>
-                                    <p className="text-[10px] md:text-xs text-slate-500 dark:text-gray-500 pt-0.5">{subject.code}</p>
-                                </div>
-
-                                {/* Col 3: SKS Stepper (Cell Style) */}
-                                <div className="bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50 flex flex-col items-center min-w-[80px]">
-                                    <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider mb-1">SKS</span>
-                                    <div className="flex items-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 shadow-sm">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleSKSUpdate(subject.id, (subject.sks || 0) - 1)}
-                                            className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-purple-600 text-slate-500 dark:text-slate-400 transition-all"
-                                        >
-                                            <Minus className="h-2.5 w-2.5" />
-                                        </Button>
-
-                                        <Input
-                                            type="number"
-                                            min={0}
-                                            max={24}
-                                            value={subject.sks}
-                                            onChange={(e) => handleSKSUpdate(subject.id, parseInt(e.target.value) || 0)}
-                                            className="w-8 h-6 text-center bg-transparent border-none p-0 focus-visible:ring-0 text-slate-900 dark:text-white font-bold text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                        />
-
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleSKSUpdate(subject.id, (subject.sks || 0) + 1)}
-                                            className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-purple-600 text-slate-500 dark:text-slate-400 transition-all"
-                                        >
-                                            <Plus className="h-2.5 w-2.5" />
-                                        </Button>
+                                    {/* Col 1: Number */}
+                                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold border border-blue-200 dark:border-blue-500/30">
+                                        {index + 1}
                                     </div>
-                                </div>
 
-                                {/* Col 4: Grade Suggestion (Cell Style) */}
-                                <div className={`flex flex-col items-center justify-center min-w-[70px] p-1.5 rounded-xl border transition-all duration-300 ${simulatedGrades[subject.id] ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-500/20' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50'}`}>
-                                    <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Nilai</span>
-                                    <span className={`text-xl font-black ${simulatedGrades[subject.id] ? 'text-purple-600 dark:text-purple-400 drop-shadow-sm' : 'text-slate-300 dark:text-slate-600'}`}>
-                                        {simulatedGrades[subject.id] || "-"}
-                                    </span>
-                                </div>
+                                    {/* Col 2: Name & Code */}
+                                    <div className="min-w-0">
+                                        <h3 className="font-semibold text-slate-900 dark:text-white truncate text-sm md:text-base leading-tight">{subject.name}</h3>
+                                        <p className="text-[10px] md:text-xs text-slate-500 dark:text-gray-500 pt-0.5">{subject.code}</p>
+                                    </div>
 
-                            </CardContent>
-                        </Card>
-                    ))
+                                    {/* Col 3: SKS Stepper (Cell Style) */}
+                                    <div className="bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50 flex flex-col items-center min-w-[80px]">
+                                        <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider mb-1">SKS</span>
+                                        <div className="flex items-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-0.5 shadow-sm">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleSKSUpdate(subject.id, (subject.sks || 0) - 1)}
+                                                className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-purple-600 text-slate-500 dark:text-slate-400 transition-all"
+                                            >
+                                                <Minus className="h-2.5 w-2.5" />
+                                            </Button>
+
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={24}
+                                                value={subject.sks}
+                                                onChange={(e) => handleSKSUpdate(subject.id, parseInt(e.target.value) || 0)}
+                                                className="w-8 h-6 text-center bg-transparent border-none p-0 focus-visible:ring-0 text-slate-900 dark:text-white font-bold text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            />
+
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleSKSUpdate(subject.id, (subject.sks || 0) + 1)}
+                                                className="h-6 w-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-purple-600 text-slate-500 dark:text-slate-400 transition-all"
+                                            >
+                                                <Plus className="h-2.5 w-2.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Col 4: Grade Suggestion (Cell Style) */}
+                                    <div className={`flex flex-col items-center justify-center min-w-[70px] p-1.5 rounded-xl border transition-all duration-300 ${simulatedGrades[subject.id] ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-500/20' : 'bg-slate-100 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50'}`}>
+                                        <span className="text-[9px] text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Nilai</span>
+                                        <span className={`text-xl font-black ${simulatedGrades[subject.id] ? 'text-purple-600 dark:text-purple-400 drop-shadow-sm' : 'text-slate-300 dark:text-slate-600'}`}>
+                                            {simulatedGrades[subject.id] || "-"}
+                                        </span>
+                                    </div>
+
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </motion.div>
                 )}
             </div>
-        </div>
+        </motion.div>
     );
 };
 
