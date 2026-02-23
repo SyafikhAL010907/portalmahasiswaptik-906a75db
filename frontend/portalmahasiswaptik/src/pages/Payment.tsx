@@ -75,10 +75,11 @@ export default function Payment() {
   useEffect(() => {
     const restoreSession = async () => {
       // 1. Initial Reset for Mahasiswa
-      if (isMahasiswa && profile?.nim) {
-        setNim(profile.nim);
-        fetchStudentData(profile.nim, true);
-      }
+      // FITUR KOSONG MELOMPONG Sesuai Aturan:
+      // if (isMahasiswa && profile?.nim) {
+      //   setNim(profile.nim);
+      //   fetchStudentData(profile.nim, true);
+      // }
 
       const savedSession = localStorage.getItem('payment_session');
       if (savedSession) {
@@ -498,7 +499,8 @@ export default function Payment() {
       if (isMahasiswa && profile.nim !== nimToFetch) {
         console.error("🔐 Payment Isolation: unauthorized fetch attempt blocked.");
         toast.error("Anda hanya dapat melihat data tagihan Anda sendiri!");
-        if (shouldReset) setNim(userRoles.includes('mahasiswa') ? (useAuth().profile?.nim || '') : '');
+        // FITUR KOSONG MELOMPONG Sesuai Aturan:
+        if (shouldReset) setNim('');
         return;
       }
 

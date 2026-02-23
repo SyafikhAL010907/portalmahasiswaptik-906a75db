@@ -101,6 +101,22 @@ export default function Profile() {
             const file = e.target.files?.[0];
             if (!file || !profile) return;
 
+            const allowedTypes = [
+                'image/jpeg',
+                'image/png',
+                'image/jpg'
+            ];
+
+            if (!allowedTypes.includes(file.type)) {
+                toast({
+                    variant: "destructive",
+                    title: "File Tidak Valid",
+                    description: "Hanya file gambar (JPG, JPEG, PNG) yang diperbolehkan.",
+                });
+                e.target.value = '';
+                return;
+            }
+
             setIsUploading(true);
 
             const fileExt = file.name.split(".").pop();
@@ -268,7 +284,7 @@ export default function Profile() {
                             type="file"
                             ref={fileInputRef}
                             className="hidden"
-                            accept="image/*"
+                            accept=".jpg,.jpeg,.png,image/jpeg,image/png,image/jpg"
                             onChange={handleUploadAvatar}
                         />
                     </div>

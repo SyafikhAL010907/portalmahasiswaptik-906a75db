@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, Variants } from 'framer-motion';
-import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud } from 'lucide-react';
+import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -495,15 +495,23 @@ export default function Repository() {
         ? `https://drive.google.com/drive/folders/${driveFolderId}`
         : GOOGLE_DRIVE_FOLDER_LINK; // Fallback to parent
 
+      let finalTitle = materialForm.title.trim();
+      if (fileToUpload && fileToUpload.name) {
+        const extension = fileToUpload.name.substring(fileToUpload.name.lastIndexOf('.')).toLowerCase();
+        if (!finalTitle.toLowerCase().endsWith(extension)) {
+          finalTitle = finalTitle + extension;
+        }
+      }
+
       const insertData: any = {
         subject_id: selectedCourse.id,
         semester: selectedSemester.id,
-        title: materialForm.title,
+        title: finalTitle,
         description: materialForm.description,
         file_type: type,
         file_url: finalFileUrl,
         file_size: storageType === 'google_drive' ? null : fileSize,
-        uploaded_by: userId,
+        uploaded_by: userId, // Pastikan menggunakan uploaded_by, BUKAN user_id (sesuai struktur tabel database)
         storage_type: storageType,
         external_url: storageType === 'google_drive' ? folderLink : null,
         is_pinned: isPinned
@@ -607,11 +615,40 @@ export default function Repository() {
   };
 
   // --- HELPERS ---
-  const getFileIcon = (type: string) => {
-    if (type === 'pdf') return <FileText className="w-6 h-6 text-primary" />;
-    if (type === 'video') return <Video className="w-6 h-6 text-destructive" />;
-    if (type === 'image') return <ImageIcon className="w-6 h-6 text-success" />;
-    return <File className="w-6 h-6 text-warning" />;
+  const getFileIcon = (file: Material) => {
+    const type = file.file_type || '';
+    const name = (file.title || '').toLowerCase();
+    const url = (file.file_url || '').toLowerCase();
+
+    if (type === 'pdf' || name.endsWith('.pdf') || url.endsWith('.pdf')) {
+      return <FileText className="w-6 h-6 text-red-500" />;
+    }
+    if (name.endsWith('.xls') || name.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.xlsx')) {
+      return <Table className="w-6 h-6 text-green-500" />;
+    }
+    if (name.endsWith('.doc') || name.endsWith('.docx') || url.endsWith('.doc') || url.endsWith('.docx')) {
+      return <FileText className="w-6 h-6 text-blue-500" />;
+    }
+    if (type === 'image' || name.match(/\.(jpg|jpeg|png)$/) || url.match(/\.(jpg|jpeg|png)$/)) {
+      return <ImageIcon className="w-6 h-6 text-purple-500" />;
+    }
+    if (type === 'video' || name.endsWith('.mp4') || url.endsWith('.mp4')) {
+      return <Video className="w-6 h-6 text-orange-500" />;
+    }
+    return <File className="w-6 h-6 text-gray-500" />;
+  };
+
+  const getFileIconBg = (file: Material) => {
+    const type = file.file_type || '';
+    const name = (file.title || '').toLowerCase();
+    const url = (file.file_url || '').toLowerCase();
+
+    if (type === 'pdf' || name.endsWith('.pdf') || url.endsWith('.pdf')) return 'bg-red-500/10';
+    if (name.endsWith('.xls') || name.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.xlsx')) return 'bg-green-500/10';
+    if (name.endsWith('.doc') || name.endsWith('.docx') || url.endsWith('.doc') || url.endsWith('.docx')) return 'bg-blue-500/10';
+    if (type === 'image' || name.match(/\.(jpg|jpeg|png)$/) || url.match(/\.(jpg|jpeg|png)$/)) return 'bg-purple-500/10';
+    if (type === 'video' || name.endsWith('.mp4') || url.endsWith('.mp4')) return 'bg-orange-500/10';
+    return 'bg-gray-500/10';
   };
 
   const filteredMaterials = mediaFilter === 'all'
@@ -634,6 +671,28 @@ export default function Repository() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+
+    if (file) {
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'image/jpeg',
+        'image/png',
+        'image/jpg',
+        'video/mp4'
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Format file tidak didukung. Harap unggah PDF, Word, Excel, Gambar (JPG/PNG), atau MP4.");
+        e.target.value = '';
+        setFileToUpload(null);
+        return;
+      }
+    }
+
     setFileToUpload(file);
     if (file && file.size > 2 * 1024 * 1024) {
       setIsFileTooLarge(true);
@@ -844,10 +903,9 @@ export default function Repository() {
                     <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1 pr-4">
                       <div className={cn(
                         "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0",
-                        file.file_type === 'pdf' ? 'bg-primary/10' :
-                          file.file_type === 'video' ? 'bg-destructive/10' : 'bg-accent/10'
+                        getFileIconBg(file)
                       )}>
-                        {getFileIcon(file.file_type)}
+                        {getFileIcon(file)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <h4 className="font-medium text-foreground truncate leading-snug">{file.title}</h4>
@@ -890,24 +948,24 @@ export default function Repository() {
 
       {/* --- ADD/EDIT COURSE DIALOG --- */}
       <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
-        <DialogContent className="sm:max-w-md border-none glass-card p-0 overflow-hidden">
-          <div className="bg-primary/10 px-6 py-6 border-b border-primary/20 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shadow-inner">
-              <BookOpen className="w-6 h-6 text-primary" />
+        <DialogContent className="w-[95vw] max-w-md sm:w-full border-none glass-card p-0 overflow-hidden mx-auto rounded-2xl">
+          <div className="bg-primary/10 px-4 sm:px-6 py-5 sm:py-6 border-b border-primary/20 flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <DialogHeader className="p-0">
-                <DialogTitle className="text-xl font-bold text-foreground leading-none">
-                  {isEditingCourse ? 'Edit Mata Kuliah' : 'Tambah Mata Kuliah'}
+            <div className="min-w-0 pr-6">
+              <DialogHeader className="p-0 text-left">
+                <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
+                  {isEditingCourse ? 'Edit Mata Kuliah' : 'Tambah Matkul'}
                 </DialogTitle>
               </DialogHeader>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isEditingCourse ? 'Perbarui informasi mata kuliah Anda.' : 'Tambahkan mata kuliah baru ke semester ini.'}
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
+                Atur mata kuliah untuk semester pembelajaran.
               </p>
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh] sm:max-h-none">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-semibold text-muted-foreground ml-1">Nama Mata Kuliah</Label>
@@ -949,24 +1007,24 @@ export default function Repository() {
 
       {/* --- ADD MATERIAL DIALOG --- */}
       <Dialog open={isAddMaterialOpen} onOpenChange={setIsAddMaterialOpen}>
-        <DialogContent className="sm:max-w-md border-none glass-card p-0 overflow-hidden">
-          <div className="bg-success/10 px-6 py-6 border-b border-success/20 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-success/20 flex items-center justify-center shadow-inner">
-              <UploadCloud className="w-6 h-6 text-success" />
+        <DialogContent className="w-[95vw] max-w-md sm:w-full border-none glass-card p-0 overflow-hidden mx-auto rounded-2xl">
+          <div className="bg-success/10 px-4 sm:px-6 py-5 sm:py-6 border-b border-success/20 flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-success/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <UploadCloud className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
             </div>
-            <div>
-              <DialogHeader className="p-0">
-                <DialogTitle className="text-xl font-bold text-foreground leading-none">
+            <div className="min-w-0 pr-6">
+              <DialogHeader className="p-0 text-left">
+                <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
                   Upload Materi
                 </DialogTitle>
               </DialogHeader>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
                 Berbagi materi belajar untuk teman-teman seangkatan.
               </p>
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-5 sm:space-y-6 overflow-y-auto max-h-[60vh] sm:max-h-none">
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-muted-foreground ml-1">Judul Materi</Label>
               <Input
@@ -987,17 +1045,41 @@ export default function Repository() {
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-muted-foreground ml-1">Pilih File</Label>
-              <div className="relative group">
+              <div className="relative group w-full min-h-[110px] sm:min-h-[140px] border-2 border-dashed border-muted/40 hover:border-success/50 rounded-xl bg-muted/10 hover:bg-success/5 transition-all flex flex-col items-center justify-center overflow-hidden">
                 <Input
                   type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/jpg,video/mp4"
                   onChange={handleFileChange}
-                  className="rounded-xl border-dashed border-2 border-muted/50 hover:border-success/50 transition-colors bg-background/30 h-16 pt-5"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex items-center justify-center text-xs text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
-                  <div className="flex flex-col items-center gap-1">
-                    <Plus className="w-4 h-4 mb-1" />
-                    <span>Klik atau drag file ke sini</span>
-                  </div>
+                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground opacity-80 group-hover:opacity-100 transition-opacity z-0 p-4 text-center pointer-events-none w-full">
+                  {!fileToUpload ? (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                        <Plus className="w-5 h-5 text-success" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold block text-foreground">Klik atau drag file ke sini</span>
+                        <span className="text-xs text-muted-foreground block mt-1 px-4">
+                          Maksimal 2MB (Bisa lebih, otomatis dialihkan ke G-Drive)
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
+                        <File className="w-5 h-5 text-success" />
+                      </div>
+                      <div className="w-full flex flex-col items-center">
+                        <span className="text-sm font-bold text-success truncate max-w-xs px-2 w-full">
+                          {fileToUpload.name}
+                        </span>
+                        <span className="text-xs font-medium text-success/70 mt-0.5">
+                          {(fileToUpload.size / (1024 * 1024)).toFixed(2)} MB - Siap diunggah
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1044,24 +1126,24 @@ export default function Repository() {
 
       {/* --- ADD/EDIT SEMESTER DIALOG --- */}
       <Dialog open={isSemesterDialogOpen} onOpenChange={setIsSemesterDialogOpen}>
-        <DialogContent className="sm:max-w-md border-none glass-card p-0 overflow-hidden">
-          <div className="bg-primary/10 px-6 py-6 border-b border-primary/20 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shadow-inner">
-              <Calendar className="w-6 h-6 text-primary" />
+        <DialogContent className="w-[95vw] max-w-md sm:w-full border-none glass-card p-0 overflow-hidden mx-auto rounded-2xl">
+          <div className="bg-primary/10 px-4 sm:px-6 py-5 sm:py-6 border-b border-primary/20 flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div>
-              <DialogHeader className="p-0">
-                <DialogTitle className="text-xl font-bold text-foreground leading-none">
+            <div className="min-w-0 pr-6">
+              <DialogHeader className="p-0 text-left">
+                <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
                   {isEditingSemester ? 'Edit Semester' : 'Tambah Semester'}
                 </DialogTitle>
               </DialogHeader>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isEditingSemester ? 'Perbarui nama semester ini.' : 'Buat folder semester baru.'}
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
+                Kelola periode semester akademik Anda.
               </p>
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh] sm:max-h-none">
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-muted-foreground ml-1">Nama Semester</Label>
               <Input

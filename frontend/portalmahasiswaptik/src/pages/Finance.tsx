@@ -241,14 +241,21 @@ export default function Finance() {
   // 1. INIT DATA
   useEffect(() => {
     const initData = async () => {
+      let userRole = '';
+      let userClassId = '';
+
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase.from('profiles').select('class_id, last_selected_class, role').eq('user_id', user.id).maybeSingle();
         if (profile) {
-          setCurrentUser({ user_id: user.id, class_id: (profile as any).class_id, role: (profile as any).role });
+          userRole = (profile as any).role;
+          userClassId = (profile as any).class_id;
+          setCurrentUser({ user_id: user.id, class_id: userClassId, role: userRole });
 
           // Apply Sticky Class if exists
-          if ((profile as any).last_selected_class) {
+          if (userRole === 'mahasiswa' && userClassId) {
+            setSelectedClassId(userClassId);
+          } else if ((profile as any).last_selected_class) {
             setSelectedClassId((profile as any).last_selected_class);
           }
         }
@@ -257,6 +264,7 @@ export default function Finance() {
       if (cls && cls.length > 0) {
         setClasses(cls);
         setSelectedClassId(prev => {
+          if (userRole === 'mahasiswa' && userClassId) return userClassId;
           if (prev) return prev;
           const kelasA = cls.find(c => c.name.toLowerCase().includes('kelas a') || c.name === 'A');
           return kelasA ? kelasA.id : cls[0].id;
@@ -589,6 +597,11 @@ export default function Finance() {
 
     // Update LOCAL state only 🌍 (Decoupled from global_settings sync)
     setLocalMonth(newMonth);
+
+    // ✅ FIX: Auto-Select Kelas untuk mahasiswa ketika mengganti filter waktu (terutama Lifetime)
+    if (currentUser?.role === 'mahasiswa' && currentUser?.class_id) {
+      setSelectedClassId(currentUser.class_id);
+    }
   };
 
   const toggleLifetime = () => {
@@ -603,6 +616,11 @@ export default function Finance() {
 
     // Update LOCAL state only 🌍
     setLocalMonth(nextMonth);
+
+    // ✅ FIX: Auto-Select Kelas untuk mahasiswa ketika mengganti filter waktu ke Lifetime
+    if (nextMonth === 0 && currentUser?.role === 'mahasiswa' && currentUser?.class_id) {
+      setSelectedClassId(currentUser.class_id);
+    }
   };
 
 
@@ -695,9 +713,13 @@ export default function Finance() {
 
   const saldoBersih = totalPemasukan - totalPengeluaran;
 
+  const isReadOnlyForAdminKelas = currentUser?.role === 'admin_kelas' && selectedClassId !== currentUser?.class_id;
+
   const canEdit = () => {
-    // ⚔️ 1:1 Parity: Admin Kelas has the same universal edit rights as AdminDev
-    return isAdmin;
+    // ⚔️ 1:1 Parity: Admin Kelas has the same universal edit rights as AdminDev, BUT restricted to their own class
+    if (currentUser?.role === 'admin_dev') return true;
+    if (currentUser?.role === 'admin_kelas') return !isReadOnlyForAdminKelas;
+    return false;
   };
 
   const handleCellClick = (studentId: string, studentName: string, weekIdx: number) => {
@@ -1075,6 +1097,11 @@ export default function Finance() {
 
   const getStatusIcon = (status: string) => { switch (status) { case 'paid': return <Check className="w-4 h-4" />; case 'pending': return <Clock className="w-4 h-4" />; case 'bebas': return <Unlock className="w-4 h-4" />; case 'unpaid': return <X className="w-4 h-4" />; default: return <span className="text-xs">-</span>; } };
 
+  // Filter tabel data khusus untuk privasi mahasiswa di tampilan Lifetime (Update: Berlaku Semua Bulan)
+  const dataToRender = (role === 'mahasiswa')
+    ? matrixData.filter(student => student.student_id === currentUser?.user_id)
+    : matrixData;
+
   return (
     <motion.div
       className="space-y-6 pt-12 md:pt-0"
@@ -1263,7 +1290,7 @@ export default function Finance() {
               {/* Class Selector (Unified Dropdown for All Views) */}
               <div className="relative">
                 <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-                <Select value={selectedClassId} onValueChange={(val) => handleClassChange(val)}>
+                <Select value={selectedClassId} onValueChange={(val) => handleClassChange(val)} disabled={role === 'mahasiswa'}>
                   <SelectTrigger className="w-full sm:w-[150px] pl-9 font-medium bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <SelectValue placeholder="Pilih Kelas" />
                   </SelectTrigger>
@@ -1343,7 +1370,7 @@ export default function Finance() {
                 Coba Lagi
               </Button>
             </div>
-          ) : matrixData.length === 0 ? (
+          ) : dataToRender.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center gap-4 bg-muted/20 rounded-xl border border-dashed border-border mb-6">
               <div className="rounded-xl border border-gray-200 p-3 overflow-hidden shadow-sm">
                 <Folder className="w-10 h-10 text-muted-foreground opacity-50" />
@@ -1378,12 +1405,13 @@ export default function Finance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {matrixData.map((student) => (
+                  {dataToRender.map((student) => (
                     <tr key={student.student_id} className="border-b border-border/40 hover:bg-muted/30 transition-colors group">
                       <td className="py-2 px-4 font-semibold text-slate-900 dark:text-slate-100 text-sm">
                         <div className="flex items-center justify-between gap-2 overflow-hidden">
                           <span className="truncate">{student.name}</span>
-                          {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
+                          {/* Sembunyikan titik tiga aksi cepat jika Read Only untuk Admin Kelas */}
+                          {['admin_dev', 'admin_kelas'].includes(currentUser?.role || '') && !isReadOnlyForAdminKelas && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -1462,13 +1490,14 @@ export default function Finance() {
 
               {/* Mobile Card View */}
               <div className="grid grid-cols-1 gap-3 md:hidden">
-                {matrixData.map((student) => (
+                {dataToRender.map((student) => (
                   <div key={student.student_id} className="p-4 rounded-2xl border border-border/50 bg-muted/20 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate pr-2">
                         {student.name}
                       </div>
-                      {['admin_dev', 'admin_class'].includes(currentUser?.role || '') && (
+                      {/* Sembunyikan titik tiga aksi cepat jika Read Only untuk Admin Kelas (Mobile View) */}
+                      {['admin_dev', 'admin_kelas'].includes(currentUser?.role || '') && !isReadOnlyForAdminKelas && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
