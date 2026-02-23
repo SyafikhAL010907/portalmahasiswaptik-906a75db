@@ -101,6 +101,16 @@ export default function Profile() {
             const file = e.target.files?.[0];
             if (!file || !profile) return;
 
+            if (file.name.split('.').length > 2) {
+                toast({
+                    variant: "destructive",
+                    title: "File Tidak Valid",
+                    description: "Nama file tidak boleh mengandung double extension / lebih dari satu titik.",
+                });
+                e.target.value = '';
+                return;
+            }
+
             const allowedTypes = [
                 'image/jpeg',
                 'image/png',

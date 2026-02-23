@@ -68,7 +68,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-slate-950/90 border border-white/10 rounded-2xl p-6 w-[90%] max-w-md shadow-2xl pointer-events-auto relative overflow-hidden"
+                            className="bg-white dark:bg-slate-950/90 border border-slate-200 dark:border-white/10 rounded-2xl p-6 w-[90%] max-w-md shadow-2xl pointer-events-auto relative overflow-hidden"
                         >
                             {/* Decorative gradient blob */}
                             <div className={cn(
@@ -86,10 +86,10 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                                     )}>
                                         {getIcon()}
                                     </div>
-                                    <h3 className="text-xl font-bold text-white">{title}</h3>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{title}</h3>
                                 </div>
 
-                                <p className="text-gray-300 mb-8 leading-relaxed">
+                                <p className="text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
                                     {description}
                                 </p>
 
@@ -98,7 +98,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                                         variant="ghost"
                                         onClick={onClose}
                                         disabled={isLoading}
-                                        className="hover:bg-white/10 text-gray-300 hover:text-white"
+                                        className="hover:bg-slate-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
                                     >
                                         {cancelText}
                                     </Button>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, Variants } from 'framer-motion';
-import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table } from 'lucide-react';
+import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,47 @@ import ConfirmationModal from '@/components/ui/ConfirmationModal';
 // --- CONSTANTS ---
 const GOOGLE_DRIVE_FOLDER_LINK = 'https://drive.google.com/drive/folders/1Ar_jm913F57k7WcchYkv8o6ZUbX4s3KP';
 const PARENT_FOLDER_ID = '1b4bby3CRLAX9pL1QKD87HU0Os0slKaIi';
+
+const GDRIVE_LINKS: any = {
+  root: "https://drive.google.com/drive/folders/13yX9ZKvKGzIQILXd2UdD_blDYuazKgN_?usp=drive_link",
+  semesters: {
+    "1": {
+      root: "https://drive.google.com/drive/folders/1toLQ-50GuExXB54o2IObbxqtKvwINsrz?usp=drive_link",
+      subjects: {
+        "Kalkulus": "https://drive.google.com/drive/folders/1IhipgI2HKDgVMWeyOVejQE7D8g5-A2-v?usp=drive_link",
+        "Matematika Diskrit": "https://drive.google.com/drive/folders/1rU6WvgzGCQfQhrMlIxxU7pIk7qypZ15C?usp=drive_link",
+        "Fisika": "https://drive.google.com/drive/folders/1e-NLyE1wsh-DQvHvWqxqoRRuf18Qyu1j?usp=drive_link",
+        "Pengantar Sistem Teknologi Informasi": "https://drive.google.com/drive/folders/1yQwacflMQe-HQ2VC4SQpPZiz9K_U0Bhv?usp=drive_link",
+        "Konsep Pemrograman": "https://drive.google.com/drive/folders/1iUhBhaM5A6_0Q9fgK-XC2TlLVCLU0ydR?usp=drive_link",
+        "Filsafat Ilmu": "https://drive.google.com/drive/folders/1ZRdQeFxGqSOmD8SOlln9oEwbC-sUwG9E?usp=drive_link",
+        "Bahasa Indonesia": "https://drive.google.com/drive/folders/1EaSJJhApoo4otfWsme9G16wE2PtCzT_B?usp=drive_link",
+        "Pendidikan Pancasila": "https://drive.google.com/drive/folders/1BGJAxU3UKc3EbvZFamLS-rIu9Dr2-jAU?usp=drive_link",
+        "Landasan Pendidikan": "https://drive.google.com/drive/folders/1xi4ndt_M6E1nDS69vk5KpdxNIZfOnbzh?usp=drive_link"
+      }
+    },
+    "2": {
+      root: "https://drive.google.com/drive/folders/1y54fOcRVijaYLLNRc6Jr1KWvIp_DpY77?usp=drive_link",
+      subjects: {
+        "Wawasan Pendidikan": "https://drive.google.com/drive/folders/1oXjnCkh3pOJ8DerXVZSQ_zUOFVZwOKq_?usp=drive_link",
+        "Organisasi dan Arsitektur Komputer": "https://drive.google.com/drive/folders/1rsc3GBCfqTV2QoQ4oPstFqnL2TdOnWR8?usp=drive_link",
+        "Komunikasi Data": "https://drive.google.com/drive/folders/1JecqqoYfKTaT6fDGupGyGyPHiYTeAEs7?usp=drive_link",
+        "Algoritma dan Pemrograman": "https://drive.google.com/drive/folders/1CzdvXCUIwFQaLukgI3WAEYqP0PZgPMo1?usp=drive_link",
+        "Aljabar Linier": "https://drive.google.com/drive/folders/10ygtLSA2x0oSy4tlbqUCXz7Fb6FPtGBs?usp=drive_link",
+        "Pendidikan Agama Islam": "https://drive.google.com/drive/folders/1xqhftYtXwJA7s5FgkvRvQuybZV2J8T6r?usp=drive_link",
+        "Pendidikan Kewarganegaraan": "https://drive.google.com/drive/folders/1Rx75KAmzfYNZ-HgoYfvAWXCqZUAtoL9i?usp=drive_link",
+        "Perkembangan Peserta Didik": "https://drive.google.com/drive/folders/1CMFONA_1lEcZToyDGIzqIaczd0sVqmld?usp=drive_link",
+        "E-Learning": "https://drive.google.com/drive/folders/1IyNs-DT-HLQA4AUE5ogn1J1Uo0_apSyI?usp=drive_link"
+      }
+    },
+    "3": { root: "https://drive.google.com/drive/folders/1dnQ4pR4SBbxvGOw3QXefz738fm18dp3g?usp=drive_link", subjects: {} },
+    "4": { root: "https://drive.google.com/drive/folders/1g-KOucr0pM-uGdZ5LaJyM6fYbv1BFTWw?usp=drive_link", subjects: {} },
+    "5": { root: "https://drive.google.com/drive/folders/1nYPoR-I4R3K8aOunkq0kmibikRoeKMU2?usp=drive_link", subjects: {} },
+    "6": { root: "https://drive.google.com/drive/folders/1dRL0RoQVEdvspMSiculvlPK99hlNqPIA?usp=drive_link", subjects: {} },
+    "7": { root: "https://drive.google.com/drive/folders/195F9fgbiDAUmz4AVZQf2Zdguaz37pLoe?usp=drive_link", subjects: {} },
+    "8": { root: "https://drive.google.com/drive/folders/14BYO4Cs-IZGK792cvpv98rd_eZgaqnwQ?usp=drive_link", subjects: {} },
+    "9": { root: "https://drive.google.com/drive/folders/1_VK9PxcyZ36fZbs93SENj2h6sTo2xvUM?usp=drive_link", subjects: {} }
+  }
+};
 
 // Dynamically determine backend URL - Use import.meta.env.VITE_API_URL for Koyeb Sync
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:9000/api";
@@ -427,6 +468,30 @@ export default function Repository() {
       return;
     }
 
+    // Pengecekan limit 2MB (2 * 1024 * 1024 bytes)
+    if (fileToUpload.size > 2097152) {
+      // Dapatkan angka semester
+      const semesterNumber = selectedSemester.name.replace(/\D/g, '');
+      const subjectName = selectedCourse.name;
+
+      // Cari link target (Dynamic Fallback Routing)
+      let targetLink = GDRIVE_LINKS.root;
+
+      if (GDRIVE_LINKS.semesters[semesterNumber]) {
+        targetLink = GDRIVE_LINKS.semesters[semesterNumber].root;
+
+        if (GDRIVE_LINKS.semesters[semesterNumber].subjects && GDRIVE_LINKS.semesters[semesterNumber].subjects[subjectName]) {
+          targetLink = GDRIVE_LINKS.semesters[semesterNumber].subjects[subjectName];
+        }
+      }
+
+      alert("File terlalu besar (Maks 2MB)! Anda akan dialihkan ke folder Google Drive untuk mengunggah file ini secara manual.");
+      window.open(targetLink, '_blank');
+
+      setIsAddMaterialOpen(false);
+      return; // HENTIKAN proses upload ke Supabase
+    }
+
     setIsLoading(true);
     try {
       let finalFileUrl = '';
@@ -673,6 +738,13 @@ export default function Repository() {
     const file = e.target.files?.[0] || null;
 
     if (file) {
+      if (file.name.split('.').length > 2) {
+        toast.error("File tidak valid: Nama file tidak boleh mengandung double extension / lebih dari satu titik.");
+        e.target.value = '';
+        setFileToUpload(null);
+        return;
+      }
+
       const allowedTypes = [
         'application/pdf',
         'application/msword',
@@ -892,6 +964,49 @@ export default function Repository() {
             <div className="flex justify-center py-20"><Loader2 className="animate-spin w-10 h-10 text-primary" /></div>
           ) : (
             <div className="space-y-3">
+              {/* --- PINNED GOOGLE DRIVE FOLDER CARD --- */}
+              {(() => {
+                const semesterNumber = selectedSemester?.name.replace(/\D/g, '') || "1";
+                const subjectName = selectedCourse?.name || "";
+                let currentDriveLink = GDRIVE_LINKS.root;
+
+                if (GDRIVE_LINKS.semesters[semesterNumber]) {
+                  currentDriveLink = GDRIVE_LINKS.semesters[semesterNumber].root;
+                  if (GDRIVE_LINKS.semesters[semesterNumber].subjects && GDRIVE_LINKS.semesters[semesterNumber].subjects[subjectName]) {
+                    currentDriveLink = GDRIVE_LINKS.semesters[semesterNumber].subjects[subjectName];
+                  }
+                }
+
+                return (
+                  <div className="glass-card rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-2 border-blue-500/30 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-900/10 shadow-sm w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1 pr-4">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0 bg-blue-100 dark:bg-blue-900/40">
+                        <Folder className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-blue-900 dark:text-blue-100 truncate leading-snug">Folder Drive Eksternal: {subjectName}</h4>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white flex-shrink-0">
+                            PINNED
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-blue-700/80 dark:text-blue-300/80 mt-1 font-medium">
+                          Penyimpanan Utama Matakuliah (Tidak dapat dihapus)
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-blue-200/50 dark:border-blue-800/50">
+                      <Button variant="default" size="sm" onClick={() => window.open(currentDriveLink, '_blank')} className="flex-1 sm:flex-none justify-center bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        <span className="truncate">
+                          Buka Folder
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {filteredMaterials.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground glass-card rounded-xl">Belum ada materi diunggah.</div>
               ) : (
@@ -908,8 +1023,15 @@ export default function Repository() {
                         {getFileIcon(file)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h4 className="font-medium text-foreground truncate leading-snug">{file.title}</h4>
-                        {file.storage_type !== 'google_drive' ? (
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-foreground truncate leading-snug">{file.title}</h4>
+                          {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex-shrink-0">
+                              Google Drive
+                            </span>
+                          )}
+                        </div>
+                        {!(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
                           <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
                             {file.file_size && <span className="flex-shrink-0">{(file.file_size / 1024 / 1024).toFixed(2)} MB</span>}
                             <span className="hidden sm:inline">•</span>
@@ -921,12 +1043,21 @@ export default function Repository() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-muted/30">
-                      <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
-                        <Download className="w-4 h-4 mr-2" />
-                        <span className="truncate">
-                          {file.storage_type === 'google_drive' ? `Buka Drive` : 'Download'}
-                        </span>
-                      </Button>
+                      {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
+                        <Button variant="pill" size="sm" onClick={() => window.open(file.file_url || file.external_url || '', '_blank')} className="flex-1 sm:flex-none justify-center">
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          <span className="truncate">
+                            Buka Drive
+                          </span>
+                        </Button>
+                      ) : (
+                        <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
+                          <Download className="w-4 h-4 mr-2" />
+                          <span className="truncate">
+                            Download
+                          </span>
+                        </Button>
+                      )}
                       {canManage && (
                         <Button
                           size="icon"
