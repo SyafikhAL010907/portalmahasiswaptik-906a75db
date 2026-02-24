@@ -82,6 +82,7 @@ export default function AttendanceHistory() {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userClassId, setUserClassId] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   // NEW: Local state for pending changes
   const [pendingChanges, setPendingChanges] = useState<{ [studentId: string]: string }>({});
@@ -149,7 +150,7 @@ export default function AttendanceHistory() {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, class_id')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -161,6 +162,13 @@ export default function AttendanceHistory() {
         if (isDev) setUserRole('admin_dev');
         else if (isKelas) setUserRole('admin_kelas');
         else if (isDosen) setUserRole('admin_dosen');
+
+        if (profile) {
+          const profileData = profile as any;
+          if (profileData.class_id) {
+            setUserClassId(profileData.class_id);
+          }
+        }
 
         // Role check for export button (anything but 'mahasiswa')
         const isNotStudent = rolesList.length > 0 && !rolesList.includes('mahasiswa');
@@ -529,6 +537,11 @@ export default function AttendanceHistory() {
   const toggleAttendance = async (studentId: string, current: string) => {
     if (!canEdit) return;
 
+    if (userRole === 'admin_kelas' && userClassId !== activeId.class) {
+      toast.error("Anda tidak memiliki akses untuk mengubah data kelas ini!");
+      return;
+    }
+
     // RULE: If method is 'qr' and user is not 'admin_dev', LOCK editing.
     const student = students.find(s => s.id === studentId);
     if (student?.method === 'qr' && userRole !== 'admin_dev') {
@@ -765,140 +778,93 @@ export default function AttendanceHistory() {
       return;
     }
 
-    // CHECK IF THERE ARE CHANGES TO SAVE
     if (Object.keys(pendingChanges).length === 0) {
       toast.info("Tidak ada perubahan yang perlu disimpan.");
       return;
     }
 
-    openConfirmation(
-      'Simpan Permanen?',
-      'Yakin ingin menyimpan perubahan status secara permanen?',
-      async () => {
-        setIsLoading(true);
-        console.log("Starting Save Attendance...");
-        console.log("Pending Changes:", pendingChanges);
-        console.log("Active Context:", activeId);
+    // --- BYPASS MODAL KONFIRMASI (LANGSUNG EKSEKUSI) ---
+    setIsLoading(true);
+    console.log("Starting Save Attendance...");
 
-        try {
-          const { data: userData } = await supabase.auth.getUser();
-          if (!userData.user) throw new Error("User tidak terautentikasi");
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("User tidak terautentikasi");
 
-          // Check existing session
-          let sessionId = currentSessionId;
+      let sessionId = currentSessionId;
 
-          if (!sessionId) {
-            console.log("No active session ID, checking database...");
-            const { data: existingSessions } = await supabase
-              .from('attendance_sessions')
-              .select('id')
-              .eq('meeting_id', activeId.meeting)
-              .eq('class_id', activeId.class)
-              .limit(1);
+      if (!sessionId) {
+        const { data: existingSessions } = await supabase
+          .from('attendance_sessions')
+          .select('id')
+          .eq('meeting_id', activeId.meeting)
+          .eq('class_id', activeId.class)
+          .limit(1);
+        sessionId = existingSessions?.[0]?.id;
+      }
 
-            sessionId = existingSessions?.[0]?.id;
-          }
+      if (!sessionId) {
+        const { data: newSession, error: createError } = await supabase
+          .from('attendance_sessions')
+          .insert([{
+            meeting_id: activeId.meeting,
+            class_id: activeId.class,
+            lecturer_id: userData.user.id,
+            is_active: true,
+            qr_code: Math.random().toString(36).substring(7),
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }])
+          .select()
+          .single();
 
-          if (!sessionId) {
-            console.log("Creating new session...");
-            // Create new session
-            const { data: newSession, error: createError } = await supabase
-              .from('attendance_sessions')
-              .insert([{
-                meeting_id: activeId.meeting,
-                class_id: activeId.class,
-                lecturer_id: userData.user.id,
-                is_active: true,
-                qr_code: Math.random().toString(36).substring(7),
-                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-              }])
-              .select()
-              .single();
+        if (createError) throw createError;
+        sessionId = newSession.id;
+      }
 
-            if (createError) throw createError;
-            sessionId = newSession.id;
-          }
-          console.log("Using Session ID:", sessionId);
+      const changes = Object.entries(pendingChanges);
 
-          // Process pending changes
-          const changes = Object.entries(pendingChanges);
-
-          const updatePromises = changes.map(async ([studentId, status]) => {
-            console.log(`Processing student ${studentId} -> ${status}`);
-
-            // SECURITY CHECK: If existing record is 'qr' and current user is NOT 'admin_dev', reject this specific change.
-            const existingStudent = students.find(s => s.id === studentId);
-            if (existingStudent?.method === 'qr' && userRole !== 'admin_dev') {
-              console.warn(`Attempt to overwrite QR record for student ${studentId} by non-dev user rejected.`);
-              return; // Skip this change
-            }
-
-            if (status === 'pending') {
-              // DELETE record if status returned to pending
-              console.log(`Deleting record for ${studentId}`);
-              const { error } = await supabase
-                .from('attendance_records')
-                .delete()
-                .eq('session_id', sessionId!)
-                .eq('student_id', studentId);
-
-              if (error) {
-                console.error(`Error deleting ${studentId}:`, error);
-                throw error;
-              }
-            } else {
-              // UPSERT record
-              // Use current time for scanned_at if it's a manual update, unless strictly preserving old scan time is needed
-              // For manual entry, we treat it as "now" if it wasn't scanned before, or valid status update
-              const payload = {
-                session_id: sessionId!,
-                student_id: studentId,
-                status: status,
-                scanned_at: new Date().toISOString(),
-                method: 'manual',
-                updated_by: userData.user.id
-              };
-              console.log(`Upserting record for ${studentId}:`, payload);
-
-              const { error } = await (supabase as any)
-                .from('attendance_records')
-                .upsert(payload, { onConflict: 'session_id, student_id' });
-
-              if (error) {
-                console.error(`Error upserting ${studentId}:`, error);
-                throw error;
-              }
-            }
-          });
-
-          await Promise.all(updatePromises);
-
-          toast.success("Absensi berhasil disimpan permanen!");
-
-          // Refresh data FIRST
-          await fetchStudentsAndAttendance(activeId.class, activeId.meeting);
-
-          // THEN clear pending changes
-          setPendingChanges({});
-
-        } catch (err: any) {
-          console.error("Save failed:", err);
-          let errorMessage = "Gagal simpan absensi.";
-          if (err.message?.includes('violates row-level security')) {
-            errorMessage = "Akses ditolak (RLS). Pastikan Anda memiliki izin Dosen/Admin untuk menyimpan.";
-          } else if (err.message) {
-            errorMessage += " " + err.message;
-          }
-          toast.error(errorMessage);
-        } finally {
-          setIsLoading(false);
+      const updatePromises = changes.map(async ([studentId, status]) => {
+        const existingStudent = students.find(s => s.id === studentId);
+        if (existingStudent?.method === 'qr' && userRole !== 'admin_dev') {
+          return;
         }
-      },
-      'info',
-      'Simpan Permanen'
-    );
-  };
 
+        if (status === 'pending') {
+          const { error } = await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('session_id', sessionId!)
+            .eq('student_id', studentId);
+          if (error) throw error;
+        } else {
+          const payload = {
+            session_id: sessionId!,
+            student_id: studentId,
+            status: status,
+            scanned_at: new Date().toISOString(),
+            method: 'manual',
+            updated_by: userData.user.id
+          };
+
+          const { error } = await (supabase as any)
+            .from('attendance_records')
+            .upsert(payload, { onConflict: 'session_id,student_id' }); // PASTIKAN TANPA SPASI!
+          if (error) throw error;
+        }
+      });
+
+      await Promise.all(updatePromises);
+      toast.success("Absensi berhasil disimpan permanen!");
+      await fetchStudentsAndAttendance(activeId.class, activeId.meeting);
+      setPendingChanges({});
+
+    } catch (err: any) {
+      console.error("Save failed:", err);
+      toast.error("Gagal simpan: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleExportExcel = async () => {
     if (!currentSessionId) {
       toast.error("Pilih pertemuan dan kelas untuk export");
@@ -1063,6 +1029,8 @@ export default function AttendanceHistory() {
       default: return 'Tambah Data';
     }
   };
+
+  const isLockedForAdminKelas = userRole === 'admin_kelas' && userClassId !== activeId.class;
 
   return (
     <motion.div
@@ -1257,7 +1225,7 @@ export default function AttendanceHistory() {
                   )}
                   <Button
                     onClick={saveAttendance}
-                    disabled={Object.keys(pendingChanges).length === 0 || isLoading}
+                    disabled={Object.keys(pendingChanges).length === 0 || isLoading || isLockedForAdminKelas}
                     className={cn(
                       "gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
                       Object.keys(pendingChanges).length > 0
@@ -1319,11 +1287,12 @@ export default function AttendanceHistory() {
                     <div className="text-center w-full md:w-auto flex justify-start md:justify-center col-span-2 md:col-span-1">
                       <button
                         onClick={() => toggleAttendance(student.id, student.status)}
-                        disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev')}
+                        disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev') || isLockedForAdminKelas}
                         className={cn(
                           "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-sm w-full md:w-auto justify-center",
                           getStatusBadge(student.status),
-                          (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer shadow-md" : "cursor-default opacity-90"
+                          isLockedForAdminKelas ? "cursor-not-allowed opacity-75" :
+                            (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer shadow-md" : "cursor-default opacity-90"
                         )}
                       >
                         {getStatusIcon(student.status)}
