@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
@@ -267,7 +268,9 @@ func generateAttendanceSheet(f *excelize.File, sheet string, session *models.Att
 			if method == "" {
 				method = "manual"
 			}
-			scanTime = record.ScannedAt.Format("15:04:05")
+			// Force treat as UTC then shift to WIB (UTC+7)
+			loc := time.FixedZone("WIB", 7*3600)
+			scanTime = record.ScannedAt.UTC().In(loc).Format("03:04 PM")
 
 			switch status {
 			case "present", "hadir":
