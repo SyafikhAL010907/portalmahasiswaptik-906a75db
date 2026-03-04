@@ -978,25 +978,25 @@ export default function Repository() {
                 }
 
                 return (
-                  <div className="glass-card rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-2 border-blue-500/30 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-900/10 shadow-sm w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1 pr-4">
+                  <div className="glass-card rounded-xl p-4 md:p-6 w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-2 border-blue-500/30 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-900/10 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 min-w-0 flex-1 w-full pr-0 sm:pr-4">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0 bg-blue-100 dark:bg-blue-900/40">
                         <Folder className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-blue-900 dark:text-blue-100 truncate leading-snug">Folder Drive Eksternal: {subjectName}</h4>
+                      <div className="min-w-0 flex-1 w-full">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-bold text-base md:text-lg text-blue-900 dark:text-blue-100 truncate leading-snug">Folder Drive Eksternal: {subjectName}</h4>
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500 text-white flex-shrink-0">
                             PINNED
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-blue-700/80 dark:text-blue-300/80 mt-1 font-medium">
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs md:text-sm text-blue-700/80 dark:text-blue-300/80 mt-1 font-medium">
                           Penyimpanan Utama Matakuliah (Tidak dapat dihapus)
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-blue-200/50 dark:border-blue-800/50">
-                      <Button variant="default" size="sm" onClick={() => window.open(currentDriveLink, '_blank')} className="flex-1 sm:flex-none justify-center bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20">
+                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-blue-200/50 dark:border-blue-800/50 w-full sm:w-auto">
+                      <Button variant="default" size="sm" onClick={() => window.open(currentDriveLink, '_blank')} className="w-full sm:w-fit justify-center bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20">
                         <ExternalLink className="w-4 h-4 mr-2" />
                         <span className="truncate">
                           Buka Folder

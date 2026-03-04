@@ -1254,36 +1254,40 @@ export default function Finance() {
 
               {/* V9.6 Exclusive Admin Control: Only AdminDev & AdminKelas can see this */}
               {isAdmin && isLifetime && (
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-md border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-300">
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
-                  <Select value={String(billingStart || 1)} onValueChange={(v) => updateBillingRange(Number(v), billingEnd || 6, localMonth, role)} disabled={isUpdatingConfig}>
-                    <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
-                      <SelectValue />
-                      {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
-                    </SelectTrigger>
-                    <SelectContent>
-                      {months.map(m => (
-                        <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-100 dark:bg-slate-900 p-2 sm:p-1 rounded-md border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-300 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
+                    <Select value={String(billingStart || 1)} onValueChange={(v) => updateBillingRange(Number(v), billingEnd || 6, localMonth, role)} disabled={isUpdatingConfig}>
+                      <SelectTrigger className="flex-1 sm:w-[120px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
+                        <SelectValue />
+                        {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map(m => (
+                          <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <span className="text-slate-300">|</span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mx-1">Sampai</span>
+                  <span className="hidden sm:block text-slate-300">|</span>
 
-                  <Select value={String(billingEnd || 6)} onValueChange={(v) => updateBillingRange(billingStart || 1, Number(v), localMonth, role)} disabled={isUpdatingConfig}>
-                    <SelectTrigger className="w-[100px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
-                      <SelectValue />
-                      {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
-                    </SelectTrigger>
-                    <SelectContent>
-                      {months.map(m => (
-                        <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mx-1">Sampai</span>
+                    <Select value={String(billingEnd || 6)} onValueChange={(v) => updateBillingRange(billingStart || 1, Number(v), localMonth, role)} disabled={isUpdatingConfig}>
+                      <SelectTrigger className="flex-1 sm:w-[120px] h-8 text-xs bg-white dark:bg-slate-950 border-0 shadow-sm focus:ring-0">
+                        <SelectValue />
+                        {isLoadingConfig && <Loader2 className="w-3 h-3 animate-spin ml-1 text-muted-foreground" />}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map(m => (
+                          <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  {isUpdatingConfig && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-1" />}
+                  {isUpdatingConfig && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-1 hidden sm:block" />}
                 </div>
               )}
 
@@ -1411,7 +1415,7 @@ export default function Finance() {
                         <div className="flex items-center justify-between gap-2 overflow-hidden">
                           <span className="truncate">{student.name}</span>
                           {/* Sembunyikan titik tiga aksi cepat jika Read Only untuk Admin Kelas */}
-                          {['admin_dev', 'admin_kelas'].includes(currentUser?.role || '') && !isReadOnlyForAdminKelas && (
+                          {currentUser?.role === 'admin_dev' && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -1497,7 +1501,7 @@ export default function Finance() {
                         {student.name}
                       </div>
                       {/* Sembunyikan titik tiga aksi cepat jika Read Only untuk Admin Kelas (Mobile View) */}
-                      {['admin_dev', 'admin_kelas'].includes(currentUser?.role || '') && !isReadOnlyForAdminKelas && (
+                      {currentUser?.role === 'admin_dev' && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
@@ -1621,34 +1625,33 @@ export default function Finance() {
                             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Nominal (Rp)</label>
                             <Input type="text" placeholder="0" className="bg-background/50 h-12 rounded-xl border-input font-black text-primary shadow-sm focus:ring-2 focus:ring-primary/20" value={displayAmount} onChange={e => handleAmountChange(e.target.value)} />
                           </div>
-                          {isLifetime ? (
+                          {isLifetime && (
                             <div className="space-y-2 col-span-2">
                               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori (Otomatis)</label>
                               <div className="flex h-12 w-full rounded-xl border border-input bg-muted/30 px-3 py-2 text-sm text-foreground items-center font-bold">
                                 General / Angkatan
                               </div>
                             </div>
-                          ) : (
-                            newTx.type === 'expense' && (
-                              <div className="space-y-2 col-span-2">
-                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori</label>
-                                <Select
-                                  value={newTx.category}
-                                  onValueChange={(val) => setNewTx({ ...newTx, category: val })}
-                                >
-                                  <SelectTrigger className="h-12 rounded-xl">
-                                    <SelectValue placeholder="Pilih Kategori" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Umum">Umum</SelectItem>
-                                    <SelectItem value="Event">Event</SelectItem>
-                                    <SelectItem value="Perlengkapan">Perlengkapan</SelectItem>
-                                    <SelectItem value="Konsumsi">Konsumsi</SelectItem>
-                                    <SelectItem value="Admin">Admin</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            )
+                          )}
+                          {!isLifetime && newTx.type === 'expense' && (
+                            <div className="space-y-2 col-span-2">
+                              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Kategori</label>
+                              <Select
+                                value={newTx.category}
+                                onValueChange={(val) => setNewTx({ ...newTx, category: val })}
+                              >
+                                <SelectTrigger className="h-12 rounded-xl">
+                                  <SelectValue placeholder="Pilih Kategori" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Umum">Umum</SelectItem>
+                                  <SelectItem value="Event">Event</SelectItem>
+                                  <SelectItem value="Perlengkapan">Perlengkapan</SelectItem>
+                                  <SelectItem value="Konsumsi">Konsumsi</SelectItem>
+                                  <SelectItem value="Admin">Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           )}
                         </div>
                         <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-black h-12 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-95" onClick={handleAddTransaction} disabled={isSubmitting}>

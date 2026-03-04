@@ -876,11 +876,41 @@ export default function Payment() {
 
                 {(() => {
                   const classLetter = (studentData.classLetter || 'A').toUpperCase();
-                  const transferMap: Record<string, { provider: string, number: string, color: string, bgColor: string, borderColor: string }> = {
-                    'A': { provider: 'DANA', number: '08568025001', color: 'text-blue-600', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' },
-                    'B': { provider: 'GOPAY', number: '08568025002', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' },
-                    'C': { provider: 'OVO', number: '08568025003', color: 'text-purple-600', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/20' },
-                    'D': { provider: 'DANA', number: '08568025004', color: 'text-blue-600', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' },
+
+                  // 1. Tambahin properti 'name' di dalam Record
+                  const transferMap: Record<string, { provider: string, number: string, color: string, bgColor: string, borderColor: string, name: string }> = {
+                    'A': {
+                      provider: 'DANA',
+                      number: '08568025001',
+                      color: 'text-blue-600',
+                      bgColor: 'bg-blue-500/10',
+                      borderColor: 'border-blue-500/20',
+                      name: 'Nama Bendahara Kelas A' // <-- Ganti di sini
+                    },
+                    'B': {
+                      provider: 'GOPAY',
+                      number: '081413024125',
+                      color: 'text-emerald-600',
+                      bgColor: 'bg-emerald-500/10',
+                      borderColor: 'border-emerald-500/20',
+                      name: 'Dea Annisyah Putri Hariyanto'
+                    },
+                    'C': {
+                      provider: 'BSI',
+                      number: '7323723634',
+                      color: 'text-purple-600',
+                      bgColor: 'bg-purple-500/10',
+                      borderColor: 'border-purple-500/20',
+                      name: 'Fadhiyah Syafiqah Ramadhani' // <-- Ganti di sini
+                    },
+                    'D': {
+                      provider: 'DANA',
+                      number: '08568025004',
+                      color: 'text-blue-600',
+                      bgColor: 'bg-blue-500/10',
+                      borderColor: 'border-blue-500/20',
+                      name: 'Nama Bendahara Kelas D' // <-- Ganti di sini
+                    },
                   };
 
                   const info = transferMap[classLetter] || transferMap['A'];
@@ -895,8 +925,9 @@ export default function Payment() {
                       <p className={cn("text-2xl md:text-3xl font-black tracking-tight", info.color)}>
                         {info.number}
                       </p>
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                        a/n Bendahara {studentData.classes?.name || `Kelas ${classLetter}`}
+                      {/* 2. Di sini tinggal panggil info.name aja, jauh lebih simpel! */}
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1 text-center">
+                        {info.name}
                       </p>
                     </div>
                   );

@@ -1206,18 +1206,18 @@ export default function AttendanceHistory() {
               <Users className="w-5 h-5 text-primary" /> Daftar Mahasiswa
               <span className="text-sm font-normal text-muted-foreground ml-2">({students.length} Total)</span>
             </h2>
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
               {userRole === 'admin_dev' && (
-                <Button variant="destructive" onClick={handleResetSession} className="gap-2 h-9">
+                <Button variant="destructive" onClick={handleResetSession} className="w-full gap-2 h-10 px-5 rounded-full shadow-lg transition-all hover:scale-[1.03] active:scale-[0.97]">
                   <RotateCcw className="w-4 h-4" /> Reset Status Pertemuan
                 </Button>
               )}
               {canEdit && (
-                <div className="flex gap-2">
+                <>
                   {userRole !== 'mahasiswa' && userRole !== null && (
                     <Button
                       onClick={handleExportExcel}
-                      className="gap-2 h-10 px-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.03] active:scale-[0.97]"
+                      className="w-full gap-2 h-10 px-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.03] active:scale-[0.97]"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
                       <span className="font-bold">Download Excel</span>
@@ -1227,7 +1227,7 @@ export default function AttendanceHistory() {
                     onClick={saveAttendance}
                     disabled={Object.keys(pendingChanges).length === 0 || isLoading || isLockedForAdminKelas}
                     className={cn(
-                      "gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
+                      "w-full gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
                       Object.keys(pendingChanges).length > 0
                         ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white shadow-lg shadow-indigo-500/25 dark:shadow-emerald-500/20 hover:scale-[1.03] active:scale-[0.97]"
                         : "bg-muted/50 text-muted-foreground cursor-not-allowed border border-dashed border-muted-foreground/20"
@@ -1242,7 +1242,7 @@ export default function AttendanceHistory() {
                       {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
                     </span>
                   </Button>
-                </div>
+                </>
               )}
             </div>
           </div>
