@@ -871,7 +871,7 @@ export default function Payment() {
               {/* --- MANUAL TRANSFER SECTION --- */}
               <div className="w-full max-w-sm bg-muted/30 border border-border/50 rounded-2xl p-5 mb-8 z-10 animate-in fade-in slide-in-from-bottom-2 duration-700">
                 <p className="text-center text-xs font-black text-muted-foreground uppercase tracking-widest mb-4">
-                  Atau Transfer Manual:
+                  Atau Pembayaran Melalui :
                 </p>
 
                 {(() => {
@@ -880,12 +880,12 @@ export default function Payment() {
                   // 1. Tambahin properti 'name' di dalam Record
                   const transferMap: Record<string, { provider: string, number: string, color: string, bgColor: string, borderColor: string, name: string }> = {
                     'A': {
-                      provider: 'DANA',
-                      number: '08568025001',
+                      provider: 'Cash Payment',
+                      number: 'Nur Azizah Muslim',
                       color: 'text-blue-600',
                       bgColor: 'bg-blue-500/10',
                       borderColor: 'border-blue-500/20',
-                      name: 'Nama Bendahara Kelas A' // <-- Ganti di sini
+                      name: 'Melalui Bendahara Kelas' // <-- Ganti di sini
                     },
                     'B': {
                       provider: 'GOPAY',
@@ -904,12 +904,12 @@ export default function Payment() {
                       name: 'Fadhiyah Syafiqah Ramadhani' // <-- Ganti di sini
                     },
                     'D': {
-                      provider: 'DANA',
-                      number: '08568025004',
+                      provider: 'Cash Payment',
+                      number: 'Citra Aprilia',
                       color: 'text-blue-600',
                       bgColor: 'bg-blue-500/10',
                       borderColor: 'border-blue-500/20',
-                      name: 'Nama Bendahara Kelas D' // <-- Ganti di sini
+                      name: 'Melalui Bendahara Kelas' // <-- Ganti di sini
                     },
                   };
 
