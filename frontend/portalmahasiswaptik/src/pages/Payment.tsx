@@ -943,7 +943,7 @@ export default function Payment() {
                     Sistem sudah mencatat status <span className="underline italic">"Pending"</span>.
                   </p>
                   <p className="text-[10px] text-amber-700/80 mt-1 font-medium">
-                    Mohon segera transfer dan kirim bukti ke Bendahara Kelas agar status berubah menjadi LUNAS.
+                    Mohon segera transfer atau bayar dan berikan bukti ke Bendahara Kelas agar status berubah menjadi LUNAS.
                   </p>
                 </div>
               </div>
@@ -975,4 +975,4 @@ export default function Payment() {
 }
 
 
-// formatRupiah removed and replaced by formatIDR from utils.ts
+// formatRupiah removed and replaced by formatIDR from utils.t
