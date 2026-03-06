@@ -643,15 +643,23 @@ export default function Repository() {
     );
   };
 
+  const sanitizeTitle = (title: string) => {
+    // Bersihkan karakter yang bisa merusak HTML Injection (", ', <, >)
+    // dan karakter ilegal untuk nama file/judul
+    return title
+      .replace(/[<>'"\/\\|?*]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
   // --- Buka File di Tab Baru (Smart Routing Anti-Auto-Download) ---
   const handleOpenFile = (file: Material) => {
     const url = file.file_url;
-
-    // Strip query params dulu (misal: ?token=xxx dari Supabase) sebelum deteksi ekstensi
     const cleanUrl = url.split('?')[0];
     const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
+    const safeTitle = sanitizeTitle(file.title);
 
-    // Tipe Office: gunakan Google Docs Viewer agar preview di browser tanpa auto-download
+    // Tipe Office: tetap pakai Google Docs Viewer (Batasan API: Tidak bisa ganti judul tab)
     const docsViewerTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
     if (docsViewerTypes.includes(ext)) {
@@ -661,10 +669,44 @@ export default function Repository() {
         description: "Gunakan fitur 'Buka di Aplikasi' pada browser untuk mengedit via WPS/Office.",
         duration: 5000,
       });
-    } else {
-      // PDF, Gambar, Video → langsung buka, browser sudah native support
+      return;
+    }
+
+    // PDF, Gambar, Video → Gunakan HTML Wrapper agar judul tab "Prettier"
+    try {
+      const newTab = window.open('', '_blank');
+      if (!newTab) throw new Error("Pop-up diblokir");
+
+      // Tentukan MIME Type sederhana
+      let mimeType = 'application/pdf';
+      if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      else if (['mp4', 'webm'].includes(ext)) mimeType = `video/${ext}`;
+
+      // Suntik HTML Wrapper ke Tab Kosong
+      newTab.document.write(`
+        <html>
+          <head>
+            <title>${safeTitle}</title>
+            <link rel="icon" href="/favicon.ico" />
+            <style>
+              body { margin: 0; padding: 0; background: #525659; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+              embed, iframe { width: 100%; height: 100vh; border: none; }
+              @media (max-width: 768px) { body { background: #000; } }
+            </style>
+          </head>
+          <body>
+            <embed src="${url}" type="${mimeType}" />
+          </body>
+        </html>
+      `);
+      newTab.document.close();
+
+      toast.info(`Membuka: ${safeTitle}`, { duration: 3000 });
+    } catch (error) {
+      // Fallback Logic: Jika gagal buka tab baru atau pop-up diblokir, balik ke window.open asli
+      console.warn("HTML Wrapper failed, falling back to direct URL:", error);
       window.open(url, '_blank');
-      toast.info("File dibuka di tab baru", {
+      toast.info("File dibuka (Fallback)", {
         description: "Gunakan 'Buka di Aplikasi' pada browser untuk membuka via Gallery/CamScanner.",
         duration: 4000,
       });
