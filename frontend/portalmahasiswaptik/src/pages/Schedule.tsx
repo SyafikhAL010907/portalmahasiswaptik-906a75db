@@ -17,6 +17,7 @@ import { MaterialTimePicker } from '@/components/ui/material-time-picker';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 // --- INTERFACES ---
 interface Schedule {
@@ -94,6 +95,13 @@ export default function Schedule() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [deleteScheduleConfig, setDeleteScheduleConfig] = useState<{
+    isOpen: boolean;
+    targetId: string;
+  }>({
+    isOpen: false,
+    targetId: '',
+  });
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [isEndOpen, setIsEndOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -332,8 +340,12 @@ export default function Schedule() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Hapus jadwal ini?")) return;
+  const handleDelete = (id: string) => {
+    // Tampilkan modal konfirmasi cantik (menggantikan confirm() native)
+    setDeleteScheduleConfig({ isOpen: true, targetId: id });
+  };
+
+  const executeDeleteSchedule = async (id: string) => {
     try {
       const { error } = await supabase.from('schedules').delete().eq('id', id);
       if (error) {
@@ -695,6 +707,20 @@ export default function Schedule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Modal - Hapus Jadwal */}
+      <ConfirmationModal
+        isOpen={deleteScheduleConfig.isOpen}
+        onClose={() => setDeleteScheduleConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={async () => {
+          await executeDeleteSchedule(deleteScheduleConfig.targetId);
+          setDeleteScheduleConfig(prev => ({ ...prev, isOpen: false }));
+        }}
+        title="Hapus Jadwal?"
+        description="Jadwal kuliah ini akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan."
+        variant="danger"
+        confirmText="Ya, Hapus"
+      />
     </motion.div>
   );
 }

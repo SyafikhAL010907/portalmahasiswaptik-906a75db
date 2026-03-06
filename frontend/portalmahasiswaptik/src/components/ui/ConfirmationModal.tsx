@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, RefreshCw, X, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -49,7 +50,12 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         }
     };
 
-    return (
+    // SSR guard: pastikan document tersedia sebelum createPortal dipanggil
+    if (typeof document === 'undefined') return null;
+
+    // createPortal: teleportasi render langsung ke document.body
+    // Ini bypass semua stacking context ancestor (motion.div, will-change-transform, dll)
+    return createPortal(
         <AnimatePresence>
             {isOpen && (
                 <>
@@ -62,13 +68,13 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
                     />
 
-                    {/* Modal Container */}
-                    <div className="fixed inset-0 flex items-center justify-center z-[9999] pointer-events-none">
+                    {/* Modal Container — fixed murni ke viewport karena sudah di document.body */}
+                    <div className="fixed inset-0 flex items-center justify-center z-[9999] pointer-events-none px-4">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-white dark:bg-slate-950/90 border border-slate-200 dark:border-white/10 rounded-2xl p-6 w-[90%] max-w-md shadow-2xl pointer-events-auto relative overflow-hidden"
+                            className="bg-white dark:bg-slate-950/90 border border-slate-200 dark:border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl pointer-events-auto relative overflow-hidden"
                         >
                             {/* Decorative gradient blob */}
                             <div className={cn(
@@ -120,7 +126,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                     </div>
                 </>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 };
 

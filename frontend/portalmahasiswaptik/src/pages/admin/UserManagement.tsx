@@ -399,22 +399,9 @@ export default function UserManagement() {
 
 
   return (
-    <motion.div
-      className="space-y-6"
-      variants={staggerContainer}
-      initial="hidden"
-      animate="visible"
-      layout={false}
-    >
-      <PremiumConfirmModal
-        isOpen={showPremiumConfirm}
-        onClose={() => setShowPremiumConfirm(false)}
-        name={editUserForm.full_name}
-        onConfirm={() => {
-          setShowPremiumConfirm(false); // Tutup modal dulu
-          executeUserUpdate(); // Baru hajar update-nya
-        }}
-      />
+    <>
+      {/* ✅ Modal di luar motion.div agar fixed positioning murni ke viewport */}
+      {/* (motion.div punya CSS transform yang membajak position:fixed jika modal di dalamnya) */}
       <ConfirmationModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
@@ -425,7 +412,24 @@ export default function UserManagement() {
         variant="danger"
         isLoading={isDeleting}
       />
-      {/* Header */}
+
+      <motion.div
+        className="space-y-6"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+        layout={false}
+      >
+        <PremiumConfirmModal
+          isOpen={showPremiumConfirm}
+          onClose={() => setShowPremiumConfirm(false)}
+          name={editUserForm.full_name}
+          onConfirm={() => {
+            setShowPremiumConfirm(false);
+            executeUserUpdate();
+          }}
+        />
+        {/* Header */}
       <motion.div variants={staggerTop} layout={false} className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -840,6 +844,7 @@ export default function UserManagement() {
         )}
       </motion.div>
     </motion.div>
+    </>
   );
 }
 // ✅ KOMPONEN MODAL PREMIUM (Ditaruh di luar agar tidak infinite loop)

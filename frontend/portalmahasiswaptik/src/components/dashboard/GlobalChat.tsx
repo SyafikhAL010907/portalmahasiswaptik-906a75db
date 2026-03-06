@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { UserProfileModal } from '@/components/dashboard/UserProfileModal';
 import { getMaskedProfile } from '@/lib/privacy';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 interface Message {
     id: string;
@@ -96,6 +97,13 @@ export function GlobalChat() {
     const [groupUnreadCount, setGroupUnreadCount] = useState(0);
     const [lastActiveChatId, setLastActiveChatId] = useState<string | null>(null);
     const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+    const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{
+        isOpen: boolean;
+        targetId: string;
+    }>({
+        isOpen: false,
+        targetId: '',
+    });
 
     const LS_GROUP_READ_KEY = `last_read_group_at_${user?.id}`;
 
@@ -545,14 +553,16 @@ export function GlobalChat() {
         e.stopPropagation();
         if (!user) return;
 
-        const confirmDelete = window.confirm('Hapus seluruh percakapan ini secara permanen?');
-        if (!confirmDelete) return;
+        // Tampilkan modal konfirmasi cantik (menggantikan window.confirm)
+        setDeleteConfirmConfig({ isOpen: true, targetId });
+    };
 
+    const executeDeleteConversation = async (targetId: string) => {
         try {
             const { error } = await (supabase
                 .from('messages' as any)
                 .delete()
-                .or(`and(user_id.eq.${user.id},recipient_id.eq.${targetId}),and(user_id.eq.${targetId},recipient_id.eq.${user.id})`) as any);
+                .or(`and(user_id.eq.${user!.id},recipient_id.eq.${targetId}),and(user_id.eq.${targetId},recipient_id.eq.${user!.id})`) as any);
 
             if (error) throw error;
 
@@ -567,6 +577,7 @@ export function GlobalChat() {
             toast.error('Gagal menghapus percakapan');
         }
     };
+
 
     const openRoom = (chat: ActiveChat) => {
         const targetId = chat.id || (chat as any).user_id || (chat as any).participant_id;
@@ -1065,6 +1076,18 @@ export function GlobalChat() {
                 </div>
             )}
             <UserProfileModal userId={selectedProfileId} isOpen={!!selectedProfileId} onClose={() => setSelectedProfileId(null)} />
+            <ConfirmationModal
+                isOpen={deleteConfirmConfig.isOpen}
+                onClose={() => setDeleteConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={async () => {
+                    await executeDeleteConversation(deleteConfirmConfig.targetId);
+                    setDeleteConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                }}
+                title="Hapus Percakapan?"
+                description="Seluruh riwayat pesan dengan pengguna ini akan dihapus secara permanen dan tidak dapat dikembalikan."
+                variant="danger"
+                confirmText="Hapus Permanen"
+            />
         </>
     );
 }

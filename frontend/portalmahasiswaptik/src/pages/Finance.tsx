@@ -1052,35 +1052,42 @@ export default function Finance() {
 
   const handleBatchUpdateAllWeeks = async (status: 'paid' | 'bebas' = 'bebas') => {
     const actionLabel = status === 'paid' ? 'LUNAS' : 'BEBAS KAS';
-    if (!confirm(`Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi ${actionLabel} untuk SEMUA MINGGU (W1-W4)?`)) return;
-    setIsLoadingMatrix(true);
-    try {
-      // Loop update for all displayed students AND all weeks
-      const updates = [];
-      const weeks = [1, 2, 3, 4];
 
-      for (const student of matrixData) {
-        for (const week of weeks) {
-          updates.push(supabase.from('weekly_dues').upsert({
-            student_id: student.student_id,
-            week_number: week,
-            month: localMonth,
-            year: selectedYear,
-            amount: status === 'paid' ? 5000 : 0,
-            status: status
-          }, { onConflict: 'student_id, week_number, month, year' }));
+    openConfirmation(
+      `Set Massal ${actionLabel} (W1-W4)?`,
+      `Yakin ingin mengubah status SEMUA mahasiswa di kelas ini menjadi ${actionLabel} untuk SEMUA MINGGU (W1-W4)? Tindakan ini mempengaruhi seluruh kelas sekaligus.`,
+      async () => {
+        setIsLoadingMatrix(true);
+        try {
+          const updates = [];
+          const weeks = [1, 2, 3, 4];
+
+          for (const student of matrixData) {
+            for (const week of weeks) {
+              updates.push(supabase.from('weekly_dues').upsert({
+                student_id: student.student_id,
+                week_number: week,
+                month: localMonth,
+                year: selectedYear,
+                amount: status === 'paid' ? 5000 : 0,
+                status: status
+              }, { onConflict: 'student_id, week_number, month, year' }));
+            }
+          }
+
+          await Promise.all(updates);
+          toast.success(`Berhasil set ${actionLabel} Semua Minggu (W1-W4) untuk kelas ini!`);
+          fetchStudentMatrix();
+          fetchDuesTotal();
+        } catch (err) {
+          toast.error("Gagal melakukan batch update all weeks.");
+        } finally {
+          setIsLoadingMatrix(false);
         }
-      }
-
-      await Promise.all(updates);
-      toast.success(`Berhasil set ${actionLabel} Semua Minggu (W1-W4) untuk kelas ini!`);
-      fetchStudentMatrix(); // Refresh
-      fetchDuesTotal(); // Refresh totals if paid
-    } catch (err) {
-      toast.error("Gagal melakukan batch update all weeks.");
-    } finally {
-      setIsLoadingMatrix(false);
-    }
+      },
+      status === 'paid' ? 'info' : 'warning',
+      `Lanjutkan Set ${actionLabel}`
+    );
   };
 
   const displayedTransactions = useMemo(() => {

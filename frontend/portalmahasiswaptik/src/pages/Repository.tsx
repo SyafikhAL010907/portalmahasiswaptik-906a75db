@@ -143,6 +143,7 @@ export default function Repository() {
 
   // RBAC
   const [canManage, setCanManage] = useState(false);
+  const [isMahasiswa, setIsMahasiswa] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
   // Course Dialog
@@ -205,16 +206,27 @@ export default function Repository() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        
+        // 1. Get profile for RBAC frontend flags
         const { data: profile } = await (supabase as any)
           .from('profiles')
           .select('role')
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // Access allowed for 'admin_dev', 'admin_kelas', and 'admin kelas'
         const role = (profile as any)?.role;
         const hasAccess = role === 'admin_dev' || role === 'admin_kelas' || role === 'admin kelas';
         setCanManage(hasAccess);
+
+        // 2. Check if student (mahasiswa) for download limiter
+        // Using RPC for robust checking across profiles & user_roles tables
+        const { data: isMhsData, error: rpcError } = await supabase.rpc('is_mahasiswa', { _user_id: user.id });
+        if (!rpcError) {
+          setIsMahasiswa(!!isMhsData);
+        } else {
+          // Fallback if RPC fails or not yet applied
+          setIsMahasiswa(role === 'mahasiswa');
+        }
       }
     };
     checkRole();
@@ -485,10 +497,17 @@ export default function Repository() {
         }
       }
 
-      alert("File terlalu besar (Maks 2MB)! Anda akan dialihkan ke folder Google Drive untuk mengunggah file ini secara manual.");
-      window.open(targetLink, '_blank');
-
+      // Tutup dialog form dulu, lalu tampilkan modal konfirmasi cantik
       setIsAddMaterialOpen(false);
+      openConfirmation(
+        '⚠️ File Terlalu Besar',
+        `Ukuran file "${fileToUpload.name}" melebihi batas 2MB. Klik tombol di bawah untuk membuka Google Drive dan unggah file ini secara manual ke folder mata kuliah.`,
+        async () => {
+          window.open(targetLink, '_blank');
+        },
+        'warning',
+        '🚀 Buka Google Drive'
+      );
       return; // HENTIKAN proses upload ke Supabase
     }
 
@@ -624,14 +643,90 @@ export default function Repository() {
     );
   };
 
+  // --- Buka File di Tab Baru (Smart Routing Anti-Auto-Download) ---
+  const handleOpenFile = (file: Material) => {
+    const url = file.file_url;
+
+    // Strip query params dulu (misal: ?token=xxx dari Supabase) sebelum deteksi ekstensi
+    const cleanUrl = url.split('?')[0];
+    const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
+
+    // Tipe Office: gunakan Google Docs Viewer agar preview di browser tanpa auto-download
+    const docsViewerTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+    if (docsViewerTypes.includes(ext)) {
+      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+      window.open(viewerUrl, '_blank');
+      toast.info("Membuka pratinjau dokumen...", {
+        description: "Gunakan fitur 'Buka di Aplikasi' pada browser untuk mengedit via WPS/Office.",
+        duration: 5000,
+      });
+    } else {
+      // PDF, Gambar, Video → langsung buka, browser sudah native support
+      window.open(url, '_blank');
+      toast.info("File dibuka di tab baru", {
+        description: "Gunakan 'Buka di Aplikasi' pada browser untuk membuka via Gallery/CamScanner.",
+        duration: 4000,
+      });
+    }
+  };
+
   const handleDownload = async (file: Material) => {
     try {
+      if (!userId) {
+        toast.error("Silakan login untuk mendownload file");
+        return;
+      }
+
+      // --- LOGIC ANTI-SPAM (DOWNLOAD LIMITER) ---
+      if (isMahasiswa) {
+        // 1. Cek riwayat download via RPC
+        const { data, error: checkError } = await supabase.rpc('has_recent_download', {
+          _user_id: userId,
+          _material_id: file.id
+        });
+
+        if (checkError) {
+          console.error("Limiter check error:", checkError);
+        } else if (data && data.length > 0 && data[0].restricted) {
+          // Mahasiswa terkena limit (1 File = 1x Download / 7 Hari)
+          const availableDate = new Date(data[0].available_at).toLocaleString('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          openConfirmation(
+            '🚫 Batas Download Tercapai',
+            `Kamu sudah mendownload file "${file.title}" sebelumnya. Sesuai kebijakan anti-spam, file yang sama hanya dapat didownload kembali setiap 7 hari untuk menghemat bandwidth server.\n\n📅 Tersedia kembali pada:\n${availableDate}`,
+            () => {
+              handleOpenFile(file); // Tawarkan preview sebagai alternatif
+            },
+            'warning',
+            '👁️ Buka Preview Saja'
+          );
+          return;
+        }
+      }
+
+      // --- PROSES DOWNLOAD ---
       if (file.storage_type === 'google_drive') {
         window.open(file.file_url, '_blank');
         toast.info("Membuka Google Drive...", {
           description: "Cek folder 'Unduhan' jika Anda mendownload dari Drive.",
           duration: 4000
         });
+        
+        // Log download untuk Google Drive juga (jika mahasiswa)
+        if (isMahasiswa) {
+          await supabase.from('download_logs').insert({
+            user_id: userId,
+            material_id: file.id
+          });
+        }
         return;
       }
 
@@ -649,6 +744,15 @@ export default function Repository() {
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
+
+      // --- LOG DATA DOWNLOAD (BUKU HITAM) ---
+      if (isMahasiswa) {
+        const { error: logError } = await supabase.from('download_logs').insert({
+          user_id: userId,
+          material_id: file.id
+        });
+        if (logError) console.error("Gagal mencatat log download:", logError);
+      }
 
       toast.success(
         <div className="flex flex-col gap-3 w-full">
@@ -1051,12 +1155,16 @@ export default function Repository() {
                           </span>
                         </Button>
                       ) : (
-                        <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
-                          <Download className="w-4 h-4 mr-2" />
-                          <span className="truncate">
-                            Download
-                          </span>
-                        </Button>
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenFile(file)} className="flex-1 sm:flex-none justify-center gap-2 rounded-full border border-muted hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all">
+                            <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">Buka File</span>
+                          </Button>
+                          <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
+                            <Download className="w-4 h-4 mr-2" />
+                            <span className="truncate">Download</span>
+                          </Button>
+                        </>
                       )}
                       {canManage && (
                         <Button
