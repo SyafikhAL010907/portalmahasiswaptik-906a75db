@@ -75,6 +75,9 @@ func autoMigrate(db *gorm.DB) error {
 	// ENSURE updated_at column exists (in case table was created without it previously)
 	db.Exec(`ALTER TABLE global_configs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`)
 
+	// 🛡️ USER REQUESTED: Resolve migration blocker (uni_classes_name constraint)
+	db.Exec(`ALTER TABLE classes DROP CONSTRAINT IF EXISTS uni_classes_name`)
+
 	// USER REQUESTED: Force add billing_selected_month column (even if we use key-value store, we follow owner's lead)
 	db.Exec(`ALTER TABLE global_configs ADD COLUMN IF NOT EXISTS billing_selected_month INT DEFAULT 0`)
 
@@ -121,11 +124,6 @@ func autoMigrate(db *gorm.DB) error {
 	db.Exec(`
 		DO $$ 
 		BEGIN 
-			-- Drop existing fkey to ensure it's updated to CASCADE
-			IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'materials_subject_id_fkey') THEN
-				ALTER TABLE materials DROP CONSTRAINT materials_subject_id_fkey;
-			END IF;
-			
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_materials_subjects') THEN
 				ALTER TABLE materials 
 				ADD CONSTRAINT fk_materials_subjects 

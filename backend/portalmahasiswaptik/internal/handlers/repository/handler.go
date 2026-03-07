@@ -188,35 +188,42 @@ func (h *RepositoryHandler) DownloadMaterial(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "materi tidak ditemukan. ID mungkin salah atau data terhapus."})
 	}
 
-	// --- QUOTA CHECK (V10 - Per Resource Aware) ---
+	// --- QUOTA CHECK (STRICT V12) ---
 	var quota struct {
 		Restricted bool      `json:"restricted"`
 		Remaining  int       `json:"remaining"`
 		ResetAt    time.Time `json:"reset_at"`
 	}
-	// Pass Role and ResourceID to SQL
-	err = h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)",
-		user.UserID, "material", user.Role, id).Scan(&quota).Error
-
-	if err == nil && quota.Restricted {
-		resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
-		msg := fmt.Sprintf("⏳ Jatah harian habis. Materi hanya bisa diunduh 1x per hari. Jatah Anda akan reset pada: %s.", resetTime)
-		if user.Role == "mahasiswa" {
-			msg = fmt.Sprintf("⏳ Jatah mingguan untuk file ini habis. Mahasiswa hanya bisa mengunduh file yang sama 1x per 7 hari. Gunakan 'Buka Preview' untuk melihat isi file. Jatah reset pada: %s.", resetTime)
-		}
-		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-			"error": msg,
+	
+	// Query check_download_quota
+	if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)",
+		user.UserID, "material", user.Role, id).Scan(&quota).Error; err != nil {
+		fmt.Printf("❌ Database Error (Quota Check): %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Sistem Gagal Verifikasi Jatah Download. Silakan coba beberapa saat lagi.",
 		})
 	}
 
-	// --- LOG DOWNLOAD ---
+	if quota.Restricted {
+		resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
+		msg := fmt.Sprintf("⏳ Jatah download habis. Jatah Anda akan reset pada: %s.", resetTime)
+		if user.Role == "mahasiswa" {
+			msg = fmt.Sprintf("⏳ Jatah file ini habis (1x/7hari). Gunakan 'Buka Preview' untuk melihat isi file. Reset pada: %s.", resetTime)
+		}
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": msg})
+	}
+
+	// --- LOG DOWNLOAD (STRICT V12) ---
 	if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)",
 		user.UserID, id, "material").Error; err != nil {
-		fmt.Printf("⚠️ Warning: Gagal mencatat log download material: %v\n", err)
+		fmt.Printf("❌ Critical Error: Gagal mencatat log download: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Gagal Verifikasi Keamanan (Log Failure). Download diblokir.",
+		})
 	}
 
 	// Re-fetch remaining for smart toast
-	h.DB.Raw("SELECT remaining FROM public.check_download_quota(?, ?)", user.UserID, "material").Scan(&quota)
+	h.DB.Raw("SELECT remaining FROM public.check_download_quota(?, ?, ?, ?)", user.UserID, "material", user.Role, id).Scan(&quota)
 
 	return c.JSON(fiber.Map{
 		"success":   true,

@@ -44,27 +44,34 @@ func (h *AttendanceHandler) ExportAttendanceExcel(c *fiber.Ctx) error {
 			})
 		}
 
-		// --- QUOTA CHECK (V10 - Role Aware) ---
+		// --- QUOTA CHECK (STRICT V12) ---
 		var quota struct {
 			Restricted bool      `json:"restricted"`
 			Remaining  int       `json:"remaining"`
 			ResetAt    time.Time `json:"reset_at"`
 		}
-		// Pass Role and ResourceID (sessionID) to SQL
-		err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
-			user.UserID, "attendance_meeting", user.Role, sessionID).Scan(&quota).Error
+		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
+			user.UserID, "attendance_meeting", user.Role, sessionID).Scan(&quota).Error; err != nil {
+			fmt.Printf("❌ Database Error (Attendance Meeting Quota): %v\n", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal Verifikasi Jatah Download. Coba lagi nanti.",
+			})
+		}
 			
-		if err == nil && quota.Restricted {
+		if quota.Restricted {
 			resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error": fmt.Sprintf("⏳ Batas harian tercapai. Laporan Presensi hanya bisa diunduh 1x per hari. Jatah akan reset pada: %s. Gunakan 'Buka File' untuk tetap melihat data.", resetTime),
+				"error": fmt.Sprintf("⏳ Batas harian (1x/24jam) tercapai. Reset pada: %s.", resetTime),
 			})
 		}
 
-		// --- LOG DOWNLOAD ---
+		// --- LOG DOWNLOAD (STRICT V12) ---
 		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)", 
 			user.UserID, sessionID, "attendance_meeting").Error; err != nil {
-			fmt.Printf("❌ Error logging attendance meeting download: %v\n", err)
+			fmt.Printf("❌ Critical Error (Attendance Log): %v\n", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal mencatat audit download. Unduhan dibatalkan.",
+			})
 		}
 		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining - 1))
 	}
@@ -94,7 +101,7 @@ func (h *AttendanceHandler) ExportAttendanceExcel(c *fiber.Ctx) error {
 	// Finalize
 	filename := fmt.Sprintf("Absensi_%s_%s_P%d.xlsx", session.Meeting.Subject.Name, session.Class.Name, session.Meeting.MeetingNumber)
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Set("Content-Disposition", fmt.Sprintf("inline; filename=%s", filename))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 
 	return f.Write(c.Response().BodyWriter())
 }
@@ -124,27 +131,34 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 			})
 		}
 
-		// --- QUOTA CHECK (V10 - Role Aware) ---
+		// --- QUOTA CHECK (STRICT V12) ---
 		var quota struct {
 			Restricted bool      `json:"restricted"`
 			Remaining  int       `json:"remaining"`
 			ResetAt    time.Time `json:"reset_at"`
 		}
-		// Pass Role and ResourceID (classID) to SQL
-		err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
-			user.UserID, "attendance_master", user.Role, classID).Scan(&quota).Error
+		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
+			user.UserID, "attendance_master", user.Role, classID).Scan(&quota).Error; err != nil {
+			fmt.Printf("❌ Database Error (Attendance Master Quota): %v\n", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal Verifikasi Jatah Master Download. Coba lagi nanti.",
+			})
+		}
 			
-		if err == nil && quota.Restricted {
+		if quota.Restricted {
 			resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error": fmt.Sprintf("⏳ Batas harian tercapai. Master Laporan hanya bisa diunduh 1x per hari. Jatah akan reset pada: %s. Gunakan 'Buka File' untuk tetap melihat data.", resetTime),
+				"error": fmt.Sprintf("⏳ Batas harian master (1x/24jam) tercapai. Reset pada: %s.", resetTime),
 			})
 		}
 
-		// --- LOG DOWNLOAD ---
+		// --- LOG DOWNLOAD (STRICT V12) ---
 		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)", 
 			user.UserID, classID, "attendance_master").Error; err != nil {
-			fmt.Printf("❌ Error logging attendance master download: %v\n", err)
+			fmt.Printf("❌ Critical Error (Attendance Master Log): %v\n", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal verifikasi audit master download. Akses diblokir.",
+			})
 		}
 		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining - 1))
 	}
@@ -187,7 +201,7 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 		// Try to find session
 		// Use Order("created_at DESC") to get the LATEST session if duplicates exist
 		var session models.AttendanceSession
-		err := h.DB.Where("meeting_id = ? AND class_id = ?", meeting.ID, classID).Order("created_at DESC").First(&session).Error
+		err := h.DB.Where("meeting_id = ?", meeting.ID).Order("created_at DESC").First(&session).Error
 
 		// Prepare Data
 		recordMap := make(map[uuid.UUID]models.AttendanceRecord)
@@ -223,7 +237,7 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 	// Finalize
 	filename := fmt.Sprintf("Master_Absensi_%s_%s.xlsx", subject.Name, class.Name)
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Set("Content-Disposition", fmt.Sprintf("inline; filename=%s", filename))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 
 	return f.Write(c.Response().BodyWriter())
 }

@@ -1034,7 +1034,13 @@ export default function Finance() {
       // CLEANUP
       setTimeout(() => {
         window.URL.revokeObjectURL(downloadUrl);
-        document.body.removeChild(link);
+        try {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        } catch (err) {
+          console.warn("Cleanup warning: link already detached", err);
+        }
       }, 5000);
 
     } catch (error: any) {
@@ -1201,7 +1207,7 @@ export default function Finance() {
 
   return (
     <motion.div
-      className="space-y-6 pt-12 md:pt-0"
+      className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-12 md:pt-0 pb-10"
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
@@ -1407,12 +1413,12 @@ export default function Finance() {
             </div>
 
             {/* RIGHT: ACTION GROUP */}
-            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
               {/* V8.0: Class Actions (Visible ONLY in Monthly View) */}
               {!isLifetime && ['admin_dev', 'admin_kelas'].includes(currentUser?.role || '') && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="gap-2 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50">
+                    <Button variant="outline" className="gap-2 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 w-full sm:w-auto h-10 sm:h-9">
                       <Zap className="w-4 h-4" /> Aksi Kelas
                     </Button>
                   </DropdownMenuTrigger>
@@ -1448,11 +1454,17 @@ export default function Finance() {
               )}
 
               {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && (
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Button onClick={handlePreviewExcel} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all flex-1 sm:flex-initial h-9 font-bold rounded-xl">
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                  <Button 
+                    onClick={handlePreviewExcel} 
+                    className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all w-full sm:w-auto h-10 sm:h-9 font-bold rounded-xl"
+                  >
                     <Eye className="w-4 h-4" /> Buka File
                   </Button>
-                  <Button onClick={handleDownloadExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all flex-1 sm:flex-initial h-9 font-bold rounded-xl">
+                  <Button 
+                    onClick={handleDownloadExcel} 
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all w-full sm:w-auto h-10 sm:h-9 font-bold rounded-xl"
+                  >
                     <Download className="w-4 h-4" /> Export Excel
                   </Button>
                 </div>

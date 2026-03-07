@@ -43,7 +43,15 @@ func main() {
 		ErrorHandler: customErrorHandler,
 	})
 
-	// Root Health Check
+	// 🚀 FAST HEALTH CHECK (Place before heavy middleware/auth for Koyeb stability)
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.Status(200).JSON(fiber.Map{
+			"status":  "healthy",
+			"service": "Portal Mahasiswa PTIK API",
+			"version": "1.0.0",
+		})
+	})
+
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.Status(200).SendString("Backend PTIK is Running!")
 	})
@@ -98,14 +106,6 @@ func main() {
 		MaxAge:           86400,
 	}))
 
-	// Health check endpoint
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status":  "healthy",
-			"service": "Portal Mahasiswa PTIK API",
-			"version": "1.0.0",
-		})
-	})
 
 	// Initialize validator
 	validate := validator.New()

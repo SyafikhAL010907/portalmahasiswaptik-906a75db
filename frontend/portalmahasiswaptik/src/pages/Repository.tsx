@@ -70,8 +70,7 @@ const GDRIVE_LINKS: any = {
   }
 };
 
-// Dynamically determine backend URL - Use import.meta.env.VITE_API_URL for Koyeb Sync
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:9000/api";
+import { API_BASE_URL } from '@/lib/constants';
 
 // --- INTERFACES ---
 interface Subject {
@@ -161,7 +160,8 @@ export default function Repository() {
 
   // Material Dialog
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
-  const [materialForm, setMaterialForm] = useState({ title: '', description: '' });
+  const [materialForm, setMaterialForm] = useState({ id: '', title: '', description: '' });
+  const [isEditingMaterial, setIsEditingMaterial] = useState(false);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [isFileTooLarge, setIsFileTooLarge] = useState(false);
 
@@ -477,36 +477,41 @@ export default function Repository() {
     setIsSemesterDialogOpen(true);
   };
 
-  // 2. Material Actions
-  const handleAddMaterial = async () => {
-    if (!materialForm.title || !selectedCourse || !selectedSemester || !userId) {
-      toast.error("Mohon lengkapi form");
+   const handleEditMaterialClick = (material: Material) => {
+    setMaterialForm({
+      id: material.id,
+      title: material.title.split('.').slice(0, -1).join('.') || material.title,
+      description: material.description || ''
+    });
+    setIsEditingMaterial(true);
+    setFileToUpload(null);
+    setIsFileTooLarge(false);
+    setIsAddMaterialOpen(true);
+  };
+
+  const handleSaveMaterial = async () => {
+    if (!materialForm.title.trim()) {
+      toast.error("Judul materi wajib diisi");
       return;
     }
 
-    if (!fileToUpload) {
-      toast.error("Mohon pilih file");
+    if (!isEditingMaterial && !fileToUpload) {
+      toast.error("Silakan pilih file untuk diunggah");
       return;
     }
 
-    // Pengecekan limit 2MB (2 * 1024 * 1024 bytes)
-    if (fileToUpload.size > 2097152) {
-      // Dapatkan angka semester
-      const semesterNumber = selectedSemester.name.replace(/\D/g, '');
-      const subjectName = selectedCourse.name;
-
-      // Cari link target (Dynamic Fallback Routing)
-      let targetLink = GDRIVE_LINKS.root;
+    if (fileToUpload && isFileTooLarge) {
+      const semesterNumber = selectedSemester?.name.replace(/\D/g, '') || "1";
+      const subjectName = selectedCourse?.name || "";
+      let targetLink = GOOGLE_DRIVE_FOLDER_LINK;
 
       if (GDRIVE_LINKS.semesters[semesterNumber]) {
         targetLink = GDRIVE_LINKS.semesters[semesterNumber].root;
-
         if (GDRIVE_LINKS.semesters[semesterNumber].subjects && GDRIVE_LINKS.semesters[semesterNumber].subjects[subjectName]) {
           targetLink = GDRIVE_LINKS.semesters[semesterNumber].subjects[subjectName];
         }
       }
 
-      // Tutup dialog form dulu, lalu tampilkan modal konfirmasi cantik
       setIsAddMaterialOpen(false);
       openConfirmation(
         '⚠️ File Terlalu Besar',
@@ -517,7 +522,7 @@ export default function Repository() {
         'warning',
         '🚀 Buka Google Drive'
       );
-      return; // HENTIKAN proses upload ke Supabase
+      return;
     }
 
     setIsLoading(true);
@@ -529,102 +534,132 @@ export default function Repository() {
       let category = null;
       let isPinned = false;
 
-      if (isFileTooLarge) {
-        // --- Automate Server-side Upload to Google Drive ---
-        const driveFolderId = selectedCourse.drive_folder_id || PARENT_FOLDER_ID; // Fallback to parent if not set
+      // Only perform upload if a new file is selected
+      if (fileToUpload) {
+        if (isFileTooLarge) {
+          const driveFolderId = selectedCourse!.drive_folder_id || PARENT_FOLDER_ID;
+          const formData = new FormData();
+          formData.append('file', fileToUpload);
+          formData.append('parent_id', driveFolderId);
 
-        const formData = new FormData();
-        formData.append('file', fileToUpload);
-        formData.append('parent_id', driveFolderId);
+          const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+          if (sessionError) throw new Error('Sesi habis, silakan login ulang');
 
-        // 1. Refresh & Get Fresh Supabase session token for Auth
-        const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-        if (sessionError) throw new Error('Sesi habis, silakan login ulang');
+          const response = await fetch(`${API_BASE_URL}/api/repository/upload-drive`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session?.access_token}`,
+            },
+            body: formData,
+          });
 
-        const response = await fetch(`${API_BASE_URL}/api/repository/upload-drive`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: formData,
-        });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Gagal upload ke Google Drive');
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Gagal upload ke Google Drive');
+          storageType = 'google_drive';
+          finalFileUrl = result.webViewLink;
+          category = 'Umum';
+          isPinned = true;
+        } else {
+          const fileExt = fileToUpload.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `${selectedSemester!.id}/${selectedCourse!.code}/${fileName}`;
 
-        storageType = 'google_drive';
-        finalFileUrl = result.webViewLink; // Direct view link from Drive
-        category = 'Umum';
-        isPinned = true;
-      } else if (fileToUpload) {
-        // 1. Upload File to Supabase
-        const fileExt = fileToUpload.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${selectedSemester.id}/${selectedCourse.code}/${fileName}`;
+          const { error: uploadError } = await supabase.storage
+            .from('materials')
+            .upload(filePath, fileToUpload);
 
-        const { error: uploadError } = await supabase.storage
-          .from('materials')
-          .upload(filePath, fileToUpload);
+          if (uploadError) throw uploadError;
 
-        if (uploadError) throw uploadError;
+          const { data: { publicUrl } } = supabase.storage
+            .from('materials')
+            .getPublicUrl(filePath);
 
-        // 2. Get Public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('materials')
-          .getPublicUrl(filePath);
+          finalFileUrl = publicUrl;
+          storageType = 'supabase';
 
-        finalFileUrl = publicUrl;
-        storageType = 'supabase';
-
-        // 3. Determine Type
-        if (fileToUpload.type.startsWith('image/')) type = 'image';
-        else if (fileToUpload.type.startsWith('video/')) type = 'video';
-        else if (fileToUpload.type.includes('pdf')) type = 'pdf';
-      }
-
-      // 4. Insert Record
-      const driveFolderId = selectedCourse.drive_folder_id;
-      const folderLink = driveFolderId
-        ? `https://drive.google.com/drive/folders/${driveFolderId}`
-        : GOOGLE_DRIVE_FOLDER_LINK; // Fallback to parent
-
-      let finalTitle = materialForm.title.trim();
-      if (fileToUpload && fileToUpload.name) {
-        const extension = fileToUpload.name.substring(fileToUpload.name.lastIndexOf('.')).toLowerCase();
-        if (!finalTitle.toLowerCase().endsWith(extension)) {
-          finalTitle = finalTitle + extension;
+          if (fileToUpload.type.startsWith('image/')) type = 'image';
+          else if (fileToUpload.type.startsWith('video/')) type = 'video';
+          else if (fileToUpload.type.includes('pdf')) type = 'pdf';
         }
       }
 
-      const insertData: any = {
-        subject_id: selectedCourse.id,
-        semester: selectedSemester.id,
-        title: finalTitle,
-        description: materialForm.description,
-        file_type: type,
-        file_url: finalFileUrl,
-        file_size: storageType === 'google_drive' ? null : fileSize,
-        uploaded_by: userId, // Pastikan menggunakan uploaded_by, BUKAN user_id (sesuai struktur tabel database)
-        storage_type: storageType,
-        external_url: storageType === 'google_drive' ? folderLink : null,
-        is_pinned: isPinned
-      };
-
-      // Only add category if storage_type is google_drive to avoid issues if column is missing
-      if (storageType === 'google_drive') {
-        insertData.category = category;
+      let finalTitle = materialForm.title.trim();
+      // Only append extension if a new file was uploaded, otherwise preserve original title logic if needed
+      // For simplicity, we'll try to guess extension if it's missing but we have it in state
+      if (fileToUpload) {
+        const lastDotIndex = fileToUpload.name.lastIndexOf('.');
+        if (lastDotIndex !== -1) {
+            const extension = fileToUpload.name.substring(lastDotIndex).toLowerCase();
+            if (!finalTitle.toLowerCase().endsWith(extension)) {
+                finalTitle = finalTitle + extension;
+            }
+        }
       }
 
-      const { error: insertError } = await supabase.from('materials').insert([insertData]);
+      if (isEditingMaterial) {
+        // UPDATE EXISTING
+        const updateData: any = {
+          title: finalTitle,
+          description: materialForm.description,
+        };
 
-      if (insertError) throw insertError;
+        if (fileToUpload) {
+          updateData.file_url = finalFileUrl;
+          updateData.storage_type = storageType;
+          updateData.file_type = type;
+          updateData.file_size = storageType === 'google_drive' ? null : fileSize;
+          updateData.is_pinned = isPinned;
+          if (storageType === 'google_drive') {
+            updateData.category = category;
+            updateData.external_url = selectedCourse!.drive_folder_id
+                ? `https://drive.google.com/drive/folders/${selectedCourse!.drive_folder_id}`
+                : GOOGLE_DRIVE_FOLDER_LINK;
+          }
+        }
 
-      toast.success("Materi berhasil disimpan");
+        const { error: updateError } = await supabase
+          .from('materials')
+          .update(updateData)
+          .eq('id', materialForm.id);
+
+        if (updateError) throw updateError;
+        toast.success("Materi berhasil diupdate");
+      } else {
+        // INSERT NEW
+        const driveFolderId = selectedCourse!.drive_folder_id;
+        const folderLink = driveFolderId
+          ? `https://drive.google.com/drive/folders/${driveFolderId}`
+          : GOOGLE_DRIVE_FOLDER_LINK;
+
+        const insertData: any = {
+          subject_id: selectedCourse!.id,
+          semester: selectedSemester!.id,
+          title: finalTitle,
+          description: materialForm.description,
+          file_type: type,
+          file_url: finalFileUrl,
+          file_size: storageType === 'google_drive' ? null : fileSize,
+          uploaded_by: userId,
+          storage_type: storageType,
+          external_url: storageType === 'google_drive' ? folderLink : null,
+          is_pinned: isPinned
+        };
+
+        if (storageType === 'google_drive') {
+          insertData.category = category;
+        }
+
+        const { error: insertError } = await supabase.from('materials').insert([insertData]);
+        if (insertError) throw insertError;
+        toast.success("Materi berhasil disimpan");
+      }
+
       setIsAddMaterialOpen(false);
       setFileToUpload(null);
       setIsFileTooLarge(false);
-      setMaterialForm({ title: '', description: '' });
-      fetchMaterials(selectedCourse.id);
+      setMaterialForm({ id: '', title: '', description: '' });
+      fetchMaterials(selectedCourse!.id);
 
     } catch (err: any) {
       toast.error("Gagal menyimpan: " + err.message);
@@ -781,7 +816,13 @@ export default function Repository() {
       // Cleanup
       setTimeout(() => {
         window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(a);
+        try {
+          if (document.body.contains(a)) {
+            document.body.removeChild(a);
+          }
+        } catch (err) {
+          console.warn("Cleanup warning: link already detached", err);
+        }
       }, 5000);
     } catch (error: any) {
       console.error("Download error:", error);
@@ -886,7 +927,7 @@ export default function Repository() {
 
   return (
     <motion.div
-      className="space-y-6 pt-12 md:pt-0 pb-10 px-4 md:px-0 max-w-full"
+      className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-12 md:pt-0 pb-10"
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
@@ -1046,7 +1087,7 @@ export default function Repository() {
                             </DropdownMenu>
                           </div>
                         )}
-                        actionsClassName="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
+                        actionsClassName="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300"
                       />
                     </div>
                   );
@@ -1135,77 +1176,100 @@ export default function Repository() {
                 filteredMaterials.map((file) => (
                   <div
                     key={file.id}
-                    className="glass-card rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:shadow-soft transition-shadow w-full"
+                    className="glass-card rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 hover:shadow-soft transition-shadow w-full group"
                   >
-                    <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1 pr-4">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 pr-0 sm:pr-4 w-full sm:w-auto">
                       <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0",
+                        "w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0",
                         getFileIconBg(file)
                       )}>
                         {getFileIcon(file)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-foreground truncate leading-snug">{file.title}</h4>
+                          <h4 className="font-bold sm:font-medium text-sm sm:text-base text-foreground truncate leading-snug">{file.title}</h4>
                           {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex-shrink-0">
-                              Google Drive
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] sm:text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex-shrink-0">
+                              DRIVE
                             </span>
                           )}
                         </div>
                         {!(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
-                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-1">
+                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
                             {file.file_size && <span className="flex-shrink-0">{(file.file_size / 1024 / 1024).toFixed(2)} MB</span>}
                             <span className="hidden sm:inline">•</span>
                             <span className="flex-shrink-0">{new Date(file.created_at).toLocaleDateString()}</span>
                           </div>
                         ) : (
-                          <div className="text-xs text-muted-foreground mt-1">Google Drive Content</div>
+                          <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 font-medium italic">Google Drive Shared</div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-muted/30 w-full sm:w-auto justify-end">
-                      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <div className="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0 w-full sm:w-auto mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-muted/20">
+                      <div className="flex gap-2 flex-1 sm:flex-none">
                         {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
-                          <Button variant="pill" size="sm" onClick={() => window.open(file.file_url || file.external_url || '', '_blank')} className="flex-1 sm:flex-none justify-center">
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            <span className="truncate">
-                              Buka Drive
-                            </span>
+                          <Button 
+                            variant="pill" 
+                            size="sm" 
+                            onClick={() => window.open(file.file_url || file.external_url || '', '_blank')} 
+                            className="flex-1 sm:flex-none h-9 text-xs"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                            Buka Drive
                           </Button>
                         ) : (
                           <>
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenFile(file)} className="flex-1 sm:flex-none justify-center gap-2 rounded-full border border-muted hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all">
-                              <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                              <span className="truncate">Buka File</span>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleOpenFile(file)} 
+                              className="flex-1 sm:flex-none h-9 text-xs gap-1.5 rounded-full border border-muted/50 hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Buka
                             </Button>
-                            <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
-                              <Download className="w-4 h-4 mr-2" />
-                              <span className="truncate">Download</span>
+                            <Button 
+                              variant="pill" 
+                              size="sm" 
+                              onClick={() => handleDownload(file)} 
+                              className="flex-1 sm:flex-none h-9 text-xs"
+                            >
+                              <Download className="w-3.5 h-3.5 mr-1.5" />
+                              Download
                             </Button>
                           </>
                         )}
                       </div>
                       
                       {canManage && (
-                       <DropdownMenu>
-                         <DropdownMenuTrigger asChild>
-                           <Button
-                             size="icon"
-                             variant="ghost"
-                             className="h-10 w-10 sm:h-9 sm:w-9 text-muted-foreground hover:bg-muted/50 transition-all flex-shrink-0 rounded-full border border-muted/30 sm:border-none"
-                           >
-                             <MoreVertical className="w-4 h-4" />
-                           </Button>
-                         </DropdownMenuTrigger>
-                         <DropdownMenuContent align="end" className="w-32 rounded-xl glass-card border-none shadow-xl">
-                           <DropdownMenuItem onClick={() => handleDeleteMaterial(file.id, file.file_url)} className="gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 rounded-lg m-1">
-                             <Trash2 className="w-4 h-4" />
-                             <span className="font-medium">Hapus</span>
-                           </DropdownMenuItem>
-                         </DropdownMenuContent>
-                       </DropdownMenu>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9 text-muted-foreground hover:bg-muted/50 transition-all flex-shrink-0 rounded-full border border-muted/20 sm:border-none"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 rounded-xl glass-card border-none shadow-xl p-1">
+                            <DropdownMenuItem 
+                              onClick={() => handleEditMaterialClick(file)}
+                              className="gap-2 cursor-pointer focus:bg-primary/10 rounded-lg m-1 font-medium h-10 px-3"
+                            >
+                              <Pencil className="w-4 h-4 text-blue-500" />
+                              <span>Edit Data</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteMaterial(file.id, file.file_url)} 
+                              className="gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 rounded-lg m-1 font-medium h-10 px-3"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span>Hapus File</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   </div>
@@ -1285,7 +1349,7 @@ export default function Repository() {
             <div className="min-w-0 pr-6">
               <DialogHeader className="p-0 text-left">
                 <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
-                  Upload Materi
+                  {isEditingMaterial ? 'Edit Detail Materi' : 'Upload Materi Baru'}
                 </DialogTitle>
               </DialogHeader>
               <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
@@ -1370,11 +1434,11 @@ export default function Repository() {
           </div>
 
           <DialogFooter className="p-6 pt-0 flex sm:justify-end gap-3">
-            <Button variant="ghost" onClick={() => setIsAddMaterialOpen(false)} className="rounded-xl hover:bg-muted/50">
+            <Button variant="ghost" onClick={() => { setIsAddMaterialOpen(false); setIsEditingMaterial(false); setMaterialForm({ id: '', title: '', description: '' }); }} className="rounded-xl hover:bg-muted/50">
               Batal
             </Button>
             <Button
-              onClick={handleAddMaterial}
+              onClick={handleSaveMaterial}
               disabled={isLoading}
               className="rounded-xl px-10 bg-success hover:bg-success/90 text-white shadow-lg shadow-success/20 hover:shadow-success/40 active:scale-95 transition-all font-bold gap-2 h-11"
             >

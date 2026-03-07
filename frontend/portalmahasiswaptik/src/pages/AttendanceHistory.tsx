@@ -975,7 +975,9 @@ export default function AttendanceHistory() {
       // Cleanup
       setTimeout(() => {
         window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
       }, 5000);
     } catch (error: any) {
       console.error("Export failed:", error);
@@ -1212,7 +1214,9 @@ export default function AttendanceHistory() {
       // Cleanup
       setTimeout(() => {
         window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
       }, 5000);
     } catch (error: any) {
       console.error("Master Export Error:", error);
@@ -1243,7 +1247,7 @@ export default function AttendanceHistory() {
 
   return (
     <motion.div
-      className="space-y-6 pt-12 md:pt-0 pb-10"
+      className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-12 md:pt-0 pb-10"
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
