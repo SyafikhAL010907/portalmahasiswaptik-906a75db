@@ -37,13 +37,13 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 		if user.ClassID == nil || *user.ClassID != classID {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Akses Ditolak: Hanya bisa download data kelas sendiri."})
 		}
-		// --- QUOTA CHECK (STRICT V12) ---
+		// --- QUOTA CHECK (STRICT V12.1) ---
 		var quota struct {
 			Restricted bool      `json:"restricted"`
 			ResetAt    time.Time `json:"reset_at"`
 		}
 		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
-			user.UserID, "finance", user.Role, classID).Scan(&quota).Error; err != nil {
+			user.UserID, "finance", user.Role, classID.String()).Scan(&quota).Error; err != nil {
 			fmt.Printf("❌ Database Error (Finance Quota): %v\n", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Sistem Gagal Verifikasi Jatah Export. Silakan coba lagi nanti.",
@@ -51,17 +51,18 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 		}
 
 		if quota.Restricted {
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			// STRICT: Return 403 Forbidden instead of 429
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Jatah download mingguan (2x/7hari) habis. Tunggu hingga jatah reset.",
 			})
 		}
 		
-		// --- LOG DOWNLOAD (STRICT V12) ---
+		// --- LOG DOWNLOAD (STRICT V12.1 - MANDATORY) ---
 		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)", 
-			user.UserID, classID, "finance").Error; err != nil {
-			fmt.Printf("❌ Critical Error (Finance Log): %v\n", err)
+			user.UserID, classID.String(), "finance").Error; err != nil {
+			fmt.Printf("❌ Critical Error (Finance Log / Audit Failure): %v\n", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Gagal mencatat audit download. Proses dibatalkan demi keamanan.",
+				"error": "Gagal mencatat audit download. Proses dibatalkan demi keamanan jatah data.",
 			})
 		}
 	}

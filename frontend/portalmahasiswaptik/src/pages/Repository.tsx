@@ -145,6 +145,7 @@ export default function Repository() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [exhaustedMaterials, setExhaustedMaterials] = useState<Record<string, boolean>>({}); // State baru
   const [isLoading, setIsLoading] = useState(false);
 
   // RBAC
@@ -214,7 +215,7 @@ export default function Repository() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        
+
         // 1. Get profile for RBAC frontend flags
         const { data: profile } = await (supabase as any)
           .from('profiles')
@@ -477,7 +478,7 @@ export default function Repository() {
     setIsSemesterDialogOpen(true);
   };
 
-   const handleEditMaterialClick = (material: Material) => {
+  const handleEditMaterialClick = (material: Material) => {
     setMaterialForm({
       id: material.id,
       title: material.title.split('.').slice(0, -1).join('.') || material.title,
@@ -590,10 +591,10 @@ export default function Repository() {
       if (fileToUpload) {
         const lastDotIndex = fileToUpload.name.lastIndexOf('.');
         if (lastDotIndex !== -1) {
-            const extension = fileToUpload.name.substring(lastDotIndex).toLowerCase();
-            if (!finalTitle.toLowerCase().endsWith(extension)) {
-                finalTitle = finalTitle + extension;
-            }
+          const extension = fileToUpload.name.substring(lastDotIndex).toLowerCase();
+          if (!finalTitle.toLowerCase().endsWith(extension)) {
+            finalTitle = finalTitle + extension;
+          }
         }
       }
 
@@ -613,8 +614,8 @@ export default function Repository() {
           if (storageType === 'google_drive') {
             updateData.category = category;
             updateData.external_url = selectedCourse!.drive_folder_id
-                ? `https://drive.google.com/drive/folders/${selectedCourse!.drive_folder_id}`
-                : GOOGLE_DRIVE_FOLDER_LINK;
+              ? `https://drive.google.com/drive/folders/${selectedCourse!.drive_folder_id}`
+              : GOOGLE_DRIVE_FOLDER_LINK;
           }
         }
 
@@ -688,148 +689,121 @@ export default function Repository() {
   };
 
   // --- Buka File di Tab Baru (Smart Routing Anti-Auto-Download) ---
-  const handleOpenFile = (file: Material) => {
-    const url = file.file_url;
+  const handleOpenFile = async (file: Material) => {
+    if (!userId) return toast.error("Silakan login dulu, Bro!");
 
-    // Strip query params dulu (misal: ?token=xxx dari Supabase) sebelum deteksi ekstensi
-    const cleanUrl = url.split('?')[0];
-    const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
-
-    // Tipe Office: gunakan Google Docs Viewer agar preview di browser tanpa auto-download
-    const docsViewerTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
-
-    if (docsViewerTypes.includes(ext)) {
-      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
-      window.open(viewerUrl, '_blank');
-      toast.info("Membuka pratinjau dokumen...", {
-        description: "Gunakan fitur 'Buka di Aplikasi' pada browser untuk mengedit via WPS/Office.",
-        duration: 5000,
-      });
-    } else {
-      // PDF, Gambar, Video → langsung buka, browser sudah native support
-      window.open(url, '_blank');
-      toast.info("File dibuka di tab baru", {
-        description: "Gunakan 'Buka di Aplikasi' pada browser untuk membuka via Gallery/CamScanner.",
-        duration: 4000,
-      });
-    }
-  };
-
-  const handleDownload = async (file: Material) => {
     try {
-      if (!userId) {
-        toast.error("Silakan login untuk mendownload file");
-        return;
-      }
-
-      // AdminDev bypasses all limits
-      const isAdminDev = userRole === 'admin_dev';
-
-      if (!isAdminDev) {
-        toast.info("Memproses permintaan unduhan...");
-      }
-
-      // --- NEW: Use Backend to check quota and get URL ---
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Sesi tidak ditemukan");
-        return;
-      }
+      if (!session) throw new Error("Sesi tidak ditemukan");
 
+      toast.info("Memverifikasi izin akses...", { duration: 2000 });
+
+      // 1. HIT BACKEND (Wajib lapor satpam dulu biar jatah dipotong)
       const response = await fetch(`${API_BASE_URL}/repository/download/${file.id}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
 
+      // 2. HANDLE GEMBOK (Kalau jatah abis, blokir di sini)
       if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `Gagal memproses download (${response.status})`;
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.error || errorMessage;
-        } catch (e) {
-          errorMessage = errorText || errorMessage;
-        }
-
-        if (response.status === 429) {
-          toast.error("Batas Download Tercapai", {
-            description: errorMessage,
-            duration: 8000
-          });
+        const errorData = await response.json();
+        if (response.status === 403) {
+          toast.error("Akses Ditolak!", { description: errorData.error });
+          // Matikan tombol secara otomatis di UI
+          setExhaustedMaterials(prev => ({ ...prev, [file.id]: true }));
           return;
         }
-        throw new Error(errorMessage);
+        throw new Error(errorData.error || "Gagal verifikasi jatah");
       }
 
       const data = await response.json();
-      const downloadUrl = data.url;
-      const remainingQuota = data.remaining;
+      const url = data.url; // Ambil URL hasil verifikasi backend
 
-      // --- PROSES DOWNLOAD ---
-      if (file.storage_type === 'google_drive') {
-        window.open(downloadUrl, '_blank');
-        
-        const remainingText = remainingQuota !== undefined ? ` (Sisa jatah: ${remainingQuota})` : "";
-        toast.success(`Membuka Google Drive...${remainingText}`, {
-          description: "Cek folder 'Unduhan' jika Anda mendownload dari Drive.",
-          duration: 6000
-        });
-        return;
+      // 3. LOGIKA SMART PREVIEW (Biar tetep bisa buka di browser)
+      const cleanUrl = url.split('?')[0];
+      const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
+      const docsViewerTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+      if (docsViewerTypes.includes(ext)) {
+        // Pake Google Viewer buat file Office biar nggak auto-download
+        const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+        window.open(viewerUrl, '_blank');
+        toast.success("Pratinjau dibuka! (Jatah terpotong)");
+      } else {
+        // PDF, Gambar, Video langsung buka tab baru
+        window.open(url, '_blank');
+        toast.success("File dibuka! (Jatah terpotong)");
       }
 
-      toast.info("Menyiapkan file...");
-      const fileResponse = await fetch(downloadUrl);
-      if (!fileResponse.ok) throw new Error("Gagal mengambil file dari storage");
-
-      const blob = await fileResponse.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = blobUrl;
-      const fileName = file.title;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-
-      const remainingText = remainingQuota !== undefined ? ` Jatah download Anda sisa ${remainingQuota} lagi minggu/hari ini.` : "";
-
-      toast.success(
-        <div className="flex flex-col gap-3 w-full">
-          <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-sm text-foreground">File Berhasil!{remainingQuota !== undefined && " ✅"}</span>
-            <span className="text-xs text-muted-foreground">{remainingText}</span>
-            <span className="text-[10px] text-muted-foreground mt-1">File: <span className="font-mono break-all">{fileName}</span></span>
-          </div>
-          <button
-            onClick={() => {
-              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Anda!`);
-            }}
-            className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
-          >
-            LIHAT DOWNLOAD
-          </button>
-        </div>,
-        { duration: 8000 }
-      );
-
-      // Cleanup
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-        try {
-          if (document.body.contains(a)) {
-            document.body.removeChild(a);
-          }
-        } catch (err) {
-          console.warn("Cleanup warning: link already detached", err);
-        }
-      }, 5000);
     } catch (error: any) {
-      console.error("Download error:", error);
-      toast.error("Gagal mendownload file: " + error.message);
+      console.error("Open error:", error);
+      toast.error("Gagal membuka file!", {
+        description: "Ada masalah di database (500). Cek apakah material_id sudah dihapus!"
+      });
     }
   };
+  const handleDownload = async (file: Material) => {
+    if (!userId) {
+      toast.error("Silakan login dulu, Bro!");
+      return;
+    }
 
+    let link: HTMLAnchorElement | null = null;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sesi tidak ditemukan");
+
+      // 1. Cek Jatah ke Backend
+      const response = await fetch(`${API_BASE_URL}/repository/download/${file.id}`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+
+      // 2. Handle Gembok (403 = Jatah Habis)
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 403 || response.status === 429) {
+          toast.error("Jatah Habis!", { description: errorData.error });
+          // Kunci tombol download untuk file ini
+          setExhaustedMaterials(prev => ({ ...prev, [file.id]: true }));
+          return;
+        }
+        throw new Error(errorData.error || "Gagal mengambil file");
+      }
+
+      const data = await response.json();
+
+      // 3. Proses Download Fisik (Blob)
+      const fileResponse = await fetch(data.url);
+      const blob = await fileResponse.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = file.title;
+      document.body.appendChild(link);
+      link.click();
+
+      toast.success("Download Dimulai!", {
+        description: `Sisa jatah: ${data.remaining} kali lagi.`
+      });
+
+    } catch (error: any) {
+      console.error("Download error:", error);
+      toast.error("Gagal Verifikasi!", {
+        description: "Pastikan kolom material_id di database sudah dihapus (Error 500)!"
+      });
+    } finally {
+      // 4. Cleanup Link Anti-Crash
+      if (link && document.body.contains(link)) {
+        setTimeout(() => {
+          if (link && document.body.contains(link)) {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(link.href);
+          }
+        }, 200);
+      }
+    }
+  }; // <--- Kurung penutup fungsi handleDownload
   // --- HELPERS ---
   const getFileIcon = (file: Material) => {
     const type = file.file_type || '';
@@ -1209,10 +1183,10 @@ export default function Repository() {
                     <div className="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0 w-full sm:w-auto mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-muted/20">
                       <div className="flex gap-2 flex-1 sm:flex-none">
                         {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
-                          <Button 
-                            variant="pill" 
-                            size="sm" 
-                            onClick={() => window.open(file.file_url || file.external_url || '', '_blank')} 
+                          <Button
+                            variant="pill"
+                            size="sm"
+                            onClick={() => window.open(file.file_url || file.external_url || '', '_blank')}
                             className="flex-1 sm:flex-none h-9 text-xs"
                           >
                             <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
@@ -1220,28 +1194,33 @@ export default function Repository() {
                           </Button>
                         ) : (
                           <>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleOpenFile(file)} 
-                              className="flex-1 sm:flex-none h-9 text-xs gap-1.5 rounded-full border border-muted/50 hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all"
+                            {/* TOMBOL BUKA (VERSI STRICT) */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenFile(file)}
+                              disabled={exhaustedMaterials[file.id]} // <--- PASANG GEMBOK
+                              className="flex-1 sm:flex-none h-9 text-xs gap-1.5 rounded-full border border-muted/50 hover:border-primary/40 hover:bg-primary/5"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
-                              Buka
+                              {exhaustedMaterials[file.id] ? "Dibatasi" : "Buka"}
                             </Button>
-                            <Button 
-                              variant="pill" 
-                              size="sm" 
-                              onClick={() => handleDownload(file)} 
+
+                            {/* TOMBOL DOWNLOAD (VERSI STRICT) */}
+                            <Button
+                              variant="pill"
+                              size="sm"
+                              onClick={() => handleDownload(file)}
+                              disabled={exhaustedMaterials[file.id]} // <--- PASANG GEMBOK
                               className="flex-1 sm:flex-none h-9 text-xs"
                             >
                               <Download className="w-3.5 h-3.5 mr-1.5" />
-                              Download
+                              {exhaustedMaterials[file.id] ? "Jatah Habis" : "Download"}
                             </Button>
                           </>
                         )}
                       </div>
-                      
+
                       {canManage && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1254,15 +1233,15 @@ export default function Repository() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40 rounded-xl glass-card border-none shadow-xl p-1">
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => handleEditMaterialClick(file)}
                               className="gap-2 cursor-pointer focus:bg-primary/10 rounded-lg m-1 font-medium h-10 px-3"
                             >
                               <Pencil className="w-4 h-4 text-blue-500" />
                               <span>Edit Data</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteMaterial(file.id, file.file_url)} 
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteMaterial(file.id, file.file_url)}
                               className="gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 rounded-lg m-1 font-medium h-10 px-3"
                             >
                               <Trash2 className="w-4 h-4" />

@@ -44,36 +44,37 @@ func (h *AttendanceHandler) ExportAttendanceExcel(c *fiber.Ctx) error {
 			})
 		}
 
-		// --- QUOTA CHECK (STRICT V12) ---
+		// --- QUOTA CHECK (STRICT V12.1) ---
 		var quota struct {
 			Restricted bool      `json:"restricted"`
 			Remaining  int       `json:"remaining"`
 			ResetAt    time.Time `json:"reset_at"`
 		}
-		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
-			user.UserID, "attendance_meeting", user.Role, sessionID).Scan(&quota).Error; err != nil {
+		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)",
+			user.UserID, "attendance_meeting", user.Role, sessionID.String()).Scan(&quota).Error; err != nil {
 			fmt.Printf("❌ Database Error (Attendance Meeting Quota): %v\n", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Gagal Verifikasi Jatah Download. Coba lagi nanti.",
 			})
 		}
-			
+
 		if quota.Restricted {
 			resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			// STRICT: Return 403 Forbidden
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": fmt.Sprintf("⏳ Batas harian (1x/24jam) tercapai. Reset pada: %s.", resetTime),
 			})
 		}
 
-		// --- LOG DOWNLOAD (STRICT V12) ---
-		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)", 
-			user.UserID, sessionID, "attendance_meeting").Error; err != nil {
-			fmt.Printf("❌ Critical Error (Attendance Log): %v\n", err)
+		// --- LOG DOWNLOAD (STRICT V12.1 - MANDATORY) ---
+		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)",
+			user.UserID, sessionID.String(), "attendance_meeting").Error; err != nil {
+			fmt.Printf("❌ Critical Error (Attendance Log / Audit Failure): %v\n", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Gagal mencatat audit download. Unduhan dibatalkan.",
+				"error": "Gagal mencatat audit download. Unduhan dibatalkan demi keamanan jatah data.",
 			})
 		}
-		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining - 1))
+		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining-1))
 	}
 
 	// 2. Fetch Students sorted by NIM
@@ -131,36 +132,37 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 			})
 		}
 
-		// --- QUOTA CHECK (STRICT V12) ---
+		// --- QUOTA CHECK (STRICT V12.1) ---
 		var quota struct {
 			Restricted bool      `json:"restricted"`
 			Remaining  int       `json:"remaining"`
 			ResetAt    time.Time `json:"reset_at"`
 		}
-		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
-			user.UserID, "attendance_master", user.Role, classID).Scan(&quota).Error; err != nil {
+		if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)",
+			user.UserID, "attendance_master", user.Role, classID.String()).Scan(&quota).Error; err != nil {
 			fmt.Printf("❌ Database Error (Attendance Master Quota): %v\n", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Gagal Verifikasi Jatah Master Download. Coba lagi nanti.",
 			})
 		}
-			
+
 		if quota.Restricted {
 			resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			// STRICT: Return 403 Forbidden
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": fmt.Sprintf("⏳ Batas harian master (1x/24jam) tercapai. Reset pada: %s.", resetTime),
 			})
 		}
 
-		// --- LOG DOWNLOAD (STRICT V12) ---
-		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)", 
-			user.UserID, classID, "attendance_master").Error; err != nil {
-			fmt.Printf("❌ Critical Error (Attendance Master Log): %v\n", err)
+		// --- LOG DOWNLOAD (STRICT V12.1 - MANDATORY) ---
+		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)",
+			user.UserID, classID.String(), "attendance_master").Error; err != nil {
+			fmt.Printf("❌ Critical Error (Attendance Master Log / Audit Failure): %v\n", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Gagal verifikasi audit master download. Akses diblokir.",
+				"error": "Gagal verifikasi audit master download. Akses diblokir demi keamanan data.",
 			})
 		}
-		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining - 1))
+		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining-1))
 	}
 
 	// 1. Fetch Context (Subject, Class, Meetings, Students)
@@ -192,28 +194,31 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 	}
 
 	// 3. Loop Meetings and Generate Sheets
+	// 3. Loop Meetings and Generate Sheets
 	for i, meeting := range meetings {
 		sheetName := fmt.Sprintf("Pertemuan %d", meeting.MeetingNumber)
 		if i > 0 {
 			f.NewSheet(sheetName)
 		}
 
-		// Try to find session
-		// Use Order("created_at DESC") to get the LATEST session if duplicates exist
-		var session models.AttendanceSession
-		err := h.DB.Where("meeting_id = ?", meeting.ID).Order("created_at DESC").First(&session).Error
+		// --- UPDATE DI SINI: TRICK ANTI LOG MERAH ---
+		var sessions []models.AttendanceSession
+		// Kita pake Find + Limit(1) alih-alih First agar GORM tidak teriak "Record Not Found" di terminal
+		h.DB.Where("meeting_id = ?", meeting.ID).Order("created_at DESC").Limit(1).Find(&sessions)
 
 		// Prepare Data
 		recordMap := make(map[uuid.UUID]models.AttendanceRecord)
+		var session models.AttendanceSession
 
-		// If session exists, fetch records
-		if err == nil {
+		// Cek apakah sessions ketemu (panjang slice > 0)
+		if len(sessions) > 0 {
+			session = sessions[0] // Ambil session yang ketemu
+
 			// Hydrate relationships manually for the helper
 			session.Meeting = &meetings[i]
 			session.Meeting.Subject = &subject
 			session.Class = &class
 
-			// EXACT COPY OF FETCHING LOGIC FROM ExportAttendanceExcel
 			var records []models.AttendanceRecord
 			h.DB.Where("session_id = ?", session.ID).Find(&records)
 
@@ -221,7 +226,8 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 				recordMap[r.StudentID] = r
 			}
 		} else {
-			// Mock session for display if not exists
+			// LOGIC JIKA TIDAK ADA SESI (Sama kayak kode lama lo tapi lebih bersih)
+			fmt.Printf("ℹ️ Pertemuan %d belum ada sesi absen. Membuat sheet kosong.\n", meeting.MeetingNumber)
 			session = models.AttendanceSession{
 				Meeting: &models.Meeting{
 					MeetingNumber: meeting.MeetingNumber,
@@ -233,7 +239,6 @@ func (h *AttendanceHandler) ExportMasterAttendanceExcel(c *fiber.Ctx) error {
 
 		generateAttendanceSheet(f, sheetName, &session, students, recordMap)
 	}
-
 	// Finalize
 	filename := fmt.Sprintf("Master_Absensi_%s_%s.xlsx", subject.Name, class.Name)
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

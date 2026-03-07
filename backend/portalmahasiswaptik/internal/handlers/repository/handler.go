@@ -188,16 +188,16 @@ func (h *RepositoryHandler) DownloadMaterial(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "materi tidak ditemukan. ID mungkin salah atau data terhapus."})
 	}
 
-	// --- QUOTA CHECK (STRICT V12) ---
+	// --- QUOTA CHECK (STRICT V12.1) ---
 	var quota struct {
 		Restricted bool      `json:"restricted"`
 		Remaining  int       `json:"remaining"`
 		ResetAt    time.Time `json:"reset_at"`
 	}
 	
-	// Query check_download_quota
+	// Query check_download_quota (Pass ID as string to match TEXT in DB)
 	if err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)",
-		user.UserID, "material", user.Role, id).Scan(&quota).Error; err != nil {
+		user.UserID, "material", user.Role, id.String()).Scan(&quota).Error; err != nil {
 		fmt.Printf("❌ Database Error (Quota Check): %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Sistem Gagal Verifikasi Jatah Download. Silakan coba beberapa saat lagi.",
@@ -210,20 +210,22 @@ func (h *RepositoryHandler) DownloadMaterial(c *fiber.Ctx) error {
 		if user.Role == "mahasiswa" {
 			msg = fmt.Sprintf("⏳ Jatah file ini habis (1x/7hari). Gunakan 'Buka Preview' untuk melihat isi file. Reset pada: %s.", resetTime)
 		}
-		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": msg})
+		// STRICT: Return 403 Forbidden instead of 429 to trigger UI disable logic
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": msg})
 	}
 
-	// --- LOG DOWNLOAD (STRICT V12) ---
+	// --- LOG DOWNLOAD (STRICT V12.1 - MANDATORY) ---
+	// MANDATORY LOGGING: If INSERT fails, we MUST NOT send the file.
 	if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)",
-		user.UserID, id, "material").Error; err != nil {
-		fmt.Printf("❌ Critical Error: Gagal mencatat log download: %v\n", err)
+		user.UserID, id.String(), "material").Error; err != nil {
+		fmt.Printf("❌ Critical Error: Gagal mencatat log download (Audit Failure): %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Gagal Verifikasi Keamanan (Log Failure). Download diblokir.",
+			"error": "Gagal Verifikasi Keamanan (Log Failure). Download diblokir demi keamanan data.",
 		})
 	}
 
 	// Re-fetch remaining for smart toast
-	h.DB.Raw("SELECT remaining FROM public.check_download_quota(?, ?, ?, ?)", user.UserID, "material", user.Role, id).Scan(&quota)
+	h.DB.Raw("SELECT remaining FROM public.check_download_quota(?, ?, ?, ?)", user.UserID, "material", user.Role, id.String()).Scan(&quota)
 
 	return c.JSON(fiber.Map{
 		"success":   true,
