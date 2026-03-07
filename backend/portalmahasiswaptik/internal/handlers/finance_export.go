@@ -13,10 +13,10 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// ExportFinanceExcel generates the Finance report
 func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 	classIDStr := c.Query("class_id")
 	yearStr := c.Query("year")
+	action := c.Query("action")
 
 	if classIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "class_id required"})
@@ -32,14 +32,41 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 
 	user := c.Locals("user").(middleware.UserContext)
 
-	// --- IDOR PROTECTION (Zero Tolerance) ---
-	// AdminDev can see everything. Others only their own class.
-	if user.Role != models.RoleAdminDev {
+	// --- TRANSPARENCY VS SECURITY LOGIC ---
+	// Preview (action != download) is open for transparency.
+	// Download (action == download) is restricted to class owner or AdminDev.
+	if action == "download" && user.Role != models.RoleAdminDev {
 		if user.ClassID == nil || *user.ClassID != classID {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Akses Ditolak: Anda tidak memiliki akses ke data keuangan kelas ini.",
+				"error": "Keamanan Dokumen: Anda hanya diperbolehkan mengunduh (Download) data kelas Anda sendiri. Untuk melihat data kelas lain, gunakan fitur 'Buka File' (Pratinjau).",
 			})
 		}
+
+		// --- QUOTA CHECK (V10 - Role Aware) ---
+		var quota struct {
+			Restricted bool      `json:"restricted"`
+			Remaining  int       `json:"remaining"`
+			ResetAt    time.Time `json:"reset_at"`
+		}
+		// Pass Role and ResourceID (classID) to SQL
+		err := h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)", 
+			user.UserID, "finance", user.Role, classID).Scan(&quota).Error
+			
+		if err == nil && quota.Restricted {
+			resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": fmt.Sprintf("🚫 Jatah download mingguan habis. Laporan Keuangan maksimal diunduh 2x per minggu untuk menjaga beban server. Jatah Anda akan reset pada: %s", resetTime),
+			})
+		}
+
+		// --- LOG DOWNLOAD ---
+		if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)", 
+			user.UserID, classID, "finance").Error; err != nil {
+			fmt.Printf("❌ Error logging finance download: %v\n", err)
+		}
+		
+		// Send remaining quota via header for Smart Toast
+		c.Set("X-Download-Remaining", fmt.Sprintf("%d", quota.Remaining - 1))
 	}
 
 	// --- 1. PREPARE DATA ---
@@ -501,7 +528,7 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 	f.SetActiveSheet(0)
 	filename := fmt.Sprintf("Laporan_Keuangan_%s_%d.xlsx", className, year)
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Set("Content-Disposition", fmt.Sprintf("inline; filename=%s", filename))
 
 	return f.Write(c.Response().BodyWriter())
 }

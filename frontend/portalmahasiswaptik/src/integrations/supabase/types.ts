@@ -643,6 +643,45 @@ export type Database = {
         }
         Relationships: []
       }
+      download_logs: {
+        Row: {
+          id: string
+          user_id: string
+          material_id: string
+          downloaded_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          material_id: string
+          downloaded_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          material_id?: string
+          downloaded_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "download_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "download_logs_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -657,6 +696,11 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_mahasiswa: { Args: { _user_id: string }; Returns: boolean }
+      has_recent_download: {
+        Args: { _user_id: string; _material_id: string }
+        Returns: { restricted: boolean; available_at: string }[]
+      }
     }
     Enums: {
       app_role: "admin_dev" | "admin_kelas" | "admin_dosen" | "mahasiswa"

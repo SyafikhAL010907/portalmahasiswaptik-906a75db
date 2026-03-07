@@ -179,6 +179,7 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// ========================================
 	repo := protected.Group("/repository")
 	repo.Post("/upload-drive", repoHandler.UploadToDrive)
+	repo.Get("/download/:id", repoHandler.DownloadMaterial)
 
 	// ========================================
 	// EXPORT ROUTES

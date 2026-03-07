@@ -33,6 +33,7 @@ type Profile struct {
 	UserID    uuid.UUID  `gorm:"type:uuid;not null" json:"user_id"`
 	NIM       string     `gorm:"type:text;not null" json:"nim"`
 	FullName  string     `gorm:"type:text;not null" json:"full_name"`
+	Role      AppRole    `gorm:"type:text;default:'mahasiswa'" json:"role"`
 	AvatarURL *string    `gorm:"type:text" json:"avatar_url,omitempty"`
 	ClassID   *uuid.UUID `gorm:"type:uuid" json:"class_id,omitempty"`
 	CreatedAt time.Time  `gorm:"default:now()" json:"created_at"`

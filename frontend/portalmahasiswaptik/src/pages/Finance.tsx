@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, Variants } from 'framer-motion';
-import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap, Calendar } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Users, Check, Clock, X, Loader2, AlertCircle, Download, Gift, Pencil, Trash2, Plus, Save, ArrowRight, Folder, ChevronDown, MoreVertical, Unlock, Zap, Calendar, Eye } from 'lucide-react';
 import { PremiumCard } from '@/components/ui/PremiumCard';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import GlassConfirmationModal from '@/components/ui/GlassConfirmationModal';
@@ -944,6 +944,13 @@ export default function Finance() {
   };
 
   const handleDownloadExcel = async () => {
+    if (role === 'admin_kelas' && selectedClassId !== currentUser?.class_id) {
+      toast.error("Keamanan Dokumen", {
+        description: "Anda hanya diperbolehkan mengunduh (Download) data kelas Anda sendiri. Untuk melihat data kelas lain, gunakan fitur 'Buka File'.",
+      });
+      return;
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -955,7 +962,7 @@ export default function Finance() {
 
       // V8.2: Forced Dynamic URL (LAN/WiFi Friendly)
       const baseUrl = import.meta.env.VITE_API_URL;
-      const exportUrl = `${baseUrl}/finance/export?class_id=${selectedClassId}&year=${selectedYear}&start_month=${billingStart}&end_month=${billingEnd}`;
+      const exportUrl = `${baseUrl}/finance/export?class_id=${selectedClassId}&year=${selectedYear}&start_month=${billingStart}&end_month=${billingEnd}&token=${session.access_token}&action=download`;
 
       console.log("Export URL (Dynamic + Auth):", exportUrl);
 
@@ -970,10 +977,28 @@ export default function Finance() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Server Error: ${response.status} - ${errorText}`);
+        let errorMessage = `Server Error: ${response.status}`;
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+
+        if (response.status === 429) {
+          toast.error("Batas Download Tercapai", {
+            description: errorMessage,
+            duration: 8000
+          });
+          return;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       // HANDLE BLOB DOWNLOAD
+      const remainingQuota = response.headers.get('X-Download-Remaining');
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -985,22 +1010,25 @@ export default function Finance() {
       document.body.appendChild(link);
       link.click();
 
+      const remainingText = remainingQuota !== null ? ` Jatah download Anda sisa ${remainingQuota} lagi minggu ini.` : "";
+
       toast.success(
         <div className="flex flex-col gap-3 w-full">
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-sm text-foreground">Excel Berhasil!</span>
-            <span className="text-xs text-muted-foreground">File: <span className="font-mono text-[10px] break-all">{fileName}</span></span>
+            <span className="font-bold text-sm text-foreground">Excel Berhasil!{remainingQuota !== null && " ✅"}</span>
+            <span className="text-xs text-muted-foreground">{remainingText}</span>
+            <span className="text-[10px] text-muted-foreground mt-1">File: <span className="font-mono break-all">{fileName}</span></span>
           </div>
           <button
             onClick={() => {
-              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Chrome Anda!`);
+              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Anda!`);
             }}
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
           >
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 7000 }
+        { duration: 8000 }
       );
 
       // CLEANUP
@@ -1012,6 +1040,68 @@ export default function Finance() {
     } catch (error: any) {
       console.error("Download failed:", error);
       toast.error("Gagal mendownload Excel: " + error.message);
+    }
+  };
+
+  const handlePreviewExcel = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi tidak ditemukan. Silakan login kembali.");
+        return;
+      }
+
+      toast.info("Membuka preview Excel...");
+
+      // V8.7: Bridge Preview (Supabase -> Google Viewer)
+      const baseUrl = import.meta.env.VITE_API_URL;
+      const exportUrl = `${baseUrl}/finance/export?class_id=${selectedClassId}&year=${selectedTransactionYear}&start_month=${billingStart}&end_month=${billingEnd}&token=${session.access_token}`;
+
+      toast.info("Menyiapkan pratinjau...", { description: "Sedang memproses file untuk Google Sheets..." });
+      
+      try {
+        // 1. Fetch file as blob
+        const response = await fetch(exportUrl);
+        if (!response.ok) throw new Error("Gagal mengambil data dari server");
+        const blob = await response.blob();
+
+        // 2. Upload to Temporary Supabase Storage (Public)
+        const fileName = `temp_finance_${Date.now()}.xlsx`;
+        const filePath = `temp/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, blob, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        // 3. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        // 4. Open with Google Viewer
+        const gviewUrl = `https://docs.google.com/gview?url=${encodeURIComponent(publicUrl)}&embedded=true`;
+        window.open(gviewUrl, '_blank');
+        
+        toast.success("Pratinjau Siap!", {
+          description: "Gunakan 'Buka dengan Google Spreadsheet' di bagian atas.",
+          duration: 6000,
+        });
+
+        // Cleanup (Optional: background delete after 1 min)
+        setTimeout(() => {
+          supabase.storage.from("avatars").remove([filePath]);
+        }, 60000);
+
+      } catch (err: any) {
+        console.error("Bridge Preview Failed:", err);
+        // Fallback to direct open if bridge fails
+        window.open(exportUrl, '_blank');
+      }
+    } catch (error: any) {
+      console.error("Preview failed:", error);
+      toast.error("Gagal membuka preview: " + error.message);
     }
   };
 
@@ -1259,8 +1349,8 @@ export default function Finance() {
                 </Select>
               </div>
 
-              {/* V9.6 Exclusive Admin Control: Only AdminDev & AdminKelas can see this */}
-              {isAdmin && isLifetime && (
+              {/* V9.6 Exclusive Admin Control: Only AdminDev can see this */}
+              {role === 'admin_dev' && isLifetime && (
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-100 dark:bg-slate-900 p-2 sm:p-1 rounded-md border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-300 w-full sm:w-auto">
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2 mr-1">Dari</span>
@@ -1358,9 +1448,14 @@ export default function Finance() {
               )}
 
               {(currentUser?.role === 'admin_dev' || currentUser?.role === 'admin_kelas') && (
-                <Button onClick={handleDownloadExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all">
-                  <Download className="w-4 h-4" /> Export Excel
-                </Button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button onClick={handlePreviewExcel} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all flex-1 sm:flex-initial h-9 font-bold rounded-xl">
+                    <Eye className="w-4 h-4" /> Buka File
+                  </Button>
+                  <Button onClick={handleDownloadExcel} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all flex-1 sm:flex-initial h-9 font-bold rounded-xl">
+                    <Download className="w-4 h-4" /> Export Excel
+                  </Button>
+                </div>
               )}
             </div>
 

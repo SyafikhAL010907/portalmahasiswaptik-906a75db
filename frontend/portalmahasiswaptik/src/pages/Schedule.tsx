@@ -137,6 +137,24 @@ export default function Schedule() {
     evaluatePermissions();
   }, [selectedDay, selectedClass, userRole, userClassId]);
 
+  // V2: Smart Class Detection - Set initial filter based on user profile
+  useEffect(() => {
+    if (classList.length > 0 && !selectedClass) {
+      if (userClassId) {
+        // Match userClassId with classList to ensure it exists
+        const matchedClass = classList.find(c => c.id === userClassId);
+        if (matchedClass) {
+          setSelectedClass(userClassId);
+        } else {
+          setSelectedClass(classList[0].id);
+        }
+      } else if (userRole === 'admin_dev' || !userRole) {
+        // For Admin Dev or logged out, default to first class
+        setSelectedClass(classList[0].id);
+      }
+    }
+  }, [classList, userClassId, userRole]);
+
   const checkRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -178,7 +196,6 @@ export default function Schedule() {
     const { data } = await supabase.from('classes').select('id, name').order('name');
     if (data) {
       setClassList(data);
-      if (!selectedClass && data.length > 0) setSelectedClass(data[0].id);
     }
   };
 

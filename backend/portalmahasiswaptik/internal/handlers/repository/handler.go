@@ -5,7 +5,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -161,5 +164,64 @@ func (h *RepositoryHandler) UploadToDrive(c *fiber.Ctx) error {
 		"file_name":    file.Filename,
 		"webViewLink":  publicURL,
 		"storage_type": "supabase_storage",
+	})
+}
+// DownloadMaterial handles material downloads with quota enforcement
+// GET /api/repository/download/:id
+func (h *RepositoryHandler) DownloadMaterial(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid material id"})
+	}
+
+	user := c.Locals("user").(middleware.UserContext)
+
+	// Fetch Material to get URL
+	var material struct {
+		ID      uuid.UUID `gorm:"primaryKey"`
+		FileUrl string    `gorm:"column:file_url"`
+		Title   string    `gorm:"column:title"`
+	}
+	if err := h.DB.Model(&models.Material{}).Where("id = ?", id).First(&material).Error; err != nil {
+		fmt.Printf("❌ Error Repo 404: Material ID %s not found in database: %v\n", idStr, err)
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "materi tidak ditemukan. ID mungkin salah atau data terhapus."})
+	}
+
+	// --- QUOTA CHECK (V10 - Per Resource Aware) ---
+	var quota struct {
+		Restricted bool      `json:"restricted"`
+		Remaining  int       `json:"remaining"`
+		ResetAt    time.Time `json:"reset_at"`
+	}
+	// Pass Role and ResourceID to SQL
+	err = h.DB.Raw("SELECT * FROM public.check_download_quota(?, ?, ?, ?)",
+		user.UserID, "material", user.Role, id).Scan(&quota).Error
+
+	if err == nil && quota.Restricted {
+		resetTime := quota.ResetAt.Format("02 January 2006, 15:04")
+		msg := fmt.Sprintf("⏳ Jatah harian habis. Materi hanya bisa diunduh 1x per hari. Jatah Anda akan reset pada: %s.", resetTime)
+		if user.Role == "mahasiswa" {
+			msg = fmt.Sprintf("⏳ Jatah mingguan untuk file ini habis. Mahasiswa hanya bisa mengunduh file yang sama 1x per 7 hari. Gunakan 'Buka Preview' untuk melihat isi file. Jatah reset pada: %s.", resetTime)
+		}
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"error": msg,
+		})
+	}
+
+	// --- LOG DOWNLOAD ---
+	if err := h.DB.Exec("INSERT INTO public.download_logs (user_id, resource_id, download_type) VALUES (?, ?, ?)",
+		user.UserID, id, "material").Error; err != nil {
+		fmt.Printf("⚠️ Warning: Gagal mencatat log download material: %v\n", err)
+	}
+
+	// Re-fetch remaining for smart toast
+	h.DB.Raw("SELECT remaining FROM public.check_download_quota(?, ?)", user.UserID, "material").Scan(&quota)
+
+	return c.JSON(fiber.Map{
+		"success":   true,
+		"url":       material.FileUrl,
+		"title":     material.Title,
+		"remaining": quota.Remaining,
 	})
 }

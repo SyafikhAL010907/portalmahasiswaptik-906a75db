@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion, Variants } from 'framer-motion';
-import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table, ExternalLink } from 'lucide-react';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
+import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table, ExternalLink, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -50,7 +56,8 @@ const GDRIVE_LINKS: any = {
         "Pendidikan Agama Islam": "https://drive.google.com/drive/folders/1xqhftYtXwJA7s5FgkvRvQuybZV2J8T6r?usp=drive_link",
         "Pendidikan Kewarganegaraan": "https://drive.google.com/drive/folders/1Rx75KAmzfYNZ-HgoYfvAWXCqZUAtoL9i?usp=drive_link",
         "Perkembangan Peserta Didik": "https://drive.google.com/drive/folders/1CMFONA_1lEcZToyDGIzqIaczd0sVqmld?usp=drive_link",
-        "E-Learning": "https://drive.google.com/drive/folders/1IyNs-DT-HLQA4AUE5ogn1J1Uo0_apSyI?usp=drive_link"
+        "E-Learning": "https://drive.google.com/drive/folders/1IyNs-DT-HLQA4AUE5ogn1J1Uo0_apSyI?usp=drive_link",
+        "Interaksi Manusia & Komputer": "https://drive.google.com/drive/folders/14pmreIKjNgnDtKKgCKO78zK9KecKnG7N?usp=sharing"
       }
     },
     "3": { root: "https://drive.google.com/drive/folders/1dnQ4pR4SBbxvGOw3QXefz738fm18dp3g?usp=drive_link", subjects: {} },
@@ -145,6 +152,7 @@ export default function Repository() {
   const [canManage, setCanManage] = useState(false);
   const [isMahasiswa, setIsMahasiswa] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   // Course Dialog
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false);
@@ -215,6 +223,7 @@ export default function Repository() {
           .maybeSingle();
 
         const role = (profile as any)?.role;
+        setUserRole(role);
         const hasAccess = role === 'admin_dev' || role === 'admin_kelas' || role === 'admin kelas';
         setCanManage(hasAccess);
 
@@ -678,103 +687,100 @@ export default function Repository() {
         return;
       }
 
-      // --- LOGIC ANTI-SPAM (DOWNLOAD LIMITER) ---
-      if (isMahasiswa) {
-        // 1. Cek riwayat download via RPC
-        const { data, error: checkError } = await supabase.rpc('has_recent_download', {
-          _user_id: userId,
-          _material_id: file.id
-        });
+      // AdminDev bypasses all limits
+      const isAdminDev = userRole === 'admin_dev';
 
-        if (checkError) {
-          console.error("Limiter check error:", checkError);
-        } else if (data && data.length > 0 && data[0].restricted) {
-          // Mahasiswa terkena limit (1 File = 1x Download / 7 Hari)
-          const availableDate = new Date(data[0].available_at).toLocaleString('id-ID', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+      if (!isAdminDev) {
+        toast.info("Memproses permintaan unduhan...");
+      }
+
+      // --- NEW: Use Backend to check quota and get URL ---
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi tidak ditemukan");
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/repository/download/${file.id}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Gagal memproses download (${response.status})`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+
+        if (response.status === 429) {
+          toast.error("Batas Download Tercapai", {
+            description: errorMessage,
+            duration: 8000
           });
-
-          openConfirmation(
-            '🚫 Batas Download Tercapai',
-            `Kamu sudah mendownload file "${file.title}" sebelumnya. Sesuai kebijakan anti-spam, file yang sama hanya dapat didownload kembali setiap 7 hari untuk menghemat bandwidth server.\n\n📅 Tersedia kembali pada:\n${availableDate}`,
-            () => {
-              handleOpenFile(file); // Tawarkan preview sebagai alternatif
-            },
-            'warning',
-            '👁️ Buka Preview Saja'
-          );
           return;
         }
+        throw new Error(errorMessage);
       }
+
+      const data = await response.json();
+      const downloadUrl = data.url;
+      const remainingQuota = data.remaining;
 
       // --- PROSES DOWNLOAD ---
       if (file.storage_type === 'google_drive') {
-        window.open(file.file_url, '_blank');
-        toast.info("Membuka Google Drive...", {
-          description: "Cek folder 'Unduhan' jika Anda mendownload dari Drive.",
-          duration: 4000
-        });
+        window.open(downloadUrl, '_blank');
         
-        // Log download untuk Google Drive juga (jika mahasiswa)
-        if (isMahasiswa) {
-          await supabase.from('download_logs').insert({
-            user_id: userId,
-            material_id: file.id
-          });
-        }
+        const remainingText = remainingQuota !== undefined ? ` (Sisa jatah: ${remainingQuota})` : "";
+        toast.success(`Membuka Google Drive...${remainingText}`, {
+          description: "Cek folder 'Unduhan' jika Anda mendownload dari Drive.",
+          duration: 6000
+        });
         return;
       }
 
       toast.info("Menyiapkan file...");
+      const fileResponse = await fetch(downloadUrl);
+      if (!fileResponse.ok) throw new Error("Gagal mengambil file dari storage");
 
-      const response = await fetch(file.file_url);
-      if (!response.ok) throw new Error("Gagal mengambil file");
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const blob = await fileResponse.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
-      a.href = url;
+      a.href = blobUrl;
       const fileName = file.title;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
 
-      // --- LOG DATA DOWNLOAD (BUKU HITAM) ---
-      if (isMahasiswa) {
-        const { error: logError } = await supabase.from('download_logs').insert({
-          user_id: userId,
-          material_id: file.id
-        });
-        if (logError) console.error("Gagal mencatat log download:", logError);
-      }
+      const remainingText = remainingQuota !== undefined ? ` Jatah download Anda sisa ${remainingQuota} lagi minggu/hari ini.` : "";
 
       toast.success(
         <div className="flex flex-col gap-3 w-full">
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-sm text-foreground">File Berhasil!</span>
-            <span className="text-xs text-muted-foreground">File: <span className="font-mono text-[10px] break-all">{fileName}</span></span>
+            <span className="font-bold text-sm text-foreground">File Berhasil!{remainingQuota !== undefined && " ✅"}</span>
+            <span className="text-xs text-muted-foreground">{remainingText}</span>
+            <span className="text-[10px] text-muted-foreground mt-1">File: <span className="font-mono break-all">{fileName}</span></span>
           </div>
           <button
             onClick={() => {
-              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Chrome Anda!`);
+              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Anda!`);
             }}
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
           >
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 7000 }
+        { duration: 8000 }
       );
 
       // Cleanup
       setTimeout(() => {
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(blobUrl);
         document.body.removeChild(a);
       }, 5000);
     } catch (error: any) {
@@ -951,23 +957,29 @@ export default function Repository() {
                 iconClassName={`${SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].iconBg} ${SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].iconColor}`}
                 className={cn("w-full", SEMESTER_GRADIENTS[idx % SEMESTER_GRADIENTS.length].shadowColor)}
                 actions={canManage && (
-                  <div className="flex gap-3 items-center px-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-10 w-10 sm:h-8 sm:w-8 bg-black/40 text-white hover:bg-black/60 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center p-0"
-                      onClick={(e) => openEditSemester(semester, e)}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-10 w-10 sm:h-8 sm:w-8 bg-red-500/90 text-white hover:bg-red-600 backdrop-blur-md border border-red-400/20 rounded-full flex items-center justify-center p-0"
-                      onClick={(e) => handleDeleteSemester(semester.id, e)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                  <div className="flex gap-2 items-center px-1">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-10 w-10 sm:h-8 sm:w-8 bg-black/40 text-white hover:bg-black/60 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40 rounded-xl glass-card border-none shadow-xl">
+                        <DropdownMenuItem onClick={(e) => openEditSemester(semester, e)} className="gap-2 cursor-pointer focus:bg-primary/10 rounded-lg m-1">
+                          <Pencil className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium">Edit Semester</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleDeleteSemester(semester.id, e)} className="gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 rounded-lg m-1">
+                          <Trash2 className="w-4 h-4" />
+                          <span className="font-medium">Hapus</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 )}
                 actionsClassName="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
@@ -1009,23 +1021,29 @@ export default function Repository() {
                         className={cn("w-full", pastel.shadowColor)}
                         onClick={() => handleSelectCourse(course)}
                         actions={canManage && (
-                          <div className="flex gap-3 items-center px-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-10 w-10 sm:h-8 sm:w-8 bg-slate-100/90 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-sm rounded-full flex items-center justify-center p-0"
-                              onClick={(e) => handleEditCourseClick(course, e)}
-                            >
-                              <Pencil className="w-4 h-4 text-blue-500" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-10 w-10 sm:h-8 sm:w-8 bg-red-50/90 hover:bg-red-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 backdrop-blur-md border border-red-200/50 dark:border-rose-900/50 shadow-sm rounded-full flex items-center justify-center p-0"
-                              onClick={(e) => handleDeleteCourse(course.id, e)}
-                            >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
+                          <div className="flex gap-2 items-center px-1">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-10 w-10 sm:h-8 sm:w-8 bg-slate-100/90 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 shadow-sm rounded-full flex items-center justify-center p-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40 rounded-xl glass-card border-none shadow-xl">
+                                <DropdownMenuItem onClick={(e) => handleEditCourseClick(course, e)} className="gap-2 cursor-pointer focus:bg-primary/10 rounded-lg m-1">
+                                  <Pencil className="w-4 h-4 text-blue-500" />
+                                  <span className="font-medium">Edit Matkul</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => handleDeleteCourse(course.id, e)} className="gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 rounded-lg m-1">
+                                  <Trash2 className="w-4 h-4" />
+                                  <span className="font-medium">Hapus</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         )}
                         actionsClassName="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300"
@@ -1146,35 +1164,48 @@ export default function Repository() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-muted/30">
-                      {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
-                        <Button variant="pill" size="sm" onClick={() => window.open(file.file_url || file.external_url || '', '_blank')} className="flex-1 sm:flex-none justify-center">
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          <span className="truncate">
-                            Buka Drive
-                          </span>
-                        </Button>
-                      ) : (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => handleOpenFile(file)} className="flex-1 sm:flex-none justify-center gap-2 rounded-full border border-muted hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all">
-                            <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                            <span className="truncate">Buka File</span>
+
+                    <div className="flex flex-wrap items-center gap-2 flex-shrink-0 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-muted/30 w-full sm:w-auto justify-end">
+                      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                        {(file.storage_type === 'google_drive' || file.file_url?.includes('drive.google.com') || file.external_url) ? (
+                          <Button variant="pill" size="sm" onClick={() => window.open(file.file_url || file.external_url || '', '_blank')} className="flex-1 sm:flex-none justify-center">
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            <span className="truncate">
+                              Buka Drive
+                            </span>
                           </Button>
-                          <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
-                            <Download className="w-4 h-4 mr-2" />
-                            <span className="truncate">Download</span>
-                          </Button>
-                        </>
-                      )}
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => handleOpenFile(file)} className="flex-1 sm:flex-none justify-center gap-2 rounded-full border border-muted hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all">
+                              <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                              <span className="truncate">Buka File</span>
+                            </Button>
+                            <Button variant="pill" size="sm" onClick={() => handleDownload(file)} className="flex-1 sm:flex-none justify-center">
+                              <Download className="w-4 h-4 mr-2" />
+                              <span className="truncate">Download</span>
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      
                       {canManage && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-10 w-10 sm:h-9 sm:w-9 text-destructive hover:bg-destructive/10 bg-destructive/5 sm:bg-transparent flex-shrink-0 rounded-full"
-                          onClick={() => handleDeleteMaterial(file.id, file.file_url)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                       <DropdownMenu>
+                         <DropdownMenuTrigger asChild>
+                           <Button
+                             size="icon"
+                             variant="ghost"
+                             className="h-10 w-10 sm:h-9 sm:w-9 text-muted-foreground hover:bg-muted/50 transition-all flex-shrink-0 rounded-full border border-muted/30 sm:border-none"
+                           >
+                             <MoreVertical className="w-4 h-4" />
+                           </Button>
+                         </DropdownMenuTrigger>
+                         <DropdownMenuContent align="end" className="w-32 rounded-xl glass-card border-none shadow-xl">
+                           <DropdownMenuItem onClick={() => handleDeleteMaterial(file.id, file.file_url)} className="gap-2 cursor-pointer focus:bg-red-500/10 text-red-500 rounded-lg m-1">
+                             <Trash2 className="w-4 h-4" />
+                             <span className="font-medium">Hapus</span>
+                           </DropdownMenuItem>
+                         </DropdownMenuContent>
+                       </DropdownMenu>
                       )}
                     </div>
                   </div>

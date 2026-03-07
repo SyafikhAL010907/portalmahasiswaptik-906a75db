@@ -3,7 +3,7 @@ import { motion, Variants } from 'framer-motion';
 import {
   Folder, FolderOpen, Users, ChevronRight, ArrowLeft, Calendar,
   CheckCircle, XCircle, Clock, Plus, Pencil, Trash2, Save, Loader2,
-  UserCheck, FileText, Search, Edit, QrCode, RotateCcw, Download, FileSpreadsheet
+  UserCheck, FileText, Search, Edit, QrCode, RotateCcw, Download, FileSpreadsheet, Eye
 } from 'lucide-react';
 // import XLSX from 'xlsx-js-style'; // REMOVED to fix 'stream' error
 import { Button } from '@/components/ui/button';
@@ -167,6 +167,7 @@ export default function AttendanceHistory() {
           const profileData = profile as any;
           if (profileData.class_id) {
             setUserClassId(profileData.class_id);
+            setSelectedExportClassId(profileData.class_id);
           }
         }
 
@@ -866,8 +867,33 @@ export default function AttendanceHistory() {
     }
   };
   const handleExportExcel = async () => {
-    if (!currentSessionId) {
-      toast.error("Pilih pertemuan dan kelas untuk export");
+    // V8.3: Smart Context Finder (Directly use activeId if currentSessionId is missing)
+    let sessionId = currentSessionId;
+    
+    if (!sessionId && activeId.meeting && activeId.class) {
+      toast.info("Mencari data sesi presensi...");
+      const { data } = await supabase
+        .from('attendance_sessions')
+        .select('id')
+        .eq('meeting_id', activeId.meeting)
+        .eq('class_id', activeId.class)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        sessionId = data[0].id;
+      }
+    }
+
+    if (!sessionId) {
+      toast.error("Belum ada data presensi yang tercatat untuk pertemuan ini.");
+      return;
+    }
+
+    if (userRole === 'admin_kelas' && activeId.class !== userClassId) {
+      toast.error("Keamanan Dokumen", {
+        description: "Anda hanya diperbolehkan mengunduh data kelas sendiri. Untuk kelas lain, gunakan 'Buka File'.",
+      });
       return;
     }
 
@@ -879,9 +905,10 @@ export default function AttendanceHistory() {
       }
 
       toast.info("Sedang menyiapkan laporan presensi...");
-
       const baseUrl = import.meta.env.VITE_API_URL;
-      const response = await fetch(`${baseUrl}/export/attendance/excel?session_id=${currentSessionId}`, {
+      const exportUrl = `${baseUrl}/export/attendance/excel?session_id=${sessionId}&token=${session.access_token}&action=download`;
+
+      const response = await fetch(exportUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -889,10 +916,26 @@ export default function AttendanceHistory() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+
+        if (response.status === 429) {
+          toast.error("Batas Download Tercapai", {
+            description: errorMessage,
+            duration: 8000
+          });
+          return;
+        }
+        throw new Error(errorMessage);
       }
 
+      const remainingQuota = response.headers.get('X-Download-Remaining');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -908,22 +951,25 @@ export default function AttendanceHistory() {
       document.body.appendChild(a);
       a.click();
 
+      const remainingText = remainingQuota !== null ? ` Jatah download Anda sisa ${remainingQuota} lagi hari ini.` : "";
+
       toast.success(
         <div className="flex flex-col gap-3 w-full">
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-sm text-foreground">Excel Berhasil!</span>
-            <span className="text-xs text-muted-foreground">File: <span className="font-mono text-[10px] break-all">{fileName}</span></span>
+            <span className="font-bold text-sm text-foreground">Excel Berhasil!{remainingQuota !== null && " ✅"}</span>
+            <span className="text-xs text-muted-foreground">{remainingText}</span>
+            <span className="text-[10px] text-muted-foreground mt-1">File: <span className="font-mono break-all">{fileName}</span></span>
           </div>
           <button
             onClick={() => {
-              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Chrome Anda!`);
+              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Anda!`);
             }}
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
           >
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 7000 }
+        { duration: 8000 }
       );
 
       // Cleanup
@@ -937,9 +983,151 @@ export default function AttendanceHistory() {
     }
   };
 
-  const handleDownloadMasterExcel = async () => {
-    if (!selectedExportClassId) {
+  const handlePreviewMeetingExcel = async () => {
+    // V8.5: Auto-Session Discovery
+    let sessionId = currentSessionId;
+    
+    if (!sessionId && activeId.meeting && activeId.class) {
+      toast.info("Mencari Sesi Presensi...");
+      const { data } = await supabase
+        .from('attendance_sessions')
+        .select('id')
+        .eq('meeting_id', activeId.meeting)
+        .eq('class_id', activeId.class)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        sessionId = data[0].id;
+      }
+    }
+
+    if (!sessionId) {
+      toast.error("Belum ada data presensi untuk pertemuan ini. Silakan buat absensi terlebih dahulu.");
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi tidak ditemukan");
+        return;
+      }
+
+      const baseUrl = import.meta.env.VITE_API_URL;
+      const exportUrl = `${baseUrl}/export/attendance/excel?session_id=${sessionId}&token=${session.access_token}`;
+      
+      toast.info("Menyiapkan pratinjau...", { description: "Sedang memproses file untuk Google Sheets..." });
+      
+      try {
+        const response = await fetch(exportUrl);
+        if (!response.ok) throw new Error("Gagal mengambil data dari server");
+        const blob = await response.blob();
+
+        const fileName = `temp_att_${Date.now()}.xlsx`;
+        const filePath = `temp/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, blob, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        const gviewUrl = `https://docs.google.com/gview?url=${encodeURIComponent(publicUrl)}&embedded=true`;
+        window.open(gviewUrl, '_blank');
+        
+        toast.success("Pratinjau Siap!", { duration: 5000 });
+
+        setTimeout(() => {
+          supabase.storage.from("avatars").remove([filePath]);
+        }, 60000);
+      } catch (err: any) {
+        console.error("Bridge Preview Failed:", err);
+        window.open(exportUrl, '_blank');
+      }
+    } catch (error: any) {
+      console.error("Preview failed:", error);
+      toast.error("Gagal membuka preview: " + error.message);
+    }
+  };
+
+  const handlePreviewMasterExcel = async () => {
+    const classId = selectedExportClassId || activeId.class;
+    if (!classId) {
       toast.error("Pilih kelas terlebih dahulu");
+      return;
+    }
+    
+    if (userRole === 'admin_kelas' && classId !== userClassId) {
+      toast.error("Keamanan Dokumen", {
+        description: "Anda hanya diperbolehkan mengunduh Master Laporan kelas Anda sendiri.",
+      });
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sesi tidak ditemukan");
+        return;
+      }
+
+      const baseUrl = import.meta.env.VITE_API_URL;
+      const exportUrl = `${baseUrl}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${classId}&token=${session.access_token}&action=download`;
+      
+      toast.info("Menyiapkan pratinjau Master...", { description: "Sedang memproses file Master untuk Google Sheets..." });
+      
+      try {
+        const response = await fetch(exportUrl);
+        if (!response.ok) throw new Error("Gagal mengambil data Master");
+        const blob = await response.blob();
+
+        const fileName = `temp_master_${Date.now()}.xlsx`;
+        const filePath = `temp/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, blob, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        const gviewUrl = `https://docs.google.com/gview?url=${encodeURIComponent(publicUrl)}&embedded=true`;
+        window.open(gviewUrl, '_blank');
+        
+        toast.success("Pratinjau Master Siap!", { duration: 5000 });
+
+        setTimeout(() => {
+          supabase.storage.from("avatars").remove([filePath]);
+        }, 60000);
+      } catch (err: any) {
+        console.error("Bridge Preview Failed:", err);
+        window.open(exportUrl, '_blank');
+      }
+    } catch (error: any) {
+      console.error("Preview Master failed:", error);
+      toast.error("Gagal membuka preview Master: " + error.message);
+    }
+  };
+
+  const handleDownloadMasterExcel = async () => {
+    const classId = selectedExportClassId || activeId.class;
+    if (!classId) {
+      toast.error("Pilih kelas terlebih dahulu");
+      return;
+    }
+
+    if (userRole === 'admin_kelas' && classId !== userClassId) {
+      toast.error("Keamanan Dokumen", {
+        description: "Anda hanya diperbolehkan mengunduh Master Laporan kelas Anda sendiri.",
+      });
       return;
     }
 
@@ -952,9 +1140,10 @@ export default function AttendanceHistory() {
       }
 
       toast.info("Sedang generate Master Excel...");
-
       const baseUrl = import.meta.env.VITE_API_URL;
-      const response = await fetch(`${baseUrl}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${selectedExportClassId}`, {
+      const exportUrl = `${baseUrl}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${classId}&token=${session.access_token}&action=download`;
+
+      const response = await fetch(exportUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -962,16 +1151,33 @@ export default function AttendanceHistory() {
       });
 
       if (!response.ok) {
-        throw new Error("Gagal download: " + response.statusText);
+        const errorText = await response.text();
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+
+        if (response.status === 429) {
+          toast.error("Batas Download Tercapai", {
+            description: errorMessage,
+            duration: 8000
+          });
+          return;
+        }
+        throw new Error(errorMessage);
       }
 
+      const remainingQuota = response.headers.get('X-Download-Remaining');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
 
-      const className = classes.find(c => c.id === selectedExportClassId)?.name || 'Kelas';
+      const className = classes.find(c => c.id === classId)?.name || (activeId.className || 'Kelas');
       const safeSubject = (activeId.courseName || 'Subject').replace(/\s+/g, '_');
       const safeClass = className.replace(/\s+/g, '_');
       const fileName = `Master_Absensi_${safeSubject}_${safeClass}.xlsx`;
@@ -980,22 +1186,25 @@ export default function AttendanceHistory() {
       document.body.appendChild(a);
       a.click();
 
+      const remainingText = remainingQuota !== null ? ` Jatah download sisa ${remainingQuota} lagi hari ini.` : "";
+
       toast.success(
         <div className="flex flex-col gap-3 w-full">
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-sm text-foreground">Master Excel Berhasil!</span>
-            <span className="text-xs text-muted-foreground">File: <span className="font-mono text-[10px] break-all">{fileName}</span></span>
+            <span className="font-bold text-sm text-foreground">Master Excel Berhasil!{remainingQuota !== null && " ✅"}</span>
+            <span className="text-xs text-muted-foreground">{remainingText}</span>
+            <span className="text-[10px] text-muted-foreground mt-1">File: <span className="font-mono break-all">{fileName}</span></span>
           </div>
           <button
             onClick={() => {
-              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Chrome Anda!`);
+              toast.info(`File ${fileName} sudah tersimpan di folder 'Download' Anda!`);
             }}
             className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all shadow-sm text-sm"
           >
             LIHAT DOWNLOAD
           </button>
         </div>,
-        { duration: 7000 }
+        { duration: 8000 }
       );
 
       setIsMasterExportOpen(false);
@@ -1075,23 +1284,40 @@ export default function AttendanceHistory() {
             </Button>
           )}
           {view === 'meetings' && canEdit && (
-            <>
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+              {userRole === 'admin_kelas' ? (
+                <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    onClick={handlePreviewMasterExcel}
+                    className="rounded-xl gap-2 shadow-lg hover:scale-110 transition-transform h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm flex-1 sm:flex-initial"
+                  >
+                    <Eye className="w-4 h-4" /> Buka Master
+                  </Button>
+                  <Button
+                    onClick={handleDownloadMasterExcel}
+                    className="rounded-xl gap-2 shadow-lg hover:scale-110 transition-transform h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex-1 sm:flex-initial"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" /> Download
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => setIsMasterExportOpen(true)}
+                  className="rounded-xl gap-2 shadow-lg hover:scale-110 transition-transform h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold w-full sm:w-auto text-xs sm:text-sm"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Export Master Semester
+                </Button>
+              )}
               {userRole === 'admin_dev' && (
                 <Button
                   variant="destructive"
                   onClick={handleResetGlobalSubject}
-                  className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4"
+                  className="rounded-xl gap-2 shadow-lg hover:scale-110 transition-transform h-9 px-4 font-bold w-full sm:w-auto text-xs sm:text-sm"
                 >
-                  <RotateCcw className="w-4 h-4" /> Reset Global Matkul
+                  <RotateCcw className="w-4 h-4" /> Reset Matkul
                 </Button>
               )}
-              <Button
-                onClick={() => setIsMasterExportOpen(true)}
-                className="rounded-xl gap-2 shadow-lg hover:scale-105 transition-transform flex-1 md:flex-initial h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <FileSpreadsheet className="w-4 h-4" /> Download Master Excel (Semester)
-              </Button>
-            </>
+            </div>
           )}
         </div>
       </motion.div>
@@ -1206,28 +1432,35 @@ export default function AttendanceHistory() {
               <Users className="w-5 h-5 text-primary" /> Daftar Mahasiswa
               <span className="text-sm font-normal text-muted-foreground ml-2">({students.length} Total)</span>
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+            <div className="flex flex-col gap-3 w-full lg:w-auto lg:flex-row lg:items-center">
               {userRole === 'admin_dev' && (
-                <Button variant="destructive" onClick={handleResetSession} className="w-full gap-2 h-10 px-5 rounded-full shadow-lg transition-all hover:scale-[1.03] active:scale-[0.97]">
-                  <RotateCcw className="w-4 h-4" /> Reset Status Pertemuan
+                <Button variant="destructive" onClick={handleResetSession} className="w-full lg:w-auto min-w-[140px] gap-2 h-10 px-4 rounded-full shadow-lg transition-all hover:scale-[1.03] active:scale-[0.97] text-sm font-bold order-1">
+                  <RotateCcw className="w-4 h-4" /> Reset Status
                 </Button>
               )}
               {canEdit && (
-                <>
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto order-2">
                   {userRole !== 'mahasiswa' && userRole !== null && (
-                    <Button
-                      onClick={handleExportExcel}
-                      className="w-full gap-2 h-10 px-5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.03] active:scale-[0.97]"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      <span className="font-bold">Download Excel</span>
-                    </Button>
+                    <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                      <Button
+                        onClick={handlePreviewMeetingExcel}
+                        className="gap-2 h-10 px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all hover:scale-110 font-bold text-xs sm:text-sm"
+                      >
+                        <Eye className="w-4 h-4" /> Buka File
+                      </Button>
+                      <Button
+                        onClick={handleExportExcel}
+                        className="gap-2 h-10 px-4 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg transition-all hover:scale-110 font-bold text-xs sm:text-sm"
+                      >
+                        <Download className="w-4 h-4" /> Export
+                      </Button>
+                    </div>
                   )}
                   <Button
                     onClick={saveAttendance}
-                    disabled={Object.keys(pendingChanges).length === 0 || isLoading || isLockedForAdminKelas}
+                    disabled={Object.keys(pendingChanges).length === 0 || isLoading}
                     className={cn(
-                      "w-full gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold",
+                      "w-full sm:w-auto min-w-[180px] gap-2 h-10 px-5 transition-all duration-300 rounded-full font-bold order-3",
                       Object.keys(pendingChanges).length > 0
                         ? "bg-gradient-to-r from-indigo-600 via-violet-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white shadow-lg shadow-indigo-500/25 dark:shadow-emerald-500/20 hover:scale-[1.03] active:scale-[0.97]"
                         : "bg-muted/50 text-muted-foreground cursor-not-allowed border border-dashed border-muted-foreground/20"
@@ -1238,11 +1471,11 @@ export default function AttendanceHistory() {
                     ) : (
                       <Save className={cn("w-4 h-4", Object.keys(pendingChanges).length > 0 ? "text-white" : "text-muted-foreground")} />
                     )}
-                    <span className="tracking-tight">
+                    <span className="tracking-tight text-xs sm:text-sm">
                       {isLoading ? 'Menyimpan...' : `Simpan Permanen ${Object.keys(pendingChanges).length > 0 ? `(${Object.keys(pendingChanges).length})` : ''}`}
                     </span>
                   </Button>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -1276,20 +1509,20 @@ export default function AttendanceHistory() {
                     )}>
                       {student.name.substring(0, 2).toUpperCase()}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-slate-900 dark:text-slate-100 text-base md:text-sm truncate">{student.name}</div>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <div className="font-bold text-slate-900 dark:text-slate-100 text-base md:text-sm truncate w-full">{student.name}</div>
                       <div className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">{student.nim}</div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:flex md:flex-wrap items-center justify-items-center md:justify-end gap-x-6 gap-y-4 md:gap-x-8 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-border/50">
+                  <div className="flex flex-wrap items-center justify-center md:justify-end gap-x-4 gap-y-3 md:gap-x-8 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-border/50">
                     {/* Status Badge */}
                     <div className="text-center w-full md:w-auto flex justify-start md:justify-center col-span-2 md:col-span-1">
                       <button
                         onClick={() => toggleAttendance(student.id, student.status)}
                         disabled={!canEdit || (student.method === 'qr' && userRole !== 'admin_dev') || isLockedForAdminKelas}
                         className={cn(
-                          "inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-sm w-full md:w-auto justify-center",
+                          "inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-sm w-full md:w-auto justify-center min-w-[100px]",
                           getStatusBadge(student.status),
                           isLockedForAdminKelas ? "cursor-not-allowed opacity-75" :
                             (canEdit && !(student.method === 'qr' && userRole !== 'admin_dev')) ? "hover:scale-105 active:scale-95 cursor-pointer shadow-md" : "cursor-default opacity-90"
@@ -1476,18 +1709,28 @@ export default function AttendanceHistory() {
               </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMasterExportOpen(false)} className="rounded-xl">
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsMasterExportOpen(false)} className="rounded-xl w-full sm:w-auto">
               Batal
             </Button>
-            <Button
-              onClick={handleDownloadMasterExcel}
-              disabled={!selectedExportClassId || isLoading}
-              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Generate & Download
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button
+                onClick={handlePreviewMasterExcel}
+                disabled={!selectedExportClassId || isLoading}
+                className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-2"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                Buka File
+              </Button>
+              <Button
+                onClick={handleDownloadMasterExcel}
+                disabled={!selectedExportClassId || isLoading}
+                className="rounded-xl flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Download
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

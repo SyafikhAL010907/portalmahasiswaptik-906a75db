@@ -123,10 +123,18 @@ func AuthMiddleware(db *gorm.DB) fiber.Handler {
 			tokenString = c.Cookies("sb-auth-token")
 		}
 
+		// 3. Fallback to Query Parameter (HANYA UNTUK EXPORT agar Google Docs bisa baca)
+		if tokenString == "" {
+			tokenString = c.Query("token")
+			if tokenString != "" {
+				fmt.Printf("📂 Detected Token in Query (Export Flow)\n")
+			}
+		}
+
 		if tokenString == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
-				"error":   "Missing authentication token (Header or Cookie)",
+				"error":   "Gagal Authentikasi: Token tidak ditemukan (Header/Cookie/Query). Silakan RESTART SERVER (go run MAIN.go) jika baru update kodingan!",
 			})
 		}
 
@@ -191,33 +199,22 @@ func AuthMiddleware(db *gorm.DB) fiber.Handler {
 			})
 		}
 
-		// BYPASS: Temporarily hardcode role to admin_dev due to PgBouncer SQLSTATE 42P05 errors
-		fmt.Printf("⚠️  BYPASS AKTIF: User %s dipaksa jadi admin_dev\n", userID)
+		// Get user profile for role and class_id (Consolidated)
+		var profile models.Profile
+		if err := db.Where("user_id = ?", userID).First(&profile).Error; err != nil {
+			fmt.Printf("❌ Profile/Role tidak ditemukan untuk User ID: %s. Error: %v\n", userID, err)
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"error":   "User role not found (Profile missing)",
+			})
+		}
 
-		/*
-			// Get user role from database (TEMPORARILY DISABLED)
-			var userRole models.UserRole
-			fmt.Printf("🔍 Mencari Role untuk User ID: %s\n", userID)
-			if err := db.Where("user_id = ?", userID).First(&userRole).Error; err != nil {
-				fmt.Printf("❌ Role tidak ditemukan untuk User ID: %s. Error: %v\n", userID, err)
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"success": false,
-					"error":   "User role not found",
-				})
-			}
-			fmt.Printf("✅ ROLE DITEMUKAN: %s untuk User ID: %s\n", userRole.Role, userID)
-
-			// Get user profile for class_id
-			var profile models.Profile
-			db.Where("user_id = ?", userID).First(&profile)
-		*/
-
-		// Set user context with hardcoded admin_dev role
+		// Set user context with real data from profile
 		userContext := UserContext{
 			UserID:  userID,
 			Email:   claims["email"].(string),
-			Role:    models.RoleAdminDev, // FORCED ROLE
-			ClassID: nil,                 // AdminDev doesn't need class_id
+			Role:    profile.Role,
+			ClassID: profile.ClassID,
 		}
 
 		c.Locals("user", userContext)
