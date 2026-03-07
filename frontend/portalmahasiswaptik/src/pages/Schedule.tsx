@@ -138,23 +138,18 @@ export default function Schedule() {
   }, [selectedDay, selectedClass, userRole, userClassId]);
 
   // V2: Smart Class Detection - Set initial filter based on user profile
+  // V2.1: Fix Race Condition (Auto-Select Class)
   useEffect(() => {
+    // Tunggu sampai data list kelas masuk dari Supabase
     if (classList.length > 0 && !selectedClass) {
-      if (userClassId) {
-        // Match userClassId with classList to ensure it exists
-        const matchedClass = classList.find(c => c.id === userClassId);
-        if (matchedClass) {
-          setSelectedClass(userClassId);
-        } else {
-          setSelectedClass(classList[0].id);
-        }
+      if (userClassId && classList.some(c => c.id === userClassId)) {
+        setSelectedClass(userClassId);
       } else if (userRole === 'admin_dev' || !userRole) {
-        // For Admin Dev or logged out, default to first class
+        // Kalau admin dev atau tamu, langsung hajar kelas pertama di list
         setSelectedClass(classList[0].id);
       }
     }
   }, [classList, userClassId, userRole]);
-
   const checkRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -234,7 +229,7 @@ export default function Schedule() {
     if (!selectedClass) return;
     setIsLoading(true);
     try {
-      // 1. Fetch Schedules
+      // 1. Fetch Schedules (Added Log for Production Debugging)
       const { data: schedulesData, error } = await supabase
         .from('schedules')
         .select(`
@@ -246,7 +241,11 @@ export default function Schedule() {
         .eq('day', selectedDay)
         .order('start_time');
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ SUPABASE_JADWAL_ERROR:", error.message);
+        toast.error("Database menolak akses jadwal (RLS issue)");
+        throw error;
+      }
 
       // 2. Extract Lecturer IDs
       const lecturerIds = [...new Set(schedulesData?.map(s => s.lecturer_id).filter(Boolean) as string[])];
