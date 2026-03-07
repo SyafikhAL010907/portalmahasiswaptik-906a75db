@@ -38,9 +38,13 @@ func main() {
 	storageSrv := storage.NewSupabaseStorage()
 
 	// Create Fiber app
+	// Create Fiber app (Updated with larger buffer for Supabase Tokens)
 	app := fiber.New(fiber.Config{
 		AppName:      "Portal Mahasiswa PTIK API v1.0",
 		ErrorHandler: customErrorHandler,
+		// Tambahkan dua baris di bawah ini:
+		ReadBufferSize: 16384,            // Naikin ke 16KB biar token gak mental (Error 431)
+		BodyLimit:      20 * 1024 * 1024, // Izinkan kirim data sampai 20MB
 	})
 
 	// 🚀 FAST HEALTH CHECK (Place before heavy middleware/auth for Koyeb stability)
@@ -98,14 +102,15 @@ func main() {
 	}
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Join(origins, ","),
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With",
+		AllowOrigins: strings.Join(origins, ","),
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		// Tambahkan 'X-Download-Remaining' di AllowHeaders
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With,X-Download-Remaining",
 		AllowCredentials: true,
-		ExposeHeaders:    "Content-Length",
-		MaxAge:           86400,
+		// PENTING: Tambahkan baris ExposeHeaders ini agar browser bisa melihat info file & sisa jatah
+		ExposeHeaders: "Content-Length,Content-Disposition,X-Download-Remaining",
+		MaxAge:        86400,
 	}))
-
 
 	// Initialize validator
 	validate := validator.New()
