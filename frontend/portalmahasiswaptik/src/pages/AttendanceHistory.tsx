@@ -251,6 +251,7 @@ export default function AttendanceHistory() {
   };
 
   const fetchStudentsAndAttendance = async (classId: string, meetingId: string) => {
+    console.log('🔗 [DEBUG] HISTORY SUPABASE URL:', (supabase as any).supabaseUrl);
     setIsLoading(true);
     setPendingChanges({}); // Reset pending changes on fetch
     try {

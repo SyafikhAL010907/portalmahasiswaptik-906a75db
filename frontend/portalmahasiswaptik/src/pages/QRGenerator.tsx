@@ -4,6 +4,7 @@ import {
   QrCode, Clock, CheckCircle2, RefreshCw,
   BookOpen, Calendar, Loader2, AlertCircle, Users
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,6 +65,20 @@ const staggerBottom: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
 };
 
+// --- NINJA DIAGNOSIS TOOLS ---
+const ninjaUrl = "https://owqjsqvpmsctztpgensg.supabase.co";
+const ninjaKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93cWpzcXZwbXNjdHp0cGdlbnNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDI0NTkwNCwiZXhwIjoyMDg1ODIxOTA0fQ.S9TInNnZHCsjuuYrpcXB5xpM4Lsr3MIE1YsFPdhq2Hg";
+
+const getNinjaClient = () => {
+  return createClient(ninjaUrl, ninjaKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  });
+};
+
 export default function QRGenerator() {
   const { user, isAdminDosen, isAdminDev } = useAuth();
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -121,21 +136,85 @@ export default function QRGenerator() {
 
     // Fetch initial scans
     const fetchInitialScans = async () => {
-      const { data } = await (supabase
-        .from('attendance_records' as any)
-        .select(`
-          id,
-          scanned_at,
-          profiles:student_id (
-            full_name,
-            nim,
-            avatar_url
-          )
-        `)
-        .eq('session_id', activeSession.id)
-        .order('scanned_at', { ascending: false }) as any);
+      console.log('🔍 [DEBUG] Fetching Initial Scans for Session:', activeSession.id);
+      
+      try {
+        // 1. Fetch raw records
+        const { data: records, error } = await supabase
+          .from('attendance_records')
+          .select('id, scanned_at, student_id, status')
+          .eq('session_id', activeSession.id)
+          .order('scanned_at', { ascending: false });
 
-      if (data) setScannedStudents(data);
+        if (error) throw error;
+        console.log('📊 [DEBUG] Raw Records (Plain):', records);
+
+        if (records && records.length > 0) {
+          // 2. Fetch profiles separately
+          const studentIds = records.map(r => r.student_id);
+          const { data: profiles, error: profileError } = await supabase
+            .from('profiles')
+            .select('user_id, full_name, nim, avatar_url')
+            .in('user_id', studentIds);
+
+          if (profileError) throw profileError;
+
+          const profileMap = new Map(profiles?.map(p => [p.user_id, p]));
+
+          const formatted = records.map(r => {
+            const p = profileMap.get(r.student_id);
+            return {
+              id: r.id,
+              name: p?.full_name || 'Unknown',
+              nim: p?.nim || '-',
+              scanned_at: r.scanned_at,
+              avatar_url: p?.avatar_url || undefined,
+              status: r.status
+            };
+          });
+
+          setScannedStudents(formatted);
+          console.log('✅ [DEBUG] Filtered & Formatted Students:', formatted);
+        } else {
+          console.warn('⚠️ [DEBUG] No records found with normal client. Trying Ninja bypass...');
+          const ninja = getNinjaClient();
+          const { data: ninjaData } = await ninja
+            .from('attendance_records')
+            .select('*, profiles:student_id(full_name, nim)')
+            .eq('session_id', activeSession.id);
+          
+          if (ninjaData && ninjaData.length > 0) {
+            console.log('☢️ [DEBUG] NINJA BYPASS RECOVERED DATA:', ninjaData);
+            setScannedStudents(ninjaData.map((r: any) => ({
+              id: r.id,
+              name: r.profiles?.full_name || 'Unknown (Ninja)',
+              nim: r.profiles?.nim || '-',
+              scanned_at: r.scanned_at
+            })));
+          } else {
+            console.log('❌ [DEBUG] Even Ninja Client found no records.');
+            setScannedStudents([]);
+          }
+        }
+      } catch (err: any) {
+        console.error('❌ [DEBUG] Fetch failed:', err);
+        // Fallback to bypass if normal fails
+        const ninja = getNinjaClient();
+        const { data: ninjaData } = await ninja
+          .from('attendance_records')
+          .select('*, profiles:student_id(full_name, nim)')
+          .eq('session_id', activeSession.id);
+        
+        if (ninjaData) {
+          console.log('☢️ [DEBUG] NUCLEAR BYPASS SUCCESS:', ninjaData);
+          setScannedStudents(ninjaData.map((r: any) => ({
+            id: r.id,
+            name: r.profiles?.full_name || 'Unknown (Ninja)',
+            nim: r.profiles?.nim || '-',
+            scanned_at: r.scanned_at
+          })));
+        }
+      }
     };
 
     fetchInitialScans();
@@ -151,28 +230,32 @@ export default function QRGenerator() {
           filter: `session_id=eq.${activeSession.id}`
         },
         async (payload) => {
-          // Fetch the full student info for the new record
-          const { data } = await (supabase
-            .from('attendance_records' as any)
-            .select(`
-              id,
-              scanned_at,
-              profiles:student_id (
-                full_name,
-                nim,
-                avatar_url
-              )
-            `)
-            .eq('id', payload.new.id)
-            .single() as any);
+          console.log('📡 [DEBUG] Realtime Event Received:', payload);
+          
+          // Fetch the profile of the new scanner (Bypass RLS for debug)
+          const ninja = getNinjaClient();
+          const { data: profile } = await ninja
+            .from('profiles')
+            .select('full_name, nim, avatar_url')
+            .eq('user_id', payload.new.student_id)
+            .single();
 
-          if (data) {
-            setScannedStudents(prev => {
-              if (prev.some(s => s.id === data.id)) return prev;
-              return [data, ...prev];
-            });
-            toast.success(`${(data.profiles as any)?.full_name} berhasil absen!`, { icon: '👋' });
-          }
+          const formattedNewRecord = {
+            id: payload.new.id,
+            name: profile?.full_name || 'Mahasiswa',
+            nim: profile?.nim || '-',
+            scanned_at: payload.new.scanned_at,
+            avatar_url: profile?.avatar_url || undefined,
+            status: payload.new.status
+          };
+
+          console.log('🆕 [DEBUG] Formatted New Student:', formattedNewRecord);
+
+          setScannedStudents(prev => {
+            if (prev.some(s => s.id === formattedNewRecord.id)) return prev;
+            return [formattedNewRecord, ...prev];
+          });
+          toast.success(`${formattedNewRecord.name} berhasil absen!`, { icon: '👋' });
         }
       )
       .subscribe();
@@ -311,7 +394,13 @@ export default function QRGenerator() {
   };
 
   const handleRefreshQR = async () => {
-    if (!activeSession) return;
+    console.log('🔗 [DEBUG] ACTIVE SUPABASE URL:', (supabase as any).supabaseUrl);
+    console.log('🔑 [DEBUG] CURRENT SESSION STATE:', activeSession);
+    
+    if (!activeSession) {
+      console.warn('⚠️ [DEBUG] No active session found in state.');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -371,6 +460,8 @@ export default function QRGenerator() {
       </div>
     );
   }
+
+  console.log('🖼️ [RENDER] Scanned Students State:', scannedStudents);
 
   return (
     <motion.div

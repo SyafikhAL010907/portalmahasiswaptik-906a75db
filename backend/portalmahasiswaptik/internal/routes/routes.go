@@ -153,9 +153,8 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// Get active sessions
 	attendance.Get("/sessions", attendanceHandler.GetActiveSessions)
 
-	// Scan QR (Mahasiswa only)
 	attendance.Post("/scan",
-		middleware.RequireRole(models.RoleAdminDev, models.RoleMahasiswa),
+		middleware.RequireRole(models.RoleAdminDev, models.RoleMahasiswa, models.RoleAdminKelas),
 		attendanceHandler.ScanQR,
 	)
 

@@ -146,8 +146,8 @@ func (h *AttendanceHandler) CreateSession(c *fiber.Ctx) error {
 func (h *AttendanceHandler) ScanQR(c *fiber.Ctx) error {
 	user := c.Locals("user").(middleware.UserContext)
 
-	// Only Mahasiswa can scan QR
-	if user.Role != models.RoleMahasiswa && user.Role != models.RoleAdminDev {
+	// Only Students (Mahasiswa & AdminKelas) can scan QR
+	if user.Role != models.RoleMahasiswa && user.Role != models.RoleAdminKelas && user.Role != models.RoleAdminDev {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"error":   "Only students can scan attendance QR",
