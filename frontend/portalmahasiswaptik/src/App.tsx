@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/ui/SplashScreen";
-import { GlobalChat } from "./components/dashboard/GlobalChat";
+import { GlobalChat } from "./components/FloatingHub/GlobalChat";
 import { ErrorBoundary } from "react-error-boundary";
 import { GlobalErrorFallback } from "@/components/ui/GlobalErrorFallback";
 import { useRegisterSW } from 'virtual:pwa-register/react';

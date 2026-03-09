@@ -311,7 +311,7 @@ const SidebarContent = ({
               "absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center",
               "bg-gradient-to-br from-emerald-500 to-blue-500 dark:from-indigo-500/40 dark:via-purple-500/40 dark:to-blue-500/40",
               "border border-white/0 dark:border-white/20",
-              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "shadow-lg dark:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-700 ease-&lsqb;cubic-bezier(0.34,1.56,0.64,1)&rsqb;",
               "pointer-events-none"
             )}
             style={{

@@ -284,6 +284,25 @@
   }
 }
 
+/* V-CODE CLOUD IDE STYLES */
+.ide-custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.ide-custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.ide-custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.1); border-radius: 10px; }
+.ide-custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.3); }
+
+/* Prism Highlights Professional */
+.token.keyword { color: #f472b6 !important; font-weight: bold; }
+.token.string { color: #34d399 !important; }
+.token.function { color: #60a5fa !important; }
+.token.number { color: #fb923c !important; }
+.token.comment { color: #4b5563 !important; font-style: italic; }
+.token.operator { color: #94a3b8 !important; }
+.token.class-name { color: #fbbf24 !important; }
+.token.boolean { color: #fb923c !important; }
+.token.constant { color: #f43f5e !important; }
+.token.property { color: #38bdf8 !important; }
+.token.punctuation { color: #94a3b8 !important; }
+
 @layer utilities {
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-br from-primary via-purple-600 to-slate-900;

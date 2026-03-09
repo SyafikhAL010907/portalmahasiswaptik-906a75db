@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, Variants } from 'framer-motion';
-import { MessageSquare, Send, X, Users, ArrowLeft, Search, CheckCheck, Loader2, Trash2, User as UserIcon, ChevronRight } from 'lucide-react';
+import { MessageSquare, Send, X, Users, ArrowLeft, Search, CheckCheck, Loader2, Trash2, User as UserIcon, ChevronRight, LayoutGrid } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,10 @@ import { toast } from 'sonner';
 import { UserProfileModal } from '@/components/dashboard/UserProfileModal';
 import { getMaskedProfile } from '@/lib/privacy';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import { AnimatePresence } from 'framer-motion';
+import { RootMenu } from './RootMenu';
+import { AIView } from './AIView';
+import { IDEView } from './IDEView';
 
 interface Message {
     id: string;
@@ -78,6 +82,7 @@ const staggerBottom: Variants = {
 export function GlobalChat() {
     const { user, roles } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+    const [activeView, setActiveView] = useState<'ROOT' | 'CHAT' | 'AI' | 'IDE'>('ROOT');
     const [view, setView] = useState<'LIST' | 'ROOM'>('LIST');
     const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -651,25 +656,51 @@ export function GlobalChat() {
 
     return (
         <>
-            {!isOpen && (
-                <div className="fixed bottom-6 right-6 z-[100]">
-                    <Button
-                        onClick={() => { setIsOpen(true); setHasNewMessage(false); }}
-                        className={cn(
-                            "w-14 h-14 rounded-full shadow-2xl p-0 flex items-center justify-center transition-all duration-300",
-                            "bg-indigo-600 hover:bg-indigo-700 hover:scale-110 active:scale-95",
-                            hasNewMessage && "animate-pulse ring-4 ring-indigo-400/50"
-                        )}
-                    >
-                        <MessageSquare className="w-6 h-6 text-white" />
-                        {totalUnread > 0 && (
-                            <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black text-white shadow-lg animate-in zoom-in duration-300">
-                                {totalUnread > 99 ? '99+' : totalUnread}
-                            </span>
-                        )}
-                    </Button>
-                </div>
-            )}
+            <div className="fixed bottom-6 right-6 z-[100]">
+                <Button
+                    onClick={() => {
+                        if (isOpen) {
+                            setIsOpen(false);
+                            setActiveChat(null);
+                        } else {
+                            setIsOpen(true);
+                            setActiveView('ROOT');
+                            setHasNewMessage(false);
+                        }
+                    }}
+                    className={cn(
+                        "w-14 h-14 rounded-full shadow-2xl p-0 flex items-center justify-center transition-all duration-300",
+                        "bg-indigo-600 hover:bg-indigo-700 hover:scale-110 active:scale-95",
+                        hasNewMessage && "animate-pulse ring-4 ring-indigo-400/50",
+                        "shadow-[0_0_20px_rgba(79,70,229,0.4)] dark:shadow-[0_0_25px_rgba(99,102,241,0.3)]"
+                    )}
+                >
+                    <div className="relative w-full h-full flex items-center justify-center">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={isOpen ? 'close' : 'hub'}
+                                initial={{ opacity: 0, rotate: -45, scale: 0.5 }}
+                                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                                exit={{ opacity: 0, rotate: 45, scale: 0.5 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex items-center justify-center"
+                            >
+                                {isOpen ? (
+                                    <X className="w-6 h-6 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+                                ) : (
+                                    <LayoutGrid className="w-6 h-6 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+
+                    {totalUnread > 0 && (
+                        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black text-white shadow-lg animate-in zoom-in duration-300">
+                            {totalUnread > 99 ? '99+' : totalUnread}
+                        </span>
+                    )}
+                </Button>
+            </div>
 
             <Dialog open={isGroupMembersOpen} onOpenChange={setIsGroupMembersOpen}>
                 <DialogContent className="sm:max-w-[420px] p-0 overflow-hidden bg-white dark:bg-slate-950 border-white/10 shadow-2xl sm:rounded-3xl h-full sm:h-[500px] max-sm:max-w-none max-sm:w-full max-sm:rounded-none z-[1050] flex flex-col">
@@ -736,7 +767,65 @@ export function GlobalChat() {
                     "bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl backdrop-blur-xl",
                     "max-sm:right-0 max-sm:left-0 max-sm:mx-auto max-sm:w-full max-sm:h-[100dvh] max-sm:max-h-none max-sm:bottom-0 max-sm:rounded-none max-sm:border-none"
                 )}>
-                    {view === 'LIST' ? (
+                    <AnimatePresence mode='wait' initial={false}>
+                        {activeView === 'ROOT' && (
+                            <motion.div
+                                key="root-menu"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                transition={{ duration: 0.2 }}
+                                className="h-full"
+                            >
+                                <div className="absolute top-4 right-4 z-20">
+                                    <Button
+                                        variant="ghost" size="icon"
+                                        className="h-8 w-8 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                                        onClick={() => setIsOpen(false)}
+                                    >
+                                        <X size={20} />
+                                    </Button>
+                                </div>
+                                <RootMenu onSelect={(v) => setActiveView(v)} unreadCount={totalUnread} />
+                            </motion.div>
+                        )}
+
+                        {activeView === 'AI' && (
+                            <motion.div
+                                key="ai-view"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.2 }}
+                                className="h-full"
+                            >
+                                <AIView onBack={() => setActiveView('ROOT')} />
+                            </motion.div>
+                        )}
+
+                        {activeView === 'IDE' && (
+                            <motion.div
+                                key="ide-view"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.2 }}
+                                className="h-full"
+                            >
+                                <IDEView onBack={() => setActiveView('ROOT')} />
+                            </motion.div>
+                        )}
+
+                        {activeView === 'CHAT' && (
+                            <motion.div
+                                key="chat-view"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.2 }}
+                                className="h-full flex flex-col"
+                            >
+                                {view === 'LIST' ? (
                         <motion.div variants={staggerContainer} initial="hidden" animate="visible" layout={false} className="flex flex-col h-full">
                             <motion.div variants={staggerTop} layout={false} className="bg-white dark:bg-slate-900 px-4 py-4 flex items-center justify-between border-b border-slate-100 dark:border-white/5 shrink-0">
                                 <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 italic">PORTAL CHAT</h3>
@@ -744,9 +833,9 @@ export function GlobalChat() {
                                     <Button
                                         variant="ghost" size="icon"
                                         className="h-8 w-8 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-                                        onClick={() => { setIsOpen(false); setActiveChat(null); }}
+                                        onClick={() => setActiveView('ROOT')}
                                     >
-                                        <X size={20} />
+                                        <ArrowLeft size={20} />
                                     </Button>
                                 </div>
                             </motion.div>
@@ -1073,8 +1162,11 @@ export function GlobalChat() {
                             </motion.div>
                         </motion.div>
                     )}
-                </div>
+                </motion.div>
             )}
+        </AnimatePresence>
+    </div>
+)}
             <UserProfileModal userId={selectedProfileId} isOpen={!!selectedProfileId} onClose={() => setSelectedProfileId(null)} />
             <ConfirmationModal
                 isOpen={deleteConfirmConfig.isOpen}
