@@ -125,9 +125,9 @@ export const useAttendanceStats = (userId: string | undefined): AttendanceStats 
 
                 let totalHadir = 0, totalIzin = 0, totalAlpha = 0;
                 semesterRecords.forEach(record => {
-                    if (record.status === 'hadir') totalHadir++;
-                    else if (record.status === 'izin') totalIzin++;
-                    else if (record.status === 'alpha') totalAlpha++;
+                    if (record.status === 'present' || record.status === 'hadir') totalHadir++;
+                    else if (record.status === 'excused' || record.status === 'izin') totalIzin++;
+                    else if (record.status === 'absent' || record.status === 'alpha') totalAlpha++;
                 });
 
                 const totalMeetings = totalHadir + totalIzin + totalAlpha;

@@ -321,7 +321,7 @@ export default function ScanQR() {
         .insert({
           session_id: payload.s,
           student_id: user?.id,
-          status: 'hadir',
+          status: 'present',
           scanned_at: new Date().toISOString()
         });
 

@@ -34,7 +34,7 @@ interface Student {
   id: string; // This corresponds to profile.user_id
   name: string;
   nim: string;
-  status: 'hadir' | 'izin' | 'alpha' | 'pending';
+  status: 'present' | 'excused' | 'absent' | 'pending';
   scannedAt?: string | null;
   method?: string | null; // 'qr' or 'manual'
 }
@@ -319,11 +319,10 @@ export default function AttendanceHistory() {
       const finalStudents: Student[] = filteredProfiles.map(p => {
         const record = recordMap.get(p.user_id);
         const rawStatus = record?.status;
-        let status: 'hadir' | 'izin' | 'alpha' | 'pending' = 'pending';
-
-        if (rawStatus === 'hadir' || rawStatus === 'izin' || rawStatus === 'alpha') {
-          status = rawStatus;
-        }
+        let status: 'present' | 'excused' | 'absent' | 'pending' = 'pending';
+        if (rawStatus === 'present' || rawStatus === 'hadir') status = 'present';
+        else if (rawStatus === 'excused' || rawStatus === 'izin') status = 'excused';
+        else if (rawStatus === 'absent' || rawStatus === 'alpha') status = 'absent';
 
         return {
           id: p.user_id,
@@ -369,10 +368,10 @@ export default function AttendanceHistory() {
             currentStudents.map(s => {
               if (s.id === newRecord.student_id) {
                 // Map DB status to UI status type
-                let newStatus: 'hadir' | 'izin' | 'alpha' | 'pending' = 'pending';
-                if (['hadir', 'izin', 'alpha'].includes(newRecord.status)) {
-                  newStatus = newRecord.status as any;
-                }
+                let newStatus: 'present' | 'excused' | 'absent' | 'pending' = 'pending';
+                if (newRecord.status === 'present' || newRecord.status === 'hadir') newStatus = 'present';
+                else if (newRecord.status === 'excused' || newRecord.status === 'izin') newStatus = 'excused';
+                else if (newRecord.status === 'absent' || newRecord.status === 'alpha') newStatus = 'absent';
 
                 return {
                   ...s,
@@ -550,8 +549,8 @@ export default function AttendanceHistory() {
       return;
     }
 
-    // Cycle: Pending -> Hadir -> Izin -> Alpha -> Pending
-    const statuses: ('pending' | 'hadir' | 'izin' | 'alpha')[] = ['pending', 'hadir', 'izin', 'alpha'];
+    // Cycle: Pending -> Present -> Excused -> Absent -> Pending
+    const statuses: ('pending' | 'present' | 'excused' | 'absent')[] = ['pending', 'present', 'excused', 'absent'];
     const nextStatus = statuses[(statuses.indexOf(current as any) + 1) % statuses.length];
 
     // Optimistic Update (Local)
@@ -1228,9 +1227,9 @@ export default function AttendanceHistory() {
 
   // --- HELPERS ---
   const getStatusIcon = (status: string) => {
-    if (status === 'hadir') return <CheckCircle className="w-5 h-5 text-green-500" />;
-    if (status === 'izin') return <Clock className="w-5 h-5 text-yellow-500" />;
-    if (status === 'alpha') return <XCircle className="w-5 h-5 text-destructive" />;
+    if (status === 'present' || status === 'hadir') return <CheckCircle className="w-5 h-5 text-green-500" />;
+    if (status === 'excused' || status === 'izin') return <Clock className="w-5 h-5 text-yellow-500" />;
+    if (status === 'absent' || status === 'alpha') return <XCircle className="w-5 h-5 text-destructive" />;
     return <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />; // Pending
   };
 
@@ -1487,10 +1486,10 @@ export default function AttendanceHistory() {
           <div className="space-y-3">
             {students.map((student) => {
               const status = student.status;
-              const isAlpha = status === 'alpha';
-              const isHadir = status === 'hadir';
+              const isAlpha = status === 'absent';
+              const isHadir = status === 'present';
               const isPending = status === 'pending';
-              const isIzin = status === 'izin';
+              const isIzin = status === 'excused';
 
               return (
                 <div
@@ -1533,7 +1532,10 @@ export default function AttendanceHistory() {
                         )}
                       >
                         {getStatusIcon(student.status)}
-                        {student.status}
+                        {student.status === 'present' ? 'Hadir' : 
+                         student.status === 'excused' ? 'Izin' : 
+                         student.status === 'absent' ? 'Alpha' : 
+                         student.status.charAt(0).toUpperCase() + student.status.slice(1)}
                       </button>
                     </div>
 
@@ -1745,8 +1747,11 @@ export default function AttendanceHistory() {
 // Helper specific to student list coloring
 function getStatusColor(status: string) {
   switch (status) {
+    case 'present':
     case 'hadir': return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
+    case 'excused':
     case 'izin': return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800';
+    case 'absent':
     case 'alpha': return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800';
     default: return 'bg-muted/50 text-muted-foreground border-transparent';
   }
@@ -1754,8 +1759,11 @@ function getStatusColor(status: string) {
 
 function getStatusBadge(status: string) {
   switch (status) {
+    case 'present':
     case 'hadir': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    case 'excused':
     case 'izin': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    case 'absent':
     case 'alpha': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
     default: return 'bg-muted text-muted-foreground';
   }
