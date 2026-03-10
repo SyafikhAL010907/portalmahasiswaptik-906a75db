@@ -308,6 +308,45 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
         :not(.dark) .prose pre code .token.punctuation {
           color: #334155 !important; /* text-slate-700 */
         }
+
+        /* 
+         * ABSOLUTE MANDATORY: Extreme Dark Mode Contrast 
+         * Override any syntax highlighter to force bright, highly visible colors on dark backgrounds.
+         */
+        .dark .prose pre,
+        .dark .prose code,
+        .dark .prose pre code,
+        .dark .prose pre code * {
+          color: #f8fafc !important; /* text-slate-50 default (Bright White) */
+        }
+        .dark .prose pre code .token.comment,
+        .dark .prose pre code .token.prolog,
+        .dark .prose pre code .token.doctype,
+        .dark .prose pre code .token.cdata {
+          color: #94a3b8 !important; /* text-slate-400 (Slightly dimmed for comments) */
+        }
+        .dark .prose pre code .token.string,
+        .dark .prose pre code .token.attr-value {
+          color: #4ade80 !important; /* text-green-400 */
+        }
+        .dark .prose pre code .token.keyword,
+        .dark .prose pre code .token.tag,
+        .dark .prose pre code .token.operator {
+          color: #38bdf8 !important; /* text-sky-400 */
+        }
+        .dark .prose pre code .token.function,
+        .dark .prose pre code .token.class-name {
+          color: #c084fc !important; /* text-purple-400 */
+        }
+        .dark .prose pre code .token.number,
+        .dark .prose pre code .token.boolean,
+        .dark .prose pre code .token.property,
+        .dark .prose pre code .token.constant {
+          color: #fb923c !important; /* text-orange-400 */
+        }
+        .dark .prose pre code .token.punctuation {
+          color: #cbd5e1 !important; /* text-slate-300 */
+        }
       `}</style>
       <div className={cn(
         "flex flex-col h-full bg-white dark:bg-[#030712] transition-colors duration-300",
