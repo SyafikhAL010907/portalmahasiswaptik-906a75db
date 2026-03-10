@@ -268,6 +268,46 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
         :not(.dark) .custom-scrollbar {
           scrollbar-color: #cbd5e1 transparent;
         }
+
+        /* 
+         * ABSOLUTE MANDATORY: Extreme Light Mode Contrast 
+         * Override any syntax highlighter (Prism, highlight.js, etc.)
+         * to force sharp, highly visible colors on bg-slate-100.
+         */
+        :not(.dark) .prose pre,
+        :not(.dark) .prose code,
+        :not(.dark) .prose pre code,
+        :not(.dark) .prose pre code * {
+          color: #020617 !important; /* text-slate-950 default */
+        }
+        :not(.dark) .prose pre code .token.comment,
+        :not(.dark) .prose pre code .token.prolog,
+        :not(.dark) .prose pre code .token.doctype,
+        :not(.dark) .prose pre code .token.cdata {
+          color: #475569 !important; /* text-slate-600 (Darker Grey for Comments) */
+        }
+        :not(.dark) .prose pre code .token.string,
+        :not(.dark) .prose pre code .token.attr-value {
+          color: #15803d !important; /* text-green-700 */
+        }
+        :not(.dark) .prose pre code .token.keyword,
+        :not(.dark) .prose pre code .token.tag,
+        :not(.dark) .prose pre code .token.operator {
+          color: #1d4ed8 !important; /* text-blue-700 */
+        }
+        :not(.dark) .prose pre code .token.function,
+        :not(.dark) .prose pre code .token.class-name {
+          color: #7e22ce !important; /* text-purple-700 */
+        }
+        :not(.dark) .prose pre code .token.number,
+        :not(.dark) .prose pre code .token.boolean,
+        :not(.dark) .prose pre code .token.property,
+        :not(.dark) .prose pre code .token.constant {
+          color: #b91c1c !important; /* text-red-700 */
+        }
+        :not(.dark) .prose pre code .token.punctuation {
+          color: #334155 !important; /* text-slate-700 */
+        }
       `}</style>
       <div className={cn(
         "flex flex-col h-full bg-white dark:bg-[#030712] transition-colors duration-300",
@@ -314,8 +354,8 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
       {/* Main Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative bg-slate-50 dark:bg-[#010409] transition-colors duration-300">
-          <ScrollArea viewportRef={scrollRef} className="flex-1 p-3 sm:p-6 custom-scrollbar">
+        <div className="flex-1 flex flex-col relative bg-slate-50 dark:bg-[#010409] transition-colors duration-300 min-w-0">
+          <ScrollArea viewportRef={scrollRef} className="flex-1 p-2 sm:p-6 custom-scrollbar">
             <div className="max-w-3xl mx-auto space-y-6 pb-20">
               {messages.length === 0 && (
                 <div className="h-[50vh] flex flex-col items-center justify-center text-center space-y-4">
@@ -342,55 +382,72 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
 
               {messages.map((msg, index) => (
                 <div key={index} className={cn(
-                  "flex flex-col gap-2 max-w-[85%]",
+                  "flex flex-col gap-2 max-w-[85%] flex-1 min-w-0 w-full",
                   msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                 )}>
                     <div className={cn(
-                      "max-w-[90%] sm:max-w-[85%] rounded-2xl p-4 text-sm sm:text-base leading-relaxed shadow-sm transition-all",
+                      "max-w-full overflow-hidden break-words min-w-0 rounded-2xl p-4 text-sm sm:text-base leading-relaxed shadow-sm transition-all",
                       msg.role === 'user' 
                         ? "bg-sky-600 text-white rounded-tr-none ml-auto" 
-                        : "bg-slate-100 dark:bg-white/5 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-200/50 dark:border-white/5"
+                        : "bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 rounded-tl-none border border-slate-200/50 dark:border-white/5"
                     )}>
                     {msg.role === 'assistant' ? (
                       <div className="prose prose-sm prose-slate dark:prose-invert max-w-none">
                         <ReactMarkdown 
                           remarkPlugins={[remarkGfm]}
                           components={{
+                            p({ children }) {
+                              return <div className="mb-4 last:mb-0 leading-relaxed break-words">{children}</div>;
+                            },
+                            h1({ children }) { return <h1 className="text-lg font-bold mb-2 break-words">{children}</h1>; },
+                            h2({ children }) { return <h2 className="text-base font-bold mb-2 break-words">{children}</h2>; },
+                            h3({ children }) { return <h3 className="text-sm font-bold mb-2 break-words">{children}</h3>; },
                             code({ node, inline, className, children, ...props }: any) {
                               const match = /language-(\w+)/.exec(className || '');
                               const codeString = String(children).replace(/\n$/, '');
                               
                               return !inline ? (
-                                <div className="group relative my-4">
-                                  <div className="flex items-center justify-between px-4 py-1.5 bg-slate-100 dark:bg-black/40 border-b border-slate-200 dark:border-white/5 rounded-t-xl">
-                                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">{match ? match[1] : 'code'}</span>
+                                <div className="group relative my-4 min-w-0">
+                                  <div className="flex items-center justify-between px-4 py-1.5 bg-slate-200 dark:bg-black/40 border-b border-slate-300 dark:border-white/5 rounded-t-xl">
+                                    <span className="text-[10px] font-black text-slate-950 dark:text-gray-100 uppercase tracking-widest">{match ? match[1] : 'code'}</span>
                                     <div className="flex gap-2">
                                       <button 
                                         onClick={() => {
                                           navigator.clipboard.writeText(codeString);
                                           toast.success('Kopi aman, Bro!');
                                         }}
-                                        className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-white transition-colors"
+                                        className="p-1 text-slate-500 hover:text-indigo-600 dark:hover:text-white transition-colors"
                                       >
                                         <Copy size={12} />
                                       </button>
                                       <button 
                                         onClick={() => copyToIDE(codeString)}
-                                        className="p-1 text-slate-400 hover:text-cyan-500 transition-colors"
+                                        className="p-1 text-slate-500 hover:text-cyan-500 transition-colors"
                                         title="Kirim ke IDE"
                                       >
                                         <Cpu size={12} />
                                       </button>
                                     </div>
                                   </div>
-                                  <pre className="m-0 p-4 bg-[#0d1117] text-slate-200 rounded-b-xl overflow-x-auto text-[12px] leading-relaxed">
-                                    <code className={className} {...props}>
+                                  <pre 
+                                    className="m-0 p-4 bg-slate-100 dark:bg-gray-900 text-slate-950 dark:text-gray-100 rounded-b-xl whitespace-pre-wrap break-all overflow-x-hidden w-full block text-[12px] leading-relaxed border-x border-b border-slate-400 dark:border-white/5 shadow-inner"
+                                    style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                                  >
+                                    <code 
+                                      className={cn(className, "whitespace-pre-wrap break-all overflow-x-hidden w-full block text-slate-950 dark:text-gray-100")} 
+                                      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                                      {...props}
+                                    >
                                       {children}
                                     </code>
                                   </pre>
                                 </div>
                               ) : (
-                                <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-indigo-600 dark:text-cyan-400 font-bold" {...props}>
+                                <code 
+                                  className="px-1.5 py-0.5 rounded border border-slate-300 dark:border-white/10 bg-slate-200 dark:bg-white/10 text-slate-950 dark:text-cyan-400 font-bold break-words" 
+                                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                                  {...props}
+                                >
                                   {children}
                                 </code>
                               );
@@ -400,7 +457,11 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
                           {msg.content}
                         </ReactMarkdown>
                       </div>
-                    ) : msg.content}
+                     ) : (
+                      <div className="break-words font-medium">
+                        {msg.content}
+                      </div>
+                    )}
                   </div>
                   <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">
                     {msg.role === 'user' ? 'Gue' : 'AI Asisten'}
@@ -409,10 +470,19 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
               ))}
 
               {streamingText && (
-                <div className="flex flex-col gap-2 max-w-[85%] mr-auto items-start">
-                  <div className="px-4 py-3 rounded-2xl text-sm sm:text-base leading-relaxed bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-100 backdrop-blur-xl rounded-tl-none">
+                <div className="flex flex-col gap-2 max-w-[85%] flex-1 min-w-0 w-full mr-auto items-start">
+                  <div className="px-4 py-3 rounded-2xl text-sm sm:text-base leading-relaxed bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 backdrop-blur-xl rounded-tl-none max-w-full overflow-hidden break-words min-w-0">
                     <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p({ children }) {
+                            return <div className="mb-4 last:mb-0 leading-relaxed break-words">{children}</div>;
+                          }
+                        }}
+                      >
+                        {streamingText}
+                      </ReactMarkdown>
                     </div>
                   </div>
                   <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1 flex items-center gap-1.5">
@@ -432,20 +502,29 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
           </ScrollArea>
 
           {/* Input Area */}
-          <div className="p-4 bg-white dark:bg-[#0d1117] border-t border-slate-200 dark:border-white/5 transition-colors duration-300">
-            <div className="max-w-3xl mx-auto flex gap-2 p-1.5 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl shadow-inner transition-all">
-              <input
-                type="text"
+          <div className="p-2 sm:p-4 bg-white dark:bg-[#0d1117] border-t border-slate-200 dark:border-white/5 transition-colors duration-300">
+            <div className="max-w-3xl mx-auto flex items-end gap-2 p-1.5 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl shadow-inner transition-all">
+              <textarea
+                rows={1}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
                 placeholder="Tanya soal koding atau tugas PTIK lo..."
-                className="flex-1 bg-transparent px-3 py-2 text-[13px] text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none"
+                className="flex-1 bg-transparent px-3 py-2 text-[13px] text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none resize-none max-h-32 overflow-y-auto custom-scrollbar"
               />
               <Button
                 onClick={handleSend}
                 disabled={isLoading || !input.trim()}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-indigo-500/20 active:scale-90 transition-all"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-indigo-500/20 active:scale-90 transition-all flex-shrink-0 aspect-square"
               >
                 <Send size={18} />
               </Button>
@@ -455,7 +534,7 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
       </div>
     </div>
   </motion.div>
-);
+  );
 
   return (
     <>
