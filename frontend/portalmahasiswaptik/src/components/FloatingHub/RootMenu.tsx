@@ -41,13 +41,15 @@ export const RootMenu: React.FC<RootMenuProps> = ({ onSelect, unreadCount }) => 
   ];
 
   return (
-    <div className="flex flex-col h-full p-4 space-y-4">
-      <div className="mb-2">
-        <h3 className="text-xl font-black tracking-tight text-slate-800 dark:text-slate-100 italic uppercase">Super Hub</h3>
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pilih Layanan Portal</p>
+    <div className="flex flex-col h-full p-6 overflow-y-auto custom-scrollbar">
+      <div className="mb-8 mt-4">
+        <h3 className="text-xl sm:text-2xl font-black tracking-tighter text-slate-800 dark:text-slate-100 italic uppercase leading-none">
+          Tools Mahasiswa PTIK
+        </h3>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2">Pilih Layanan Portal</p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-6">
         {menuItems.map((item) => (
           <motion.div
             key={item.id}
@@ -56,10 +58,10 @@ export const RootMenu: React.FC<RootMenuProps> = ({ onSelect, unreadCount }) => 
             onClick={() => onSelect(item.id)}
             className={cn(
               "group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 p-4 cursor-pointer transition-all duration-300",
-              "bg-gradient-to-br bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl",
+              "bg-gradient-to-br bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl shadow-sm",
               item.color,
               item.borderColor,
-              "hover:shadow-lg",
+              "hover:shadow-xl hover:shadow-slate-200 dark:hover:shadow-none",
               item.glowColor
             )}
           >
@@ -91,8 +93,8 @@ export const RootMenu: React.FC<RootMenuProps> = ({ onSelect, unreadCount }) => 
         ))}
       </div>
 
-      <div className="mt-auto pt-4 border-t border-slate-100 dark:border-white/5">
-        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] text-center">PTIK Web Portal v2.0</p>
+      <div className="mt-auto pt-12 pb-6 opacity-40">
+        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.4em] text-center">PTIK Web Portal V1.0</p>
       </div>
     </div>
   );

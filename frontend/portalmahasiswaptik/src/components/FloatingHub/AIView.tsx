@@ -6,20 +6,20 @@ import {
   ChevronLeft,
   Sparkles,
   Send,
-  Trash2,
   Maximize2,
   Minimize2,
   Copy,
   Code as CodeIcon,
-  Sidebar as SidebarIcon,
   Loader2,
   Terminal,
-  Cpu
+  Cpu,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 // @ts-ignore
@@ -40,22 +40,32 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>("gemini-1.5-flash");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isSynchronizing, setIsSynchronizing] = useState(false);
+  const [aiStatus, setAiStatus] = useState<'online' | 'offline' | 'limited'>('online');
+  const { user } = useAuth();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (force = false) => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      
+      if (force || isAtBottom) {
+        scrollRef.current.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: force ? 'smooth' : 'auto'
+        });
+      }
     }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom(messages.length <= 1);
   }, [messages, streamingText]);
 
   useEffect(() => {
@@ -76,20 +86,22 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
       
       if (data.models) {
         console.table(data.models.map((m: any) => ({ name: m.name, version: m.version, displayName: m.displayName })));
+        const names = data.models.map((m: any) => m.name.replace('models/', ''));
+        setAvailableModels(names);
         
         // Auto-Selector Logic
-        const hasFlash = data.models.find((m: any) => m.name.includes('gemini-1.5-flash'));
-        const hasPro = data.models.find((m: any) => m.name.includes('gemini-pro'));
+        const hasFlash = names.find(n => n.includes('gemini-1.5-flash'));
+        const hasPro = names.find(n => n.includes('gemini-pro'));
         
         if (hasFlash) {
-          setSelectedModel(hasFlash.name.replace('models/', ''));
+          setSelectedModel(hasFlash);
           console.log('✅ AUTO-SELECTED: Gemini 1.5 Flash');
         } else if (hasPro) {
-          setSelectedModel(hasPro.name.replace('models/', ''));
+          setSelectedModel(hasPro);
           console.log('⚠️ FALLBACK: Gemini Pro selected');
-        } else if (data.models.length > 0) {
-          setSelectedModel(data.models[0].name.replace('models/', ''));
-          console.log(`⚠️ EMERGENCY FALLBACK: ${data.models[0].name} selected`);
+        } else if (names.length > 0) {
+          setSelectedModel(names[0]);
+          console.log(`⚠️ EMERGENCY FALLBACK: ${names[0]} selected`);
         }
       }
     } catch (error) {
@@ -113,38 +125,78 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`;
+      
+      const callGemini = async (model: string) => {
+        // Use v1 for stable generation, fallback to v1beta if needed
+        const endpointV1 = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+        const endpointV1Beta = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        
+        const systemInstruction = "Asisten  PTIK 2025 yang jago koding, ahli jaringan, dan asik diajak diskusi soal tugas kuliah. Gunakan bahasa yang santai tapi profesional, sering panggil 'Bro'. Fokus pada solusi teknis yang akurat.";
 
-      const systemInstruction = "Asisten Senior PTIK 2025 yang jago koding, ahli jaringan, dan asik diajak diskusi soal tugas kuliah. Gunakan bahasa yang santai tapi profesional, sering panggil 'Bro'. Fokus pada solusi teknis yang akurat.";
+        console.log(`--- MENCOBA CALL GOOGLE V1 (${model}) ---`);
+        let response = await fetch(endpointV1.trim(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${systemInstruction}\n\nUser: ${userMessage}` }] }]
+          })
+        });
 
-      console.log('--- MONSTER BRAIN DEBUG V.7 (DIAGNOSTIC AUTO-SELECTOR) ---');
-      console.log('Model Active:', selectedModel);
+        // If v1 fails with 404, try v1beta
+        if (!response.ok && response.status === 404) {
+          console.log(`--- V1 GAGAL (404), MENCOBA V1BETA (${model}) ---`);
+          response = await fetch(endpointV1Beta.trim(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `${systemInstruction}\n\nUser: ${userMessage}` }] }]
+            })
+          });
+        }
 
-      const response = await fetch(endpoint.trim(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemInstruction}\n\nUser: ${userMessage}` }] }]
-        })
-      });
+        return response;
+      };
+
+      let response = await callGemini(selectedModel);
+
+      // 🕵️ DEEP-RECOVERY: Jika gagal total, siklus lewat SEMUA model yang tersedia
+      if (!response.ok && (response.status === 429 || response.status === 404 || response.status === 400)) {
+        console.warn(`[RECOVERY]: ${selectedModel} gagal (${response.status}). Memulai siklus model cadangan...`);
+        setAiStatus('limited');
+        
+        for (const modelCandidate of availableModels) {
+          if (modelCandidate === selectedModel) continue;
+          console.log(`--- MENCOBA MODEL CADANGAN: ${modelCandidate} ---`);
+          response = await callGemini(modelCandidate);
+          if (response.ok) {
+            setSelectedModel(modelCandidate);
+            break;
+          }
+        }
+      }
 
       if (!response.ok) {
+        setAiStatus('offline');
         const errorText = await response.text();
         console.error('--- CURHATAN GOOGLE (RESPONSE) ---', errorText);
         
-        let errorData;
-        try { errorData = JSON.parse(errorText); } catch(e) {}
-
         if (response.status === 429) {
-          toast.error('Gawat Bro, Quota Limit! Google bilang istirahat dulu (429). Coba lagi semenit lagi ya!');
+          toast.error('Semua jalur kuota abis Bro! Google bener-bener nyuruh istirahat.');
           throw new Error('QUOTA_EXHAUSTED');
         }
-        
         throw new Error(`API Error: ${response.status}`);
       }
 
+      setAiStatus('online');
       const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Aduh Bro, otak gue lagi nge-hang sebentar. Coba lagi ya!";
+      
+      // Safety Filter Check
+      if (data.promptFeedback?.blockReason) {
+        console.warn('⚠️ Google me-blokir pesan karena safety filter:', data.promptFeedback.blockReason);
+      }
+
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 
+                        (data.promptFeedback?.blockReason ? "Waduh Bro, jawaban ini dilarang sama sensor Google (Safety Filter). Coba tanya yang lain ya!" : "Aduh Bro, otak gue lagi nge-hang sebentar. Coba lagi ya!");
 
       // Streaming Effect Logic
       let currentText = "";
@@ -174,144 +226,96 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
     toast.success('Kode terkirim ke Monster IDE, Bro!');
   };
 
-  const renderMessageContent = (content: string) => {
-    return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code({ node, className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || '');
-            const codeString = String(children).replace(/\n$/, '');
-            return match ? (
-              <div className="relative group my-4">
-                <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 bg-black/50 backdrop-blur-md text-sky-400 hover:text-sky-300"
-                    onClick={() => copyToIDE(codeString)}
-                  >
-                    <Terminal size={14} />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 bg-black/50 backdrop-blur-md text-white/50 hover:text-white"
-                    onClick={() => {
-                      navigator.clipboard.writeText(codeString);
-                      toast.success('Disalin ke clipboard!');
-                    }}
-                  >
-                    <Copy size={14} />
-                  </Button>
-                </div>
-                <div className="bg-[#0d1117] rounded-xl border border-white/10 overflow-hidden">
-                  <div className="px-4 py-1.5 bg-white/5 border-b border-white/5 flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase text-sky-500/50 tracking-widest">{match[1]}</span>
-                  </div>
-                  <pre className={cn("p-4 text-xs font-mono overflow-x-auto", className)}>
-                    <code>{children}</code>
-                  </pre>
-                </div>
-              </div>
-            ) : (
-              <code className="bg-sky-500/10 text-sky-400 px-1.5 py-0.5 rounded-md font-mono text-[11px]" {...props}>
-                {children}
-              </code>
-            );
-          }
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    );
-  };
-
   const renderAIInterface = () => (
     <motion.div
       initial={{ scale: 0.95, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       className={cn(
-        "bg-[#030712] overflow-hidden flex flex-col shadow-2xl transition-all duration-500",
-        isMaximized ? "fixed inset-0 m-auto w-[95vw] h-[85vh] z-[999999] rounded-3xl ring-1 ring-cyan-500/30" : "w-full h-full rounded-2xl border border-white/5"
-      )}
-    >
-      {/* Header */}
-      <div className="bg-[#0f172a]/95 backdrop-blur-xl px-4 py-3 flex items-center justify-between border-b border-cyan-500/20 shrink-0 z-[60]">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 rounded-full text-slate-400 hover:text-white hover:bg-white/5 transition-all">
-            <ChevronLeft size={18} />
-          </Button>
+        "shadow-2xl transition-all duration-500",
+        isMaximized 
+          ? "fixed inset-x-0 bottom-0 top-auto sm:inset-0 m-0 sm:m-auto w-full h-[92vh] sm:w-[95vw] sm:h-[85vh] z-[999999] ring-1 ring-cyan-500/30 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.4)]" 
+          : "w-full h-full rounded-2xl border border-white/5"
+      )}>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #334155;
+          border-radius: 9999px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #334155;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
+        :not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+        }
+        :not(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #334155 transparent;
+        }
+        :not(.dark) .custom-scrollbar {
+          scrollbar-color: #cbd5e1 transparent;
+        }
+      `}</style>
+      <div className={cn(
+        "flex flex-col h-full bg-white dark:bg-[#030712] transition-colors duration-300",
+        isMaximized && "rounded-none sm:rounded-3xl"
+      )}>
+        {/* Header */}
+        <div className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-slate-200 dark:border-white/5 bg-white/80 dark:bg-black/80 backdrop-blur-xl z-[60] shrink-0 transition-colors duration-300">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-              <Bot className="w-5 h-5 text-cyan-400" />
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all">
+              <ChevronLeft size={18} />
+            </Button>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                <Bot className="w-4 h-4 text-cyan-500" />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-[11px] font-black text-slate-800 dark:text-white italic tracking-tighter uppercase font-mono">
+                  AI Asisten PTIK
+                </h1>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-[11px] font-black text-white italic tracking-tighter uppercase font-mono">
-                AI Asisten PTIK
-              </h1>
-              <p className="text-[8px] font-bold text-cyan-500/60 uppercase tracking-widest flex items-center gap-1">
-                <span className="w-1 h-1 bg-cyan-500 rounded-full animate-pulse"></span>
-                AI Asisten PTIK
-              </p>
-            </div>
+          </div>
+
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="h-8 w-8 rounded-md text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all"
+            >
+              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBack}
+              className="h-8 w-8 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-all sm:hidden"
+            >
+              <X size={18} />
+            </Button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={cn("h-7 w-7 rounded-md text-slate-400 hover:text-white hover:bg-white/5", isSidebarOpen && "text-cyan-400")}
-          >
-            <SidebarIcon size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsMaximized(!isMaximized)}
-            className="h-7 w-7 rounded-md text-slate-400 hover:text-white hover:bg-white/5"
-          >
-            {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </Button>
-        </div>
-      </div>
-
       {/* Main Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar History */}
-        <AnimatePresence>
-          {isSidebarOpen && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 220, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="border-r border-white/5 bg-black/20 hidden md:flex flex-col"
-            >
-              <div className="p-4 flex flex-col gap-4">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Chat History</span>
-                <ScrollArea className="h-[calc(85vh-150px)]">
-                  <div className="space-y-2 pr-4">
-                    {history.map((h, i) => (
-                      <div key={i} className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-[10px] text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer transition-all line-clamp-2">
-                        {h}
-                      </div>
-                    ))}
-                    {history.length === 0 && (
-                      <p className="text-[9px] text-slate-600 italic">Belum ada obrolan...</p>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative bg-[#010409]">
-          <ScrollArea viewportRef={scrollRef} className="flex-1 p-4 sm:p-6">
+        <div className="flex-1 flex flex-col relative bg-slate-50 dark:bg-[#010409] transition-colors duration-300">
+          <ScrollArea viewportRef={scrollRef} className="flex-1 p-3 sm:p-6 custom-scrollbar">
             <div className="max-w-3xl mx-auto space-y-6 pb-20">
               {messages.length === 0 && (
                 <div className="h-[50vh] flex flex-col items-center justify-center text-center space-y-4">
@@ -319,8 +323,8 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
                     <Sparkles className="w-10 h-10 text-cyan-500" />
                   </div>
                   <div className="space-y-1">
-                    <h2 className="text-lg font-black text-white tracking-tighter uppercase italic">Halo Bro!</h2>
-                    <p className="text-xs text-slate-500 max-w-[280px]">Gue AI Asisten PTIK 2026. Ada yang bisa gue bantu soal kodingan atau tugas lo hari ini?</p>
+                    <h2 className="text-lg font-black text-slate-800 dark:text-white tracking-tighter uppercase italic">Halo Bro!</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[280px]">Gue AI Asisten PTIK 2026. Ada yang bisa gue bantu soal kodingan atau tugas lo hari ini?</p>
                   </div>
                 </div>
               )}
@@ -341,15 +345,64 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
                   "flex flex-col gap-2 max-w-[85%]",
                   msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                 )}>
-                  <div className={cn(
-                    "px-4 py-3 rounded-2xl text-[13px] leading-relaxed",
-                    msg.role === 'user'
-                      ? "bg-cyan-600 text-white rounded-tr-none shadow-[0_0_20px_rgba(8,145,178,0.2)]"
-                      : "bg-white/5 border border-white/10 text-slate-100 backdrop-blur-xl rounded-tl-none"
-                  )}>
-                    {msg.role === 'assistant' ? renderMessageContent(msg.content) : msg.content}
+                    <div className={cn(
+                      "max-w-[90%] sm:max-w-[85%] rounded-2xl p-4 text-sm sm:text-base leading-relaxed shadow-sm transition-all",
+                      msg.role === 'user' 
+                        ? "bg-sky-600 text-white rounded-tr-none ml-auto" 
+                        : "bg-slate-100 dark:bg-white/5 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-200/50 dark:border-white/5"
+                    )}>
+                    {msg.role === 'assistant' ? (
+                      <div className="prose prose-sm prose-slate dark:prose-invert max-w-none">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code({ node, inline, className, children, ...props }: any) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              const codeString = String(children).replace(/\n$/, '');
+                              
+                              return !inline ? (
+                                <div className="group relative my-4">
+                                  <div className="flex items-center justify-between px-4 py-1.5 bg-slate-100 dark:bg-black/40 border-b border-slate-200 dark:border-white/5 rounded-t-xl">
+                                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">{match ? match[1] : 'code'}</span>
+                                    <div className="flex gap-2">
+                                      <button 
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(codeString);
+                                          toast.success('Kopi aman, Bro!');
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-white transition-colors"
+                                      >
+                                        <Copy size={12} />
+                                      </button>
+                                      <button 
+                                        onClick={() => copyToIDE(codeString)}
+                                        className="p-1 text-slate-400 hover:text-cyan-500 transition-colors"
+                                        title="Kirim ke IDE"
+                                      >
+                                        <Cpu size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <pre className="m-0 p-4 bg-[#0d1117] text-slate-200 rounded-b-xl overflow-x-auto text-[12px] leading-relaxed">
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  </pre>
+                                </div>
+                              ) : (
+                                <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-indigo-600 dark:text-cyan-400 font-bold" {...props}>
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : msg.content}
                   </div>
-                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest px-1">
+                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">
                     {msg.role === 'user' ? 'Gue' : 'AI Asisten'}
                   </span>
                 </div>
@@ -357,10 +410,12 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
 
               {streamingText && (
                 <div className="flex flex-col gap-2 max-w-[85%] mr-auto items-start">
-                  <div className="px-4 py-3 rounded-2xl text-[13px] leading-relaxed bg-white/5 border border-white/10 text-slate-100 backdrop-blur-xl rounded-tl-none">
-                    {renderMessageContent(streamingText)}
+                  <div className="px-4 py-3 rounded-2xl text-sm sm:text-base leading-relaxed bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-100 backdrop-blur-xl rounded-tl-none">
+                    <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                    </div>
                   </div>
-                  <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest px-1 flex items-center gap-1.5">
+                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1 flex items-center gap-1.5">
                     <span className="w-1 h-1 bg-cyan-500 rounded-full animate-ping"></span>
                     Mengetik...
                   </span>
@@ -377,20 +432,20 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
           </ScrollArea>
 
           {/* Input Area */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#010409] to-transparent z-50">
-            <div className="max-w-3xl mx-auto flex gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-2xl ring-1 ring-white/5 shadow-2xl">
+          <div className="p-4 bg-white dark:bg-[#0d1117] border-t border-slate-200 dark:border-white/5 transition-colors duration-300">
+            <div className="max-w-3xl mx-auto flex gap-2 p-1.5 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl shadow-inner transition-all">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Tanya soal koding atau tugas PTIK lo..."
-                className="flex-1 bg-transparent px-3 py-2 text-[13px] text-white placeholder:text-slate-600 outline-none"
+                className="flex-1 bg-transparent px-3 py-2 text-[13px] text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none"
               />
               <Button
                 onClick={handleSend}
                 disabled={isLoading || !input.trim()}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-cyan-500/20 active:scale-90 transition-all"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-indigo-500/20 active:scale-90 transition-all"
               >
                 <Send size={18} />
               </Button>
@@ -398,8 +453,9 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
           </div>
         </div>
       </div>
-    </motion.div>
-  );
+    </div>
+  </motion.div>
+);
 
   return (
     <>

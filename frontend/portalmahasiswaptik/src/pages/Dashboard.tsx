@@ -990,7 +990,7 @@ export default function Dashboard() {
           {/* Quick Actions */}
           <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-4">Aksi Cepat</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Scan Absen - Blue Glow */}
               <Link to={userRole === 'Dosen' ? "/dashboard/announcements" : "/dashboard/scan-qr"} className="block group">
                 <button className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_10px_25px_rgba(59,130,246,0.2)] hover:border-blue-400/50 active:scale-95 shadow-sm">

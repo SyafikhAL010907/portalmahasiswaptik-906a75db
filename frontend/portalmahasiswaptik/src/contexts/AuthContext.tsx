@@ -15,6 +15,7 @@ interface Profile {
   class_id: string | null;
   avatar_url: string | null;
   user_class?: string;
+  last_language?: string;
 }
 
 interface AuthContextType {
