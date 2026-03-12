@@ -98,17 +98,6 @@ const staggerBottom: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
 };
 
-// --- DUMMY DATA FOR LIFETIME TRANSACTION TABLE ---
-const DUMMY_ANGKATAN_TRANSACTIONS = [
-  { id: 'd1', description: 'Pemasukan Awal Kas Angkatan', type: 'income', amount: 2500000, category: 'General', date: '2026-01-10', month: 'Januari', classLabel: 'Kelas A' },
-  { id: 'd5', description: 'Kas Rutin Semester 1', type: 'income', amount: 1500000, category: 'General', date: '2026-01-20', month: 'Januari', classLabel: 'Kelas A' },
-  { id: 'd2', description: 'Biaya Sewa Lapangan Futsal', type: 'expense', amount: 350000, category: 'General', date: '2026-02-15', month: 'Februari', classLabel: 'Kelas B' },
-  { id: 'd6', description: 'Iuran Wajib LOMBA', type: 'income', amount: 500000, category: 'General', date: '2026-02-20', month: 'Februari', classLabel: 'Kelas B' },
-  { id: 'd3', description: 'Hibah Alumni Batch 2024', type: 'income', amount: 5000000, category: 'General', date: '2026-03-01', month: 'Maret', classLabel: 'Kelas C' },
-  { id: 'd7', description: 'Pemasukan Sponsor A', type: 'income', amount: 2000000, category: 'General', date: '2026-03-05', month: 'Maret', classLabel: 'Kelas C' },
-  { id: 'd4', description: 'Pembelian Atribut Kelas', type: 'expense', amount: 1200000, category: 'General', date: '2026-03-10', month: 'Maret', classLabel: 'Kelas D' },
-  { id: 'd8', description: 'Saldo Pindahan Semester 1', type: 'income', amount: 1000000, category: 'General', date: '2026-03-15', month: 'Maret', classLabel: 'Kelas D' },
-];
 
 export default function Finance() {
   const { session } = useAuth();
@@ -188,7 +177,8 @@ export default function Finance() {
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [dummyTransactionFilter, setDummyTransactionFilter] = useState<'all' | 'income' | 'expense'>('all'); // Added for dummy table
+  const [dummyTransactionFilter, setDummyTransactionFilter] = useState<'all' | 'income' | 'expense'>('all'); 
+  const [bottomTableMonth, setBottomTableMonth] = useState<number>(0); // 0 = Lifetime for bottom table
 
   // --- CONFIRMATION MODAL STATE ---
   const [modalConfig, setModalConfig] = useState<{
@@ -729,6 +719,55 @@ export default function Finance() {
 
   const saldoBersih = totalPemasukan - totalPengeluaran;
 
+  // --- LOGIC FOR BOTTOM TRANSACTION TABLE ---
+  const processedBottomTransactions = useMemo(() => {
+    let filtered = transactions.filter(tx => {
+      // Filter by type
+      if (dummyTransactionFilter !== 'all' && tx.type !== dummyTransactionFilter) return false;
+      
+      // Filter by month for bottom table - Use independent bottomTableMonth
+      if (bottomTableMonth !== 0) {
+        // Angkatan/General transactions only show in Lifetime
+        if (!tx.class_id) return false;
+
+        const txMonth = new Date(tx.transaction_date).getMonth() + 1;
+        if (txMonth !== bottomTableMonth) return false;
+      }
+      
+      // Filter by year
+      return new Date(tx.transaction_date).getFullYear() === selectedYear;
+    });
+
+    // 2. Add derived labels and sort
+    const processed = filtered.map(tx => {
+      const txDate = new Date(tx.transaction_date);
+      const monthIndex = txDate.getMonth() + 1;
+      const monthLabel = months.find(m => m.value === monthIndex)?.label || '';
+      const classLabel = classes.find(c => c.id === tx.class_id)?.name || 'Angkatan';
+      
+      return {
+        ...tx,
+        monthLabel,
+        classLabel: classLabel.startsWith('Kelas') || classLabel === 'Angkatan' ? classLabel : `Kelas ${classLabel}`,
+        sortMonth: monthIndex,
+        sortDate: txDate.getTime()
+      };
+    });
+
+    // 3. Sorting logic: Chronological as requested (Jan -> Dec)
+    return processed.sort((a, b) => {
+      // Always sort by Month then Date Ascending for the Lifetime/Kolektif view
+      return a.sortMonth - b.sortMonth || a.sortDate - b.sortDate;
+    });
+  }, [transactions, dummyTransactionFilter, bottomTableMonth, selectedYear, classes, months]);
+
+  const bottomTableStats = useMemo(() => {
+    const income = processedBottomTransactions.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+    const expense = processedBottomTransactions.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0);
+    return { income, expense, balance: income - expense };
+  }, [processedBottomTransactions]);
+
+
   const isReadOnlyForAdminKelas = currentUser?.role === 'admin_kelas' && selectedClassId !== currentUser?.class_id;
 
   const canEdit = () => {
@@ -863,7 +902,8 @@ export default function Finance() {
         type: newTx.type,
         description: newTx.description,
         amount: newTx.amount,
-        transaction_date: targetClassId ? `${targetYear}-${String(targetMonth).padStart(2, '0')}-01` : new Date().toLocaleDateString('en-CA'),
+        // ✅ FIX: Respect selected date, fallback to 1st of month only if none provided
+        transaction_date: newTx.transaction_date || (targetClassId ? `${targetYear}-${String(targetMonth).padStart(2, '0')}-01` : new Date().toLocaleDateString('en-CA')),
         category: isLifetime ? 'General' : (newTx.type === 'income' ? 'hibah' : newTx.category),
         created_by: currentUser.user_id
       };
@@ -1736,7 +1776,20 @@ export default function Finance() {
                 <div className="shrink-0">
                   <Dialog open={isAddTxOpen} onOpenChange={setIsAddTxOpen}>
                     <DialogTrigger asChild>
-                      <Button className="primary-gradient gap-2 h-11 px-5 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all">
+                      <Button 
+                        className="primary-gradient gap-2 h-11 px-5 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all"
+                        onClick={() => {
+                          const initialDate = !isLifetime ? new Date(selectedYear, localMonth - 1, 1) : new Date();
+                          setNewTx({
+                            type: 'expense',
+                            description: '',
+                            amount: 0,
+                            transaction_date: format(initialDate, "yyyy-MM-dd"),
+                            category: 'Umum'
+                          });
+                          setIsAddTxOpen(true);
+                        }}
+                      >
                         <Plus className="w-4 h-4" /> Tambah Transaksi
                       </Button>
                     </DialogTrigger>
@@ -1785,6 +1838,17 @@ export default function Finance() {
                               </Select>
                             </div>
                           )}
+                          <div className="space-y-2 col-span-2">
+                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tanggal</label>
+                            <DatePicker
+                              date={newTx.transaction_date ? new Date(newTx.transaction_date) : undefined}
+                              setDate={(date) => setNewTx({ ...newTx, transaction_date: date ? format(date, "yyyy-MM-dd") : "" })}
+                              placeholder="Pilih tanggal"
+                              required
+                              fromDate={!isLifetime ? new Date(selectedYear, localMonth - 1, 1) : undefined}
+                              toDate={!isLifetime ? new Date(selectedYear, localMonth, 0) : undefined}
+                            />
+                          </div>
                         </div>
                         <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-black h-12 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-95" onClick={handleAddTransaction} disabled={isSubmitting}>
                           {isSubmitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-4 h-4 mr-2" />} Simpan Transaksi
@@ -1931,6 +1995,8 @@ export default function Finance() {
                       setDate={(date) => setEditingTx(prev => prev ? { ...prev, transaction_date: date ? format(date, "yyyy-MM-dd") : "" } : null)}
                       placeholder="Pilih tanggal"
                       required
+                      fromDate={!isLifetime ? new Date(selectedYear, localMonth - 1, 1) : undefined}
+                      toDate={!isLifetime ? new Date(selectedYear, localMonth, 0) : undefined}
                     />
                   </div>
 
@@ -1997,13 +2063,13 @@ export default function Finance() {
         confirmText={modalConfig.confirmText}
       />
 
-      {/* ✅ REFINED: Daftar Transaksi Kas Angkatan (Lifetime Only - Bottom Position) */}
+      {/* ✅ REFINED: Daftar Transaksi Kas Angkatan (Lifetime Only) */}
       {isLifetime && (
         <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
             <div className="flex flex-col">
               <h2 className="text-lg font-bold text-foreground">Daftar Transaksi Kas Angkatan</h2>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Data Dummy Transaksi (Read-Only)</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Data Transaksi Real-Time (Angkatan & 4 Kelas)</p>
             </div>
             
             <div className="flex flex-wrap gap-2 w-full md:w-auto">
@@ -2024,7 +2090,10 @@ export default function Finance() {
 
               <div className="relative w-full sm:w-[160px]">
                 <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-                <Select defaultValue="0">
+                <Select
+                  value={bottomTableMonth.toString()}
+                  onValueChange={(val) => setBottomTableMonth(Number(val))}
+                >
                   <SelectTrigger className="w-full pl-9 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-10 sm:h-11 text-xs">
                     <SelectValue placeholder="Pilih Periode" />
                   </SelectTrigger>
@@ -2039,81 +2108,79 @@ export default function Finance() {
             </div>
           </div>
 
-          <div className="space-y-8">
-            {['Kelas A', 'Kelas B', 'Kelas C', 'Kelas D'].map((classGroup) => {
-              const filteredTxs = DUMMY_ANGKATAN_TRANSACTIONS
-                .filter(tx => tx.classLabel === classGroup)
-                .filter(tx => dummyTransactionFilter === 'all' || tx.type === dummyTransactionFilter);
+        <div className="space-y-8">
+          {['Angkatan', 'Kelas A', 'Kelas B', 'Kelas C', 'Kelas D'].map((classGroup) => {
+            const filteredTxs = processedBottomTransactions.filter(tx => tx.classLabel === classGroup);
 
-              if (filteredTxs.length === 0) return null;
+            if (filteredTxs.length === 0) return null;
 
-              return (
-                <div key={classGroup} className="space-y-4">
-                  <div className="flex items-center gap-3 px-2">
-                    <div className="h-px flex-1 bg-border/50"></div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 bg-muted/30 px-3 py-1 rounded-full border border-border/30">
-                      Kolektif {classGroup}
-                    </span>
-                    <div className="h-px flex-1 bg-border/50"></div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {filteredTxs.map((tx) => (
-                      <div key={tx.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50 group gap-4">
-                        <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
-                          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm", tx.type === 'income' ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600')}>
-                            {tx.type === 'income' ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-slate-900 dark:text-slate-100 text-sm md:text-base truncate">{tx.description}</p>
-                            <div className="flex items-center gap-2 mt-1 overflow-x-auto no-scrollbar whitespace-nowrap">
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black shrink-0">{tx.date}</span>
-                              <span className={cn(
-                                "text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0",
-                                tx.type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                              )}>
-                                [{tx.classLabel}] | [{tx.month}] | [{tx.date}]
-                              </span>
-                            </div>
-                          </div>
+            return (
+              <div key={classGroup} className="space-y-4">
+                <div className="flex items-center gap-3 px-2">
+                  <div className="h-px flex-1 bg-border/50"></div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 bg-muted/30 px-3 py-1 rounded-full border border-border/30">
+                    {classGroup === 'Angkatan' ? 'Transaksi Angkatan' : `Data Cash Flow ${classGroup}`}
+                  </span>
+                  <div className="h-px flex-1 bg-border/50"></div>
+                </div>
+                
+                <div className="space-y-3">
+                  {filteredTxs.map((tx) => (
+                    <div key={tx.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50 group gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm", tx.type === 'income' ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600')}>
+                          {tx.type === 'income' ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
                         </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
-                          <span className={cn("font-black text-base whitespace-nowrap", tx.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}>
-                            {tx.type === 'income' ? '+' : '-'}{formatIDR(tx.amount)}
-                          </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 text-sm md:text-base truncate">{tx.description || tx.category}</p>
+                          <div className="flex items-center gap-2 mt-1 overflow-x-auto no-scrollbar whitespace-nowrap">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black shrink-0">{tx.transaction_date}</span>
+                            <span className={cn(
+                              "text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0",
+                              tx.type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            )}>
+                              {tx.monthLabel} | {tx.classLabel} | {tx.transaction_date}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
+                        <span className={cn("font-black text-base whitespace-nowrap", tx.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}>
+                          {tx.type === 'income' ? '+' : '-'}{formatIDR(tx.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
+        </div>
 
           <div className="mt-6 pt-4 border-t border-border">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="flex justify-between items-center sm:block sm:text-center">
                 <div className="text-xs text-muted-foreground mb-1">Total Pemasukan</div>
                 <div className="font-bold text-blue-500">
-                  {formatIDR(DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0))}
+                  {formatIDR(bottomTableStats.income)}
                 </div>
               </div>
               <div className="flex justify-between items-center sm:block sm:text-center">
                 <div className="text-xs text-muted-foreground mb-1">Total Pengeluaran</div>
                 <div className="font-bold text-rose-500">
-                  {formatIDR(DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0))}
+                  {formatIDR(bottomTableStats.expense)}
                 </div>
               </div>
               <div className="flex justify-between items-center sm:block sm:text-center p-2 rounded-lg bg-muted/20 border border-border/50">
                 <div className="text-xs text-muted-foreground mb-1">Saldo Akhir (Validasi)</div>
-                <div className="font-bold text-foreground">
-                  {formatIDR(DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) - DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0))}
+                <div className={cn("font-bold", bottomTableStats.balance < 0 ? "text-rose-500" : "text-foreground")}>
+                  {formatIDR(bottomTableStats.balance)}
                 </div>
               </div>
             </div>
           </div>
         </motion.div>
       )}
-    </motion.div>
+      </motion.div>
   );
 }

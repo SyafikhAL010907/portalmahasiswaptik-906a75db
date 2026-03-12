@@ -18,6 +18,10 @@ interface DatePickerProps {
     placeholder?: string
     className?: string
     required?: boolean
+    disabled?: any
+    fromDate?: Date
+    toDate?: Date
+    initialFocus?: boolean
 }
 
 export function DatePicker({
@@ -25,7 +29,8 @@ export function DatePicker({
     setDate,
     placeholder = "Pilih tanggal",
     className,
-    required
+    required,
+    ...calendarProps
 }: DatePickerProps) {
     return (
         <Popover>
@@ -55,6 +60,7 @@ export function DatePicker({
                     onSelect={setDate}
                     initialFocus
                     locale={id}
+                    {...calendarProps}
                 />
             </PopoverContent>
         </Popover>
