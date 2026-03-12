@@ -1890,7 +1890,7 @@ export default function Finance() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
+                  <div className="flex items-center justify-center sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
                     <span className={cn("font-black text-base whitespace-nowrap", tx?.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}> {tx?.type === 'income' ? '+' : '-'}{formatIDR(tx?.amount)} </span>
                     {canEdit() && (
                       <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -2118,7 +2118,7 @@ export default function Finance() {
               <div key={classGroup} className="space-y-4">
                 <div className="flex items-center gap-3 px-2">
                   <div className="h-px flex-1 bg-border/50"></div>
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 bg-muted/30 px-3 py-1 rounded-full border border-border/30">
+                  <span className="text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-muted-foreground/60 bg-muted/30 px-3 py-1 rounded-full border border-border/30 whitespace-nowrap">
                     {classGroup === 'Angkatan' ? 'Transaksi Angkatan' : `Data Cash Flow ${classGroup}`}
                   </span>
                   <div className="h-px flex-1 bg-border/50"></div>
@@ -2144,7 +2144,7 @@ export default function Finance() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
+                      <div className="flex items-center justify-center sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
                         <span className={cn("font-black text-base whitespace-nowrap", tx.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}>
                           {tx.type === 'income' ? '+' : '-'}{formatIDR(tx.amount)}
                         </span>
