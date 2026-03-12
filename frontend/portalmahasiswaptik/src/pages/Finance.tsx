@@ -640,17 +640,20 @@ export default function Finance() {
   // formatRupiah removed and replaced by formatIDR from utils.ts
 
   const classDuesTotal = useMemo(() => {
+    // FIX: Scan ALL 12 months for this class, ignoring any billing range limits
     if (isLifetime) {
-      return matrixData.reduce((sum, s) => sum + (s.lifetime_total || 0), 0);
+      return yearlyDues
+        .filter(d => d.status === 'paid')
+        .reduce((sum, d) => sum + (d.amount || 0), 0);
     }
-    let countPaid = 0;
-    matrixData.forEach(student => {
-      countPaid += student.payments.filter(p => p === 'paid').length;
-    });
-    return countPaid * 5000;
-  }, [matrixData, isLifetime]);
+    // Monthly View: Filter strictly by the active month
+    return yearlyDues
+      .filter(d => d.month === localMonth && d.status === 'paid')
+      .reduce((sum, d) => sum + (d.amount || 0), 0);
+  }, [yearlyDues, isLifetime, localMonth]);
 
-  const selectedClassName = classes.find(c => c.id === selectedClassId)?.name || '...';
+  const selectedClassNameRaw = classes.find(c => c.id === selectedClassId)?.name || '...';
+  const selectedClassName = selectedClassNameRaw.replace(/^Kelas\s+/i, "");
 
   const totalKasAngkatan = useMemo(() => {
     return duesTotal;
@@ -1256,7 +1259,7 @@ export default function Finance() {
           <PremiumCard
             icon={Users}
             title={`Saldo Kas ${selectedClassName}`}
-            subtitle={isLifetime ? `Total iuran terbayar ${selectedClassName} (12 bulan)` : `Total iuran terbayar ${selectedClassName} bulan ini`}
+            subtitle={isLifetime ? `Total iuran terbayar (Jan - Des)` : `Total iuran terbayar bulan ini`}
             value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-purple-500/10" /> : formatIDR(classDuesTotal)}
             gradient="from-purple-500/20 to-purple-500/5"
             iconClassName="bg-purple-500/10 text-purple-600"
@@ -1279,8 +1282,8 @@ export default function Finance() {
           />
           <PremiumCard
             icon={Wallet}
-            title={isLifetime ? `Saldo Bersih ${selectedClassName} Lifetime` : `Saldo Bersih ${selectedClassName}`}
-            subtitle={isLifetime ? `Iuran + Hibah - Pengeluaran (12 bulan)` : `Iuran + Hibah - Pengeluaran (bulan ini)`}
+            title={isLifetime ? `Saldo Bersih ${selectedClassName} (Lifetime)` : `Saldo Bersih ${selectedClassName}`}
+            subtitle={isLifetime ? `Total Iuran + Hibah - Pengeluaran (12 Bulan)` : `Total Iuran + Hibah - Pengeluaran (Bulan ini)`}
             value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-indigo-500/10" /> : formatIDR(saldoBersih)}
             gradient="from-indigo-500/20 to-indigo-500/5"
             iconClassName="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
