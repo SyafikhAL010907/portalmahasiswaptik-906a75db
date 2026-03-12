@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, Variants, AnimatePresence } from 'framer-motion';
-import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table, ExternalLink, MoreVertical } from 'lucide-react';
+import { Folder, FileText, Video, Download, ChevronRight, ArrowLeft, Plus, Trash2, Loader2, Image as ImageIcon, File, Pencil, BookOpen, GraduationCap, Calendar, UploadCloud, Table, ExternalLink, MoreVertical, Presentation, Edit, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -164,7 +165,9 @@ export default function Repository() {
   const [materialForm, setMaterialForm] = useState({ id: '', title: '', description: '' });
   const [isEditingMaterial, setIsEditingMaterial] = useState(false);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [isFileTooLarge, setIsFileTooLarge] = useState(false);
+  const [isAnyFileTooLarge, setIsAnyFileTooLarge] = useState(false);
 
   // Semester Dialog
   const [isSemesterDialogOpen, setIsSemesterDialogOpen] = useState(false);
@@ -282,21 +285,75 @@ export default function Repository() {
 
   const fetchMaterials = async (subjectId: string) => {
     setIsLoading(true);
+    const supabaseAny: any = supabase;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAny
         .from('materials')
         .select('*')
         .eq('subject_id', subjectId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setMaterials(data || []);
+      const materialsData = data || [];
+      setMaterials(materialsData);
+
+      // --- PERSIST QUOTA STATUS (Strict V12.1 Sync) ---
+      await syncQuotaStatus(materialsData);
     } catch (err: any) {
       toast.error("Gagal memuat materi: " + err.message);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const syncQuotaStatus = async (materialList: Material[]) => {
+    if (!userId || materialList.length === 0) return;
+    try {
+      const { data: logs, error: logsError } = await (supabase as any)
+        .from('download_logs')
+        .select('resource_id')
+        .eq('user_id', userId)
+        .eq('download_type', 'material')
+        .gt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+      if (!logsError && logs) {
+        const exhausted: Record<string, boolean> = {};
+        (logs as any[]).forEach(log => {
+          if (log.resource_id) exhausted[log.resource_id] = true;
+        });
+        setExhaustedMaterials(exhausted);
+      }
+    } catch (err) {
+      console.error("Quota sync error:", err);
+    }
+  };
+
+  // --- REAL-TIME QUOTA SYNC ---
+  useEffect(() => {
+    if (!userId) return;
+
+    // Listen to changes in download_logs for the current user
+    const channel = supabase
+      .channel('quota-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'download_logs',
+          filter: `user_id=eq.${userId}`
+        },
+        () => {
+          // Trigger re-sync when something changes (added/deleted)
+          syncQuotaStatus(materials);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, materials.length]);
 
   // --- NAVIGATION ---
   const handleSelectSemester = (semester: Semester) => {
@@ -491,13 +548,20 @@ export default function Repository() {
   };
 
   const handleSaveMaterial = async () => {
-    if (!materialForm.title.trim()) {
-      toast.error("Judul materi wajib diisi");
+    const hasFiles = isEditingMaterial ? !!fileToUpload : filesToUpload.length > 0;
+
+    if (!materialForm.title.trim() && !hasFiles) {
+      toast.error("Judul materi wajib diisi jika tidak mengunggah file baru");
       return;
     }
 
-    if (!isEditingMaterial && !fileToUpload) {
+    if (!isEditingMaterial && filesToUpload.length === 0) {
       toast.error("Silakan pilih file untuk diunggah");
+      return;
+    }
+
+    if (isEditingMaterial && !materialForm.id) {
+      toast.error("Error: ID materi tidak ditemukan");
       return;
     }
 
@@ -528,140 +592,191 @@ export default function Repository() {
 
     setIsLoading(true);
     try {
-      let finalFileUrl = '';
-      let storageType: 'supabase' | 'google_drive' = 'supabase';
-      let type = 'other';
-      let fileSize = fileToUpload?.size || null;
-      let category = null;
-      let isPinned = false;
+      const driveFolderId = selectedCourse!.drive_folder_id || PARENT_FOLDER_ID;
+      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError) throw new Error('Sesi habis, silakan login ulang');
 
-      // Only perform upload if a new file is selected
-      if (fileToUpload) {
-        if (isFileTooLarge) {
-          const driveFolderId = selectedCourse!.drive_folder_id || PARENT_FOLDER_ID;
+      // Loop selection (Bulk Support)
+      const filesToProcess = isEditingMaterial ? [fileToUpload].filter(Boolean) as File[] : filesToUpload;
+
+      if (filesToProcess.length === 0 && !isEditingMaterial) {
+        throw new Error('Pilih file dulu, Bro!');
+      }
+
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const currentFile = filesToProcess[i];
+        const userId = session?.user?.id;
+        let finalFileUrl = '';
+        let fileSize = currentFile.size;
+        let storageType: 'supabase' | 'google_drive' = 'supabase';
+        let type = 'document';
+        let category: string | null = null;
+        let isPinned = false;
+
+        toast.info(`Memproses file (${i + 1}/${filesToProcess.length}): ${currentFile.name}`, { duration: 2000 });
+
+        // Detect Type (Strict for Database Constraint)
+        const fileExt = currentFile.name.split('.').pop()?.toLowerCase() || '';
+        const isDoc = currentFile.type.includes('pdf') ||
+          currentFile.type.includes('word') ||
+          currentFile.type.includes('excel') ||
+          currentFile.type.includes('powerpoint') ||
+          currentFile.type.includes('officedocument') ||
+          ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(fileExt);
+        const isImage = currentFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png'].includes(fileExt);
+        const isVideo = currentFile.type.startsWith('video/') || fileExt === 'mp4';
+
+        if (isImage) type = 'image';
+        else if (isVideo) type = 'video';
+        else if (isDoc) type = 'pdf';
+        else type = 'other';
+
+        if (currentFile.size > 2 * 1024 * 1024) {
+          // File Terlalu Besar (Google Drive Path)
           const formData = new FormData();
-          formData.append('file', fileToUpload);
+          formData.append('file', currentFile);
           formData.append('parent_id', driveFolderId);
-
-          const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
-          if (sessionError) throw new Error('Sesi habis, silakan login ulang');
 
           const response = await fetch(`${API_BASE_URL}/api/repository/upload-drive`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session?.access_token}`,
-            },
+            headers: { 'Authorization': `Bearer ${session?.access_token}` },
             body: formData,
           });
 
           const result = await response.json();
-          if (!response.ok) throw new Error(result.error || 'Gagal upload ke Google Drive');
+          if (!response.ok) throw new Error(result.error || `Gagal upload ${currentFile.name} ke Drive`);
 
           storageType = 'google_drive';
           finalFileUrl = result.webViewLink;
           category = 'Umum';
           isPinned = true;
         } else {
-          const fileExt = fileToUpload.name.split('.').pop();
+          // Supabase Path
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
           const filePath = `${selectedSemester!.id}/${selectedCourse!.code}/${fileName}`;
 
           const { error: uploadError } = await supabase.storage
             .from('materials')
-            .upload(filePath, fileToUpload);
+            .upload(filePath, currentFile);
 
           if (uploadError) throw uploadError;
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('materials')
-            .getPublicUrl(filePath);
-
+          const { data: { publicUrl } } = supabase.storage.from('materials').getPublicUrl(filePath);
           finalFileUrl = publicUrl;
           storageType = 'supabase';
-
-          if (fileToUpload.type.startsWith('image/')) type = 'image';
-          else if (fileToUpload.type.startsWith('video/')) type = 'video';
-          else if (fileToUpload.type.includes('pdf')) type = 'pdf';
         }
-      }
 
-      let finalTitle = materialForm.title.trim();
-      // Only append extension if a new file was uploaded, otherwise preserve original title logic if needed
-      // For simplicity, we'll try to guess extension if it's missing but we have it in state
-      if (fileToUpload) {
-        const lastDotIndex = fileToUpload.name.lastIndexOf('.');
+        // Tentukan Judul
+        let finalTitle = "";
+        if (isEditingMaterial) {
+          finalTitle = materialForm.title.trim();
+        } else {
+          // Jika bulk (>1) atau belum diisi judulnya, pake nama file
+          if (filesToProcess.length > 1 || !materialForm.title.trim()) {
+            finalTitle = currentFile.name.split('.').slice(0, -1).join('.');
+          } else {
+            finalTitle = materialForm.title.trim();
+          }
+        }
+
+        // Append extension jika belum ada
+        const lastDotIndex = currentFile.name.lastIndexOf('.');
         if (lastDotIndex !== -1) {
-          const extension = fileToUpload.name.substring(lastDotIndex).toLowerCase();
+          const extension = currentFile.name.substring(lastDotIndex).toLowerCase();
           if (!finalTitle.toLowerCase().endsWith(extension)) {
             finalTitle = finalTitle + extension;
           }
         }
-      }
 
-      if (isEditingMaterial) {
-        // UPDATE EXISTING
-        const updateData: any = {
-          title: finalTitle,
-          description: materialForm.description,
-        };
+        if (isEditingMaterial) {
+          const updateData: any = { title: finalTitle, description: materialForm.description };
+          if (finalFileUrl) updateData.file_url = finalFileUrl;
+          if (finalFileUrl) updateData.storage_type = storageType;
+          if (finalFileUrl) updateData.file_type = type;
+          if (finalFileUrl) updateData.file_size = storageType === 'google_drive' ? null : fileSize;
 
-        if (fileToUpload) {
-          updateData.file_url = finalFileUrl;
-          updateData.storage_type = storageType;
-          updateData.file_type = type;
-          updateData.file_size = storageType === 'google_drive' ? null : fileSize;
           updateData.is_pinned = isPinned;
           if (storageType === 'google_drive') {
             updateData.category = category;
-            updateData.external_url = selectedCourse!.drive_folder_id
-              ? `https://drive.google.com/drive/folders/${selectedCourse!.drive_folder_id}`
-              : GOOGLE_DRIVE_FOLDER_LINK;
+            updateData.external_url = `https://drive.google.com/drive/folders/${driveFolderId}`;
           }
+
+          // Duplicate Check (Skip if we're not changing titles and it's editing)
+          const { data: duplicate } = await supabase
+            .from('materials')
+            .select('id')
+            .eq('subject_id', selectedCourse.id)
+            .eq('title', finalTitle)
+            .neq('id', materialForm.id)
+            .maybeSingle();
+
+          if (duplicate) {
+            toast.error(`Gagal: File dengan nama "${finalTitle}" sudah ada di matkul ini!`);
+            continue;
+          }
+
+          const { error } = await supabase.from('materials').update(updateData).eq('id', materialForm.id);
+          if (error) throw error;
+        } else {
+          // Validasi data sebelum insert
+          if (!selectedCourse?.id || !selectedSemester?.id || !userId) {
+            throw new Error(`Data tidak lengkap (Mata Kuliah: ${selectedCourse?.id ? 'OK' : 'Kosong'}, Semester: ${selectedSemester?.id ? 'OK' : 'Kosong'}, User: ${userId ? 'OK' : 'Kosong'})`);
+          }
+
+          // Extract Semester Number safely
+          const semesterIdStr = String(selectedSemester.id);
+          const semesterMatch = semesterIdStr.match(/\d+/);
+          const finalSemester = semesterMatch ? parseInt(semesterMatch[0], 10) : 1;
+
+          // Duplicate Check
+          const { data: duplicate } = await supabase
+            .from('materials')
+            .select('id')
+            .eq('subject_id', selectedCourse.id)
+            .eq('title', finalTitle)
+            .maybeSingle();
+
+          if (duplicate) {
+            toast.error(`Ditolak: File "${finalTitle}" sudah pernah diunggah di matkul ini.`);
+            continue;
+          }
+
+          const insertData: any = {
+            subject_id: selectedCourse.id,
+            semester: finalSemester,
+            title: finalTitle,
+            description: materialForm.description,
+            file_type: type,
+            file_url: finalFileUrl,
+            file_size: storageType === 'google_drive' ? null : fileSize,
+            uploaded_by: userId,
+            storage_type: storageType,
+            external_url: storageType === 'google_drive' ? `https://drive.google.com/drive/folders/${driveFolderId}` : null,
+            is_pinned: isPinned
+          };
+          if (storageType === 'google_drive') insertData.category = category;
+
+          const { error } = await supabase.from('materials').insert([insertData]);
+          if (error) throw error;
         }
-
-        const { error: updateError } = await supabase
-          .from('materials')
-          .update(updateData)
-          .eq('id', materialForm.id);
-
-        if (updateError) throw updateError;
-        toast.success("Materi berhasil diupdate");
-      } else {
-        // INSERT NEW
-        const driveFolderId = selectedCourse!.drive_folder_id;
-        const folderLink = driveFolderId
-          ? `https://drive.google.com/drive/folders/${driveFolderId}`
-          : GOOGLE_DRIVE_FOLDER_LINK;
-
-        const insertData: any = {
-          subject_id: selectedCourse!.id,
-          semester: selectedSemester!.id,
-          title: finalTitle,
-          description: materialForm.description,
-          file_type: type,
-          file_url: finalFileUrl,
-          file_size: storageType === 'google_drive' ? null : fileSize,
-          uploaded_by: userId,
-          storage_type: storageType,
-          external_url: storageType === 'google_drive' ? folderLink : null,
-          is_pinned: isPinned
-        };
-
-        if (storageType === 'google_drive') {
-          insertData.category = category;
-        }
-
-        const { error: insertError } = await supabase.from('materials').insert([insertData]);
-        if (insertError) throw insertError;
-        toast.success("Materi berhasil disimpan");
       }
 
+      // Handle case EDIT tapi GAK ganti file
+      if (isEditingMaterial && filesToProcess.length === 0) {
+        const updateData = {
+          title: materialForm.title.trim(),
+          description: materialForm.description
+        };
+        const { error } = await supabase.from('materials').update(updateData).eq('id', materialForm.id);
+        if (error) throw error;
+      }
+
+      toast.success(isEditingMaterial ? "Materi berhasil diupdate" : `${filesToProcess.length} Materi berhasil disimpan`);
       setIsAddMaterialOpen(false);
+      setFilesToUpload([]);
       setFileToUpload(null);
-      setIsFileTooLarge(false);
       setMaterialForm({ id: '', title: '', description: '' });
       fetchMaterials(selectedCourse!.id);
-
     } catch (err: any) {
       toast.error("Gagal menyimpan: " + err.message);
     } finally {
@@ -689,56 +804,26 @@ export default function Repository() {
   };
 
   // --- Buka File di Tab Baru (Smart Routing Anti-Auto-Download) ---
-  const handleOpenFile = async (file: Material) => {
+  const handleOpenFile = (file: Material) => {
     if (!userId) return toast.error("Silakan login dulu, Bro!");
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Sesi tidak ditemukan");
+    const url = file.file_url;
+    if (!url) return toast.error("URL file tidak ditemukan!");
 
-      toast.info("Memverifikasi izin akses...", { duration: 2000 });
+    // LOGIKA SMART PREVIEW (Biar tetep bisa buka di browser)
+    const cleanUrl = url.split('?')[0];
+    const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
+    const docsViewerTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
-      // 1. HIT BACKEND (Wajib lapor satpam dulu biar jatah dipotong)
-      const response = await fetch(`${API_BASE_URL}/repository/download/${file.id}`, {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
-
-      // 2. HANDLE GEMBOK (Kalau jatah abis, blokir di sini)
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (response.status === 403) {
-          toast.error("Akses Ditolak!", { description: errorData.error });
-          // Matikan tombol secara otomatis di UI
-          setExhaustedMaterials(prev => ({ ...prev, [file.id]: true }));
-          return;
-        }
-        throw new Error(errorData.error || "Gagal verifikasi jatah");
-      }
-
-      const data = await response.json();
-      const url = data.url; // Ambil URL hasil verifikasi backend
-
-      // 3. LOGIKA SMART PREVIEW (Biar tetep bisa buka di browser)
-      const cleanUrl = url.split('?')[0];
-      const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
-      const docsViewerTypes = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
-
-      if (docsViewerTypes.includes(ext)) {
-        // Pake Google Viewer buat file Office biar nggak auto-download
-        const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
-        window.open(viewerUrl, '_blank');
-        toast.success("Pratinjau dibuka! (Jatah terpotong)");
-      } else {
-        // PDF, Gambar, Video langsung buka tab baru
-        window.open(url, '_blank');
-        toast.success("File dibuka! (Jatah terpotong)");
-      }
-
-    } catch (error: any) {
-      console.error("Open error:", error);
-      toast.error("Gagal membuka file!", {
-        description: "Ada masalah di database (500). Cek apakah material_id sudah dihapus!"
-      });
+    if (docsViewerTypes.includes(ext)) {
+      // Pake Google Viewer buat file Office biar nggak auto-download
+      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+      window.open(viewerUrl, '_blank');
+      toast.success("Pratinjau dibuka!");
+    } else {
+      // PDF, Gambar, Video langsung buka tab baru
+      window.open(url, '_blank');
+      toast.success("File dibuka!");
     }
   };
   const handleDownload = async (file: Material) => {
@@ -787,6 +872,11 @@ export default function Repository() {
         description: `Sisa jatah: ${data.remaining} kali lagi.`
       });
 
+      // Update state instan jika jatah habis
+      if (data.remaining === 0) {
+        setExhaustedMaterials(prev => ({ ...prev, [file.id]: true }));
+      }
+
     } catch (error: any) {
       console.error("Download error:", error);
       toast.error("Gagal Verifikasi!", {
@@ -806,45 +896,47 @@ export default function Repository() {
   }; // <--- Kurung penutup fungsi handleDownload
   // --- HELPERS ---
   const getFileIcon = (file: Material) => {
-    const type = file.file_type || '';
     const name = (file.title || '').toLowerCase();
-    const url = (file.file_url || '').toLowerCase();
-
-    if (type === 'pdf' || name.endsWith('.pdf') || url.endsWith('.pdf')) {
+    // PDF (Merah)
+    if (name.endsWith('.pdf')) {
       return <FileText className="w-6 h-6 text-red-500" />;
     }
-    if (name.endsWith('.xls') || name.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.xlsx')) {
-      return <Table className="w-6 h-6 text-green-500" />;
-    }
-    if (name.endsWith('.doc') || name.endsWith('.docx') || url.endsWith('.doc') || url.endsWith('.docx')) {
+    // Word (Biru)
+    if (name.endsWith('.doc') || name.endsWith('.docx')) {
       return <FileText className="w-6 h-6 text-blue-500" />;
     }
-    if (type === 'image' || name.match(/\.(jpg|jpeg|png)$/) || url.match(/\.(jpg|jpeg|png)$/)) {
-      return <ImageIcon className="w-6 h-6 text-purple-500" />;
+    // Excel (Hijau)
+    if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
+      return <Table className="w-6 h-6 text-green-500" />;
     }
-    if (type === 'video' || name.endsWith('.mp4') || url.endsWith('.mp4')) {
-      return <Video className="w-6 h-6 text-orange-500" />;
+    // PPT (Orange)
+    if (name.endsWith('.ppt') || name.endsWith('.pptx')) {
+      return <Presentation className="w-6 h-6 text-orange-500" />;
     }
+    // Fallback (Other/Image/Video)
+    if (file.file_type === 'image') return <ImageIcon className="w-6 h-6 text-purple-500" />;
+    if (file.file_type === 'video') return <Video className="w-6 h-6 text-orange-500" />;
     return <File className="w-6 h-6 text-gray-500" />;
   };
 
   const getFileIconBg = (file: Material) => {
-    const type = file.file_type || '';
     const name = (file.title || '').toLowerCase();
-    const url = (file.file_url || '').toLowerCase();
-
-    if (type === 'pdf' || name.endsWith('.pdf') || url.endsWith('.pdf')) return 'bg-red-500/10';
-    if (name.endsWith('.xls') || name.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.xlsx')) return 'bg-green-500/10';
-    if (name.endsWith('.doc') || name.endsWith('.docx') || url.endsWith('.doc') || url.endsWith('.docx')) return 'bg-blue-500/10';
-    if (type === 'image' || name.match(/\.(jpg|jpeg|png)$/) || url.match(/\.(jpg|jpeg|png)$/)) return 'bg-purple-500/10';
-    if (type === 'video' || name.endsWith('.mp4') || url.endsWith('.mp4')) return 'bg-orange-500/10';
+    if (name.endsWith('.pdf')) return 'bg-red-500/10';
+    if (name.endsWith('.doc') || name.endsWith('.docx')) return 'bg-blue-500/10';
+    if (name.endsWith('.xls') || name.endsWith('.xlsx')) return 'bg-green-500/10';
+    if (name.endsWith('.ppt') || name.endsWith('.pptx')) return 'bg-orange-500/10';
+    if (file.file_type === 'image') return 'bg-purple-500/10';
+    if (file.file_type === 'video') return 'bg-orange-500/10';
     return 'bg-gray-500/10';
   };
 
   const filteredMaterials = mediaFilter === 'all'
     ? materials
     : materials.filter(m => {
-      if (mediaFilter === 'document') return m.file_type === 'pdf';
+      const name = (m.title || '').toLowerCase();
+      const isOfficeDoc = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].some(ext => name.endsWith('.' + ext));
+
+      if (mediaFilter === 'document') return m.file_type === 'document' || m.file_type === 'pdf' || isOfficeDoc;
       return m.file_type === mediaFilter;
     });
 
@@ -860,42 +952,58 @@ export default function Repository() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
+    const selectedFiles = Array.from(e.target.files || []);
 
-    if (file) {
-      if (file.name.split('.').length > 2) {
-        toast.error("File tidak valid: Nama file tidak boleh mengandung double extension / lebih dari satu titik.");
-        e.target.value = '';
-        setFileToUpload(null);
-        return;
-      }
-
-      const allowedTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'image/jpeg',
-        'image/png',
-        'image/jpg',
-        'video/mp4'
-      ];
-
-      if (!allowedTypes.includes(file.type)) {
-        toast.error("Format file tidak didukung. Harap unggah PDF, Word, Excel, Gambar (JPG/PNG), atau MP4.");
-        e.target.value = '';
-        setFileToUpload(null);
-        return;
-      }
+    if (selectedFiles.length === 0) {
+      setFilesToUpload([]);
+      setFileToUpload(null);
+      setIsAnyFileTooLarge(false);
+      return;
     }
 
-    setFileToUpload(file);
-    if (file && file.size > 2 * 1024 * 1024) {
-      setIsFileTooLarge(true);
-      // No warning toast anymore, we handle it automatically via "Full Courier" mode
-    } else {
-      setIsFileTooLarge(false);
+    // Validasi setiap file
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'video/mp4'
+    ];
+
+    const validFiles: File[] = [];
+    let hasTooLarge = false;
+
+    for (const file of selectedFiles) {
+      if (file.name.split('.').length > 2) {
+        toast.error(`File tidak valid: ${file.name}. Nama file tidak boleh mengandung double extension.`);
+        continue;
+      }
+
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`Format tidak didukung: ${file.name}`);
+        continue;
+      }
+
+      validFiles.push(file);
+      if (file.size > 2 * 1024 * 1024) hasTooLarge = true;
+    }
+
+    setFilesToUpload(validFiles);
+    // For backward compatibility / single edit logic
+    setFileToUpload(validFiles[0] || null);
+    setIsAnyFileTooLarge(hasTooLarge);
+    setIsFileTooLarge(hasTooLarge);
+
+    // Auto-fill title if single file
+    if (validFiles.length === 1) {
+      const nameOnly = validFiles[0].name.split('.').slice(0, -1).join('.');
+      setMaterialForm(prev => ({ ...prev, title: nameOnly }));
     }
   };
 
@@ -1199,11 +1307,10 @@ export default function Repository() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleOpenFile(file)}
-                              disabled={exhaustedMaterials[file.id]} // <--- PASANG GEMBOK
                               className="flex-1 sm:flex-none h-9 text-xs gap-1.5 rounded-full border border-muted/50 hover:border-primary/40 hover:bg-primary/5"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
-                              {exhaustedMaterials[file.id] ? "Dibatasi" : "Buka"}
+                              Buka
                             </Button>
 
                             {/* TOMBOL DOWNLOAD (VERSI STRICT) */}
@@ -1271,10 +1378,10 @@ export default function Repository() {
                 <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
                   {isEditingCourse ? 'Edit Mata Kuliah' : 'Tambah Matkul'}
                 </DialogTitle>
+                <DialogDescription className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
+                  Atur mata kuliah untuk semester pembelajaran.
+                </DialogDescription>
               </DialogHeader>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
-                Atur mata kuliah untuk semester pembelajaran.
-              </p>
             </div>
           </div>
 
@@ -1285,7 +1392,7 @@ export default function Repository() {
                 <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Required</span>
               </div>
               <Input
-                placeholder="Contoh: Algoritma & Pemrograman"
+                placeholder="Masukkan Data Mata Kuliah"
                 value={courseForm.name}
                 onChange={(e) => setCourseForm({ ...courseForm, name: e.target.value })}
                 className="rounded-xl border-muted/30 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all h-11"
@@ -1330,16 +1437,18 @@ export default function Repository() {
                 <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
                   {isEditingMaterial ? 'Edit Detail Materi' : 'Upload Materi Baru'}
                 </DialogTitle>
+                <DialogDescription className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
+                  {isEditingMaterial ? 'Perbarui informasi materi yang sudah ada.' : 'Berbagi materi belajar untuk teman-teman seangkatan.'}
+                </DialogDescription>
               </DialogHeader>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
-                Berbagi materi belajar untuk teman-teman seangkatan.
-              </p>
             </div>
           </div>
 
           <div className="p-4 sm:p-6 space-y-5 sm:space-y-6 overflow-y-auto max-h-[60vh] sm:max-h-none">
             <div className="space-y-2">
-              <Label className="text-sm font-semibold text-muted-foreground ml-1">Judul Materi</Label>
+              <Label className="text-sm font-semibold text-muted-foreground ml-1">
+                Judul Materi {!isEditingMaterial || fileToUpload ? '(Opsional)' : ''}
+              </Label>
               <Input
                 placeholder="Contoh: Slide Pertemuan 1"
                 value={materialForm.title}
@@ -1361,12 +1470,13 @@ export default function Repository() {
               <div className="relative group w-full min-h-[110px] sm:min-h-[140px] border-2 border-dashed border-muted/40 hover:border-success/50 rounded-xl bg-muted/10 hover:bg-success/5 transition-all flex flex-col items-center justify-center overflow-hidden">
                 <Input
                   type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/jpg,video/mp4"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/jpeg,image/png,image/jpg,video/mp4"
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
                 <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground opacity-80 group-hover:opacity-100 transition-opacity z-0 p-4 text-center pointer-events-none w-full">
-                  {!fileToUpload ? (
+                  {filesToUpload.length === 0 ? (
                     <>
                       <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
                         <Plus className="w-5 h-5 text-success" />
@@ -1374,7 +1484,7 @@ export default function Repository() {
                       <div>
                         <span className="text-sm font-semibold block text-foreground">Klik atau drag file ke sini</span>
                         <span className="text-xs text-muted-foreground block mt-1 px-4">
-                          Maksimal 2MB (Bisa lebih, otomatis dialihkan ke G-Drive)
+                          Pilih satu atau banyak file sekaligus
                         </span>
                       </div>
                     </>
@@ -1384,16 +1494,34 @@ export default function Repository() {
                         <File className="w-5 h-5 text-success" />
                       </div>
                       <div className="w-full flex flex-col items-center">
-                        <span className="text-sm font-bold text-success truncate max-w-xs px-2 w-full">
-                          {fileToUpload.name}
+                        <span className="text-sm font-bold text-success truncate max-w-xs px-2 w-full text-center">
+                          {filesToUpload.length} File Terpilih
                         </span>
-                        <span className="text-xs font-medium text-success/70 mt-0.5">
-                          {(fileToUpload.size / (1024 * 1024)).toFixed(2)} MB - Siap diunggah
+                        <span className="text-[10px] font-medium text-success/70 mt-0.5 line-clamp-1">
+                          {filesToUpload.map(f => f.name).join(', ')}
                         </span>
                       </div>
                     </>
                   )}
                 </div>
+
+                {/* Tombol Batal Keluar dari pointer-events-none agar bisa diklik */}
+                {filesToUpload.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setFilesToUpload([]);
+                      setFileToUpload(null);
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors z-20 h-8 w-8 flex items-center justify-center"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
 
               {isFileTooLarge && isLoading && (
@@ -1428,8 +1556,8 @@ export default function Repository() {
                 </>
               ) : (
                 <>
-                  <Plus className="w-4 h-4" />
-                  Simpan Materi
+                  {isEditingMaterial ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  {isEditingMaterial ? 'Simpan Perubahan' : 'Tambah Materi'}
                 </>
               )}
             </Button>
@@ -1449,10 +1577,10 @@ export default function Repository() {
                 <DialogTitle className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
                   {isEditingSemester ? 'Edit Semester' : 'Tambah Semester'}
                 </DialogTitle>
+                <DialogDescription className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
+                  Kelola periode semester akademik Anda.
+                </DialogDescription>
               </DialogHeader>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2">
-                Kelola periode semester akademik Anda.
-              </p>
             </div>
           </div>
 
@@ -1460,7 +1588,7 @@ export default function Repository() {
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-muted-foreground ml-1">Nama Semester</Label>
               <Input
-                placeholder="Contoh: Semester 9"
+                placeholder="Masukkan Data Semester"
                 value={semesterForm.name}
                 onChange={(e) => setSemesterForm({ ...semesterForm, name: e.target.value })}
                 className="rounded-xl border-muted/30 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all h-11 text-lg font-medium"

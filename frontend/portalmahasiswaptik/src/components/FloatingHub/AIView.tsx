@@ -54,7 +54,7 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
     if (scrollRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-      
+
       if (force || isAtBottom) {
         scrollRef.current.scrollTo({
           top: scrollRef.current.scrollHeight,
@@ -83,16 +83,16 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
       console.log('--- MEMULAI DIAGNOSA MODEL GOOGLE ---');
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const data = await response.json();
-      
+
       if (data.models) {
         console.table(data.models.map((m: any) => ({ name: m.name, version: m.version, displayName: m.displayName })));
         const names = data.models.map((m: any) => m.name.replace('models/', ''));
         setAvailableModels(names);
-        
+
         // Auto-Selector Logic
         const hasFlash = names.find(n => n.includes('gemini-1.5-flash'));
         const hasPro = names.find(n => n.includes('gemini-pro'));
-        
+
         if (hasFlash) {
           setSelectedModel(hasFlash);
           console.log('✅ AUTO-SELECTED: Gemini 1.5 Flash');
@@ -125,12 +125,12 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      
+
       const callGemini = async (model: string) => {
         // Use v1 for stable generation, fallback to v1beta if needed
         const endpointV1 = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
         const endpointV1Beta = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        
+
         const systemInstruction = "Asisten  PTIK 2025 yang jago koding, ahli jaringan, dan asik diajak diskusi soal tugas kuliah. Gunakan bahasa yang santai tapi profesional, sering panggil 'Bro'. Fokus pada solusi teknis yang akurat.";
 
         console.log(`--- MENCOBA CALL GOOGLE V1 (${model}) ---`);
@@ -163,7 +163,7 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
       if (!response.ok && (response.status === 429 || response.status === 404 || response.status === 400)) {
         console.warn(`[RECOVERY]: ${selectedModel} gagal (${response.status}). Memulai siklus model cadangan...`);
         setAiStatus('limited');
-        
+
         for (const modelCandidate of availableModels) {
           if (modelCandidate === selectedModel) continue;
           console.log(`--- MENCOBA MODEL CADANGAN: ${modelCandidate} ---`);
@@ -179,7 +179,7 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
         setAiStatus('offline');
         const errorText = await response.text();
         console.error('--- CURHATAN GOOGLE (RESPONSE) ---', errorText);
-        
+
         if (response.status === 429) {
           toast.error('Semua jalur kuota abis Bro! Google bener-bener nyuruh istirahat.');
           throw new Error('QUOTA_EXHAUSTED');
@@ -189,14 +189,14 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
 
       setAiStatus('online');
       const data = await response.json();
-      
+
       // Safety Filter Check
       if (data.promptFeedback?.blockReason) {
         console.warn('⚠️ Google me-blokir pesan karena safety filter:', data.promptFeedback.blockReason);
       }
 
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 
-                        (data.promptFeedback?.blockReason ? "Waduh Bro, jawaban ini dilarang sama sensor Google (Safety Filter). Coba tanya yang lain ya!" : "Aduh Bro, otak gue lagi nge-hang sebentar. Coba lagi ya!");
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        (data.promptFeedback?.blockReason ? "Waduh Bro, jawaban ini dilarang sama sensor Google (Safety Filter). Coba tanya yang lain ya!" : "Aduh Bro, otak gue lagi nge-hang sebentar. Coba lagi ya!");
 
       // Streaming Effect Logic
       let currentText = "";
@@ -233,8 +233,8 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       className={cn(
         "shadow-2xl transition-all duration-500",
-        isMaximized 
-          ? "fixed inset-x-0 bottom-0 top-auto sm:inset-0 m-0 sm:m-auto w-full h-[92vh] sm:w-[95vw] sm:h-[85vh] z-[999999] ring-1 ring-cyan-500/30 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.4)]" 
+        isMaximized
+          ? "fixed inset-x-0 bottom-0 top-auto sm:inset-0 m-0 sm:m-auto w-full h-[92vh] sm:w-[95vw] sm:h-[85vh] z-[999999] ring-1 ring-cyan-500/30 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.4)]"
           : "w-full h-full rounded-2xl border border-white/5"
       )}>
       <style>{`
@@ -390,189 +390,189 @@ export const AIView: React.FC<AIViewProps> = ({ onBack }) => {
           </div>
         </div>
 
-      {/* Main Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative bg-slate-50 dark:bg-[#010409] transition-colors duration-300 min-w-0">
-          <ScrollArea viewportRef={scrollRef} className="flex-1 p-2 sm:p-6 custom-scrollbar">
-            <div className="max-w-3xl mx-auto space-y-6 pb-20">
-              {messages.length === 0 && (
-                <div className="h-[50vh] flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="p-6 bg-cyan-500/5 rounded-full border border-cyan-500/10 animate-pulse">
-                    <Sparkles className="w-10 h-10 text-cyan-500" />
+        {/* Main Area */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Chat Area */}
+          <div className="flex-1 flex flex-col relative bg-slate-50 dark:bg-[#010409] transition-colors duration-300 min-w-0">
+            <ScrollArea viewportRef={scrollRef} className="flex-1 p-2 sm:p-6 custom-scrollbar">
+              <div className="max-w-3xl mx-auto space-y-6 pb-20">
+                {messages.length === 0 && (
+                  <div className="h-[50vh] flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="p-6 bg-cyan-500/5 rounded-full border border-cyan-500/10 animate-pulse">
+                      <Sparkles className="w-10 h-10 text-cyan-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <h2 className="text-lg font-black text-slate-800 dark:text-white tracking-tighter uppercase italic">Halo Bro!</h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[280px]">Gue AI Asisten PTIK 2025. Ada yang bisa gue bantu soal kodingan atau tugas lo hari ini?</p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-black text-slate-800 dark:text-white tracking-tighter uppercase italic">Halo Bro!</h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[280px]">Gue AI Asisten PTIK 2026. Ada yang bisa gue bantu soal kodingan atau tugas lo hari ini?</p>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {isSynchronizing && (
-                <div className="flex justify-center my-4">
-                  <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-full px-4 py-1.5 flex items-center gap-2">
-                    <Loader2 className="w-3 h-3 text-cyan-500 animate-spin" />
-                    <span className="text-[10px] text-cyan-500 font-bold uppercase tracking-wider">
-                      [SISTEM]: Sedang sinkronisasi otak AI dengan Google...
-                    </span>
+                {isSynchronizing && (
+                  <div className="flex justify-center my-4">
+                    <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-full px-4 py-1.5 flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 text-cyan-500 animate-spin" />
+                      <span className="text-[10px] text-cyan-500 font-bold uppercase tracking-wider">
+                        [SISTEM]: Sedang sinkronisasi otak AI dengan Google...
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {messages.map((msg, index) => (
-                <div key={index} className={cn(
-                  "flex flex-col gap-2 max-w-[85%] flex-1 min-w-0 w-full",
-                  msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
-                )}>
+                {messages.map((msg, index) => (
+                  <div key={index} className={cn(
+                    "flex flex-col gap-2 max-w-[85%] flex-1 min-w-0 w-full",
+                    msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
+                  )}>
                     <div className={cn(
                       "max-w-full overflow-hidden break-words min-w-0 rounded-2xl p-4 text-sm sm:text-base leading-relaxed shadow-sm transition-all",
-                      msg.role === 'user' 
-                        ? "bg-sky-600 text-white rounded-tr-none ml-auto" 
+                      msg.role === 'user'
+                        ? "bg-sky-600 text-white rounded-tr-none ml-auto"
                         : "bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 rounded-tl-none border border-slate-200/50 dark:border-white/5"
                     )}>
-                    {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm prose-slate dark:prose-invert max-w-none">
-                        <ReactMarkdown 
+                      {msg.role === 'assistant' ? (
+                        <div className="prose prose-sm prose-slate dark:prose-invert max-w-none">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              p({ children }) {
+                                return <div className="mb-4 last:mb-0 leading-relaxed break-words">{children}</div>;
+                              },
+                              h1({ children }) { return <h1 className="text-lg font-bold mb-2 break-words">{children}</h1>; },
+                              h2({ children }) { return <h2 className="text-base font-bold mb-2 break-words">{children}</h2>; },
+                              h3({ children }) { return <h3 className="text-sm font-bold mb-2 break-words">{children}</h3>; },
+                              code({ node, inline, className, children, ...props }: any) {
+                                const match = /language-(\w+)/.exec(className || '');
+                                const codeString = String(children).replace(/\n$/, '');
+
+                                return !inline ? (
+                                  <div className="group relative my-4 min-w-0">
+                                    <div className="flex items-center justify-between px-4 py-1.5 bg-slate-200 dark:bg-black/40 border-b border-slate-300 dark:border-white/5 rounded-t-xl">
+                                      <span className="text-[10px] font-black text-slate-950 dark:text-gray-100 uppercase tracking-widest">{match ? match[1] : 'code'}</span>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(codeString);
+                                            toast.success('Kopi aman, Bro!');
+                                          }}
+                                          className="p-1 text-slate-500 hover:text-indigo-600 dark:hover:text-white transition-colors"
+                                        >
+                                          <Copy size={12} />
+                                        </button>
+                                        <button
+                                          onClick={() => copyToIDE(codeString)}
+                                          className="p-1 text-slate-500 hover:text-cyan-500 transition-colors"
+                                          title="Kirim ke IDE"
+                                        >
+                                          <Cpu size={12} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <pre
+                                      className="m-0 p-4 bg-slate-100 dark:bg-gray-900 text-slate-950 dark:text-gray-100 rounded-b-xl whitespace-pre-wrap break-all overflow-x-hidden w-full block text-[12px] leading-relaxed border-x border-b border-slate-400 dark:border-white/5 shadow-inner"
+                                      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                                    >
+                                      <code
+                                        className={cn(className, "whitespace-pre-wrap break-all overflow-x-hidden w-full block text-slate-950 dark:text-gray-100")}
+                                        style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                                        {...props}
+                                      >
+                                        {children}
+                                      </code>
+                                    </pre>
+                                  </div>
+                                ) : (
+                                  <code
+                                    className="px-1.5 py-0.5 rounded border border-slate-300 dark:border-white/10 bg-slate-200 dark:bg-white/10 text-slate-950 dark:text-cyan-400 font-bold break-words"
+                                    style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                                    {...props}
+                                  >
+                                    {children}
+                                  </code>
+                                );
+                              }
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="break-words font-medium">
+                          {msg.content}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">
+                      {msg.role === 'user' ? 'Gue' : 'AI Asisten'}
+                    </span>
+                  </div>
+                ))}
+
+                {streamingText && (
+                  <div className="flex flex-col gap-2 max-w-[85%] flex-1 min-w-0 w-full mr-auto items-start">
+                    <div className="px-4 py-3 rounded-2xl text-sm sm:text-base leading-relaxed bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 backdrop-blur-xl rounded-tl-none max-w-full overflow-hidden break-words min-w-0">
+                      <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none">
+                        <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
                             p({ children }) {
                               return <div className="mb-4 last:mb-0 leading-relaxed break-words">{children}</div>;
-                            },
-                            h1({ children }) { return <h1 className="text-lg font-bold mb-2 break-words">{children}</h1>; },
-                            h2({ children }) { return <h2 className="text-base font-bold mb-2 break-words">{children}</h2>; },
-                            h3({ children }) { return <h3 className="text-sm font-bold mb-2 break-words">{children}</h3>; },
-                            code({ node, inline, className, children, ...props }: any) {
-                              const match = /language-(\w+)/.exec(className || '');
-                              const codeString = String(children).replace(/\n$/, '');
-                              
-                              return !inline ? (
-                                <div className="group relative my-4 min-w-0">
-                                  <div className="flex items-center justify-between px-4 py-1.5 bg-slate-200 dark:bg-black/40 border-b border-slate-300 dark:border-white/5 rounded-t-xl">
-                                    <span className="text-[10px] font-black text-slate-950 dark:text-gray-100 uppercase tracking-widest">{match ? match[1] : 'code'}</span>
-                                    <div className="flex gap-2">
-                                      <button 
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(codeString);
-                                          toast.success('Kopi aman, Bro!');
-                                        }}
-                                        className="p-1 text-slate-500 hover:text-indigo-600 dark:hover:text-white transition-colors"
-                                      >
-                                        <Copy size={12} />
-                                      </button>
-                                      <button 
-                                        onClick={() => copyToIDE(codeString)}
-                                        className="p-1 text-slate-500 hover:text-cyan-500 transition-colors"
-                                        title="Kirim ke IDE"
-                                      >
-                                        <Cpu size={12} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <pre 
-                                    className="m-0 p-4 bg-slate-100 dark:bg-gray-900 text-slate-950 dark:text-gray-100 rounded-b-xl whitespace-pre-wrap break-all overflow-x-hidden w-full block text-[12px] leading-relaxed border-x border-b border-slate-400 dark:border-white/5 shadow-inner"
-                                    style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-                                  >
-                                    <code 
-                                      className={cn(className, "whitespace-pre-wrap break-all overflow-x-hidden w-full block text-slate-950 dark:text-gray-100")} 
-                                      style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-                                      {...props}
-                                    >
-                                      {children}
-                                    </code>
-                                  </pre>
-                                </div>
-                              ) : (
-                                <code 
-                                  className="px-1.5 py-0.5 rounded border border-slate-300 dark:border-white/10 bg-slate-200 dark:bg-white/10 text-slate-950 dark:text-cyan-400 font-bold break-words" 
-                                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-                                  {...props}
-                                >
-                                  {children}
-                                </code>
-                              );
                             }
                           }}
                         >
-                          {msg.content}
+                          {streamingText}
                         </ReactMarkdown>
                       </div>
-                     ) : (
-                      <div className="break-words font-medium">
-                        {msg.content}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">
-                    {msg.role === 'user' ? 'Gue' : 'AI Asisten'}
-                  </span>
-                </div>
-              ))}
-
-              {streamingText && (
-                <div className="flex flex-col gap-2 max-w-[85%] flex-1 min-w-0 w-full mr-auto items-start">
-                  <div className="px-4 py-3 rounded-2xl text-sm sm:text-base leading-relaxed bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 backdrop-blur-xl rounded-tl-none max-w-full overflow-hidden break-words min-w-0">
-                    <div className="prose prose-sm sm:prose-base prose-slate dark:prose-invert max-w-none">
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          p({ children }) {
-                            return <div className="mb-4 last:mb-0 leading-relaxed break-words">{children}</div>;
-                          }
-                        }}
-                      >
-                        {streamingText}
-                      </ReactMarkdown>
                     </div>
+                    <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1 flex items-center gap-1.5">
+                      <span className="w-1 h-1 bg-cyan-500 rounded-full animate-ping"></span>
+                      Mengetik...
+                    </span>
                   </div>
-                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1 flex items-center gap-1.5">
-                    <span className="w-1 h-1 bg-cyan-500 rounded-full animate-ping"></span>
-                    Mengetik...
-                  </span>
-                </div>
-              )}
+                )}
 
-              {isLoading && !streamingText && (
-                <div className="flex gap-2 items-center text-cyan-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Lagi Mikir, Bro...
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+                {isLoading && !streamingText && (
+                  <div className="flex gap-2 items-center text-cyan-500 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Lagi Mikir, Bro...
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
 
-          {/* Input Area */}
-          <div className="p-2 sm:p-4 bg-white dark:bg-[#0d1117] border-t border-slate-200 dark:border-white/5 transition-colors duration-300">
-            <div className="max-w-3xl mx-auto flex items-end gap-2 p-1.5 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl shadow-inner transition-all">
-              <textarea
-                rows={1}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder="Tanya soal koding atau tugas PTIK lo..."
-                className="flex-1 bg-transparent px-3 py-2 text-[13px] text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none resize-none max-h-32 overflow-y-auto custom-scrollbar"
-              />
-              <Button
-                onClick={handleSend}
-                disabled={isLoading || !input.trim()}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-indigo-500/20 active:scale-90 transition-all flex-shrink-0 aspect-square"
-              >
-                <Send size={18} />
-              </Button>
+            {/* Input Area */}
+            <div className="p-2 sm:p-4 bg-white dark:bg-[#0d1117] border-t border-slate-200 dark:border-white/5 transition-colors duration-300">
+              <div className="max-w-3xl mx-auto flex items-end gap-2 p-1.5 bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl shadow-inner transition-all">
+                <textarea
+                  rows={1}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Tanya soal koding atau tugas PTIK lo..."
+                  className="flex-1 bg-transparent px-3 py-2 text-[13px] text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none resize-none max-h-32 overflow-y-auto custom-scrollbar"
+                />
+                <Button
+                  onClick={handleSend}
+                  disabled={isLoading || !input.trim()}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl h-10 w-10 p-0 shadow-lg shadow-indigo-500/20 active:scale-90 transition-all flex-shrink-0 aspect-square"
+                >
+                  <Send size={18} />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </motion.div>
+    </motion.div>
   );
 
   return (
