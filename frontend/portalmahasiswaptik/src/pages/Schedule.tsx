@@ -377,24 +377,30 @@ export default function Schedule() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.subject_id || !formData.class_id || !formData.start_time || !formData.end_time || !formData.lecturer_id) {
-      toast.error("Mohon lengkapi data, termasuk dosen");
+    if (!formData.subject_id || !formData.class_id || !formData.start_time || !formData.end_time) {
+      toast.error("Mohon lengkapi data mata kuliah, kelas, dan waktu");
       return;
     }
 
     setIsLoading(true);
     try {
       const { semester, ...payload } = formData;
+      
+      // Convert empty string to null for lecturer_id
+      const finalPayload = {
+        ...payload,
+        lecturer_id: payload.lecturer_id === '' ? null : payload.lecturer_id
+      };
 
       if (isEditing && currentId) {
-        const { error } = await supabase.from('schedules').update(payload).eq('id', currentId);
+        const { error } = await supabase.from('schedules').update(finalPayload).eq('id', currentId);
         if (error) {
           console.error("Supabase Error Updating Schedule:", error);
           throw error;
         }
         toast.success("Jadwal diperbarui");
       } else {
-        const { error } = await supabase.from('schedules').insert([payload]);
+        const { error } = await supabase.from('schedules').insert([finalPayload]);
         if (error) {
           console.error("Supabase Error Inserting Schedule:", error);
           throw error;
@@ -632,11 +638,12 @@ export default function Schedule() {
             <div className="grid gap-2">
               <Label>Dosen Pengampu</Label>
               <Select
-                value={formData.lecturer_id}
-                onValueChange={(val) => setFormData({ ...formData, lecturer_id: val })}
+                value={formData.lecturer_id || "null_placeholder"}
+                onValueChange={(val) => setFormData({ ...formData, lecturer_id: val === "null_placeholder" ? "" : val })}
               >
                 <SelectTrigger><SelectValue placeholder="Pilih Dosen" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="null_placeholder">Tanpa Dosen</SelectItem>
                   {lecturers.map(l => (
                     <SelectItem key={l.user_id} value={l.user_id}>{l.full_name}</SelectItem>
                   ))}

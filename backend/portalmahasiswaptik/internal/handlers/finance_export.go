@@ -243,6 +243,44 @@ func (h *FinanceHandler) ExportFinanceExcel(c *fiber.Ctx) error {
 		f.SetCellStyle(sheet, fmt.Sprintf("A%d", rowNum), fmt.Sprintf("D%d", rowNum), normalStyle)
 	}
 
+	// --- APPEND REKAP TRANSAKSI KAS ANGKATAN (LIFETIME ONLY) ---
+	lastRow := 6 + len(students)
+	rekapStartRow := lastRow + 3
+
+	// Specific Styles for Rekap (Centered & Bold)
+	rekapTitleStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 12},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+	})
+	rekapHeaderStyle, _ := f.NewStyle(&excelize.Style{
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"E2E8F0"}, Pattern: 1}, // Slate header
+		Font:      &excelize.Font{Bold: true},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+		Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}},
+	})
+	rekapDataStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+		Border:    []excelize.Border{{Type: "left", Color: "000000", Style: 1}, {Type: "top", Color: "000000", Style: 1}, {Type: "bottom", Color: "000000", Style: 1}, {Type: "right", Color: "000000", Style: 1}},
+	})
+
+	// Row 1: Title
+	f.SetCellValue(sheet, fmt.Sprintf("D%d", rekapStartRow), "Daftar Transaksi Kas Angkatan")
+	f.MergeCell(sheet, fmt.Sprintf("D%d", rekapStartRow), fmt.Sprintf("F%d", rekapStartRow))
+	f.SetCellStyle(sheet, fmt.Sprintf("D%d", rekapStartRow), fmt.Sprintf("F%d", rekapStartRow), rekapTitleStyle)
+
+	// Row 2: Headers
+	f.SetCellValue(sheet, fmt.Sprintf("D%d", rekapStartRow+1), "Total Pemasukan")
+	f.SetCellValue(sheet, fmt.Sprintf("E%d", rekapStartRow+1), "Total Pengeluaran")
+	f.SetCellValue(sheet, fmt.Sprintf("F%d", rekapStartRow+1), "Saldo Akhir (Validasi)")
+	f.SetCellStyle(sheet, fmt.Sprintf("D%d", rekapStartRow+1), fmt.Sprintf("F%d", rekapStartRow+1), rekapHeaderStyle)
+
+	// Row 3: Data Values (Sinkron dengan gInc/gExp global untuk Lifetime)
+	f.SetCellValue(sheet, fmt.Sprintf("D%d", rekapStartRow+2), FormatRupiah(gInc))
+	f.SetCellValue(sheet, fmt.Sprintf("E%d", rekapStartRow+2), FormatRupiah(gExp))
+	f.SetCellValue(sheet, fmt.Sprintf("F%d", rekapStartRow+2), FormatRupiah(gInc-gExp))
+	f.SetCellStyle(sheet, fmt.Sprintf("D%d", rekapStartRow+2), fmt.Sprintf("F%d", rekapStartRow+2), rekapDataStyle)
+
 	// ==========================================
 	// 2. SHEETS: MONTHLY
 	// ==========================================
