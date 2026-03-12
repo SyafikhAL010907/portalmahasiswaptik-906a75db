@@ -98,6 +98,18 @@ const staggerBottom: Variants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as any } }
 };
 
+// --- DUMMY DATA FOR LIFETIME TRANSACTION TABLE ---
+const DUMMY_ANGKATAN_TRANSACTIONS = [
+  { id: 'd1', description: 'Pemasukan Awal Kas Angkatan', type: 'income', amount: 2500000, category: 'General', date: '2026-01-10', month: 'Januari', classLabel: 'Kelas A' },
+  { id: 'd5', description: 'Kas Rutin Semester 1', type: 'income', amount: 1500000, category: 'General', date: '2026-01-20', month: 'Januari', classLabel: 'Kelas A' },
+  { id: 'd2', description: 'Biaya Sewa Lapangan Futsal', type: 'expense', amount: 350000, category: 'General', date: '2026-02-15', month: 'Februari', classLabel: 'Kelas B' },
+  { id: 'd6', description: 'Iuran Wajib LOMBA', type: 'income', amount: 500000, category: 'General', date: '2026-02-20', month: 'Februari', classLabel: 'Kelas B' },
+  { id: 'd3', description: 'Hibah Alumni Batch 2024', type: 'income', amount: 5000000, category: 'General', date: '2026-03-01', month: 'Maret', classLabel: 'Kelas C' },
+  { id: 'd7', description: 'Pemasukan Sponsor A', type: 'income', amount: 2000000, category: 'General', date: '2026-03-05', month: 'Maret', classLabel: 'Kelas C' },
+  { id: 'd4', description: 'Pembelian Atribut Kelas', type: 'expense', amount: 1200000, category: 'General', date: '2026-03-10', month: 'Maret', classLabel: 'Kelas D' },
+  { id: 'd8', description: 'Saldo Pindahan Semester 1', type: 'income', amount: 1000000, category: 'General', date: '2026-03-15', month: 'Maret', classLabel: 'Kelas D' },
+];
+
 export default function Finance() {
   const { session } = useAuth();
   const {
@@ -176,6 +188,7 @@ export default function Finance() {
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [dummyTransactionFilter, setDummyTransactionFilter] = useState<'all' | 'income' | 'expense'>('all'); // Added for dummy table
 
   // --- CONFIRMATION MODAL STATE ---
   const [modalConfig, setModalConfig] = useState<{
@@ -1473,6 +1486,8 @@ export default function Finance() {
 
           </div>
         </div>
+
+
         <div className="overflow-x-auto pb-4">
           {isLoadingMatrix ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -1978,6 +1993,124 @@ export default function Finance() {
         variant={modalConfig.variant}
         confirmText={modalConfig.confirmText}
       />
+
+      {/* ✅ REFINED: Daftar Transaksi Kas Angkatan (Lifetime Only - Bottom Position) */}
+      {isLifetime && (
+        <motion.div variants={staggerBottom} layout={false} className="glass-card rounded-2xl p-6 bg-card border border-border shadow-sm mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+            <div className="flex flex-col">
+              <h2 className="text-lg font-bold text-foreground">Daftar Transaksi Kas Angkatan</h2>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Data Dummy Transaksi (Read-Only)</p>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <div className="flex gap-1 bg-muted/50 p-1.5 rounded-xl shrink-0">
+                {['all', 'income', 'expense'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setDummyTransactionFilter(f as any)}
+                    className={cn(
+                      "px-4 py-2 text-xs font-bold rounded-lg transition-all",
+                      dummyTransactionFilter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {f === 'all' ? 'Semua' : f === 'income' ? 'Masuk' : 'Keluar'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-[160px]">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+                <Select defaultValue="0">
+                  <SelectTrigger className="w-full pl-9 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-10 sm:h-11 text-xs">
+                    <SelectValue placeholder="Pilih Periode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Lifetime</SelectItem>
+                    {transactionMonths.map(m => (
+                      <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            {['Kelas A', 'Kelas B', 'Kelas C', 'Kelas D'].map((classGroup) => {
+              const filteredTxs = DUMMY_ANGKATAN_TRANSACTIONS
+                .filter(tx => tx.classLabel === classGroup)
+                .filter(tx => dummyTransactionFilter === 'all' || tx.type === dummyTransactionFilter);
+
+              if (filteredTxs.length === 0) return null;
+
+              return (
+                <div key={classGroup} className="space-y-4">
+                  <div className="flex items-center gap-3 px-2">
+                    <div className="h-px flex-1 bg-border/50"></div>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 bg-muted/30 px-3 py-1 rounded-full border border-border/30">
+                      Kolektif {classGroup}
+                    </span>
+                    <div className="h-px flex-1 bg-border/50"></div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {filteredTxs.map((tx) => (
+                      <div key={tx.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/50 transition-all hover:bg-muted/50 group gap-4">
+                        <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm", tx.type === 'income' ? 'bg-blue-500/10 text-blue-600' : 'bg-red-500/10 text-red-600')}>
+                            {tx.type === 'income' ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 dark:text-slate-100 text-sm md:text-base truncate">{tx.description}</p>
+                            <div className="flex items-center gap-2 mt-1 overflow-x-auto no-scrollbar whitespace-nowrap">
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black shrink-0">{tx.date}</span>
+                              <span className={cn(
+                                "text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0",
+                                tx.type === 'income' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              )}>
+                                [{tx.classLabel}] | [{tx.month}] | [{tx.date}]
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border/30">
+                          <span className={cn("font-black text-base whitespace-nowrap", tx.type === 'income' ? 'text-blue-700 dark:text-blue-500' : 'text-rose-700 dark:text-rose-500')}>
+                            {tx.type === 'income' ? '+' : '-'}{formatIDR(tx.amount)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="flex justify-between items-center sm:block sm:text-center">
+                <div className="text-xs text-muted-foreground mb-1">Total Pemasukan</div>
+                <div className="font-bold text-blue-500">
+                  {formatIDR(DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0))}
+                </div>
+              </div>
+              <div className="flex justify-between items-center sm:block sm:text-center">
+                <div className="text-xs text-muted-foreground mb-1">Total Pengeluaran</div>
+                <div className="font-bold text-rose-500">
+                  {formatIDR(DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0))}
+                </div>
+              </div>
+              <div className="flex justify-between items-center sm:block sm:text-center p-2 rounded-lg bg-muted/20 border border-border/50">
+                <div className="text-xs text-muted-foreground mb-1">Saldo Akhir (Validasi)</div>
+                <div className="font-bold text-foreground">
+                  {formatIDR(DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) - DUMMY_ANGKATAN_TRANSACTIONS.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   );
 }
