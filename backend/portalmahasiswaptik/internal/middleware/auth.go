@@ -165,7 +165,11 @@ func AuthMiddleware(db *gorm.DB) fiber.Handler {
 		})
 
 		if err != nil || !token.Valid {
-			fmt.Printf("❌ Auth Error: %v | Token: %s...\n", err, tokenString[:10])
+			displayToken := tokenString
+			if len(displayToken) > 10 {
+				displayToken = displayToken[:10] + "..."
+			}
+			fmt.Printf("❌ Auth Error: %v | Token: %s\n", err, displayToken)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"error":   "Invalid or expired token",

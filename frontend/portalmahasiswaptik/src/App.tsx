@@ -8,37 +8,40 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/ui/SplashScreen";
-import { GlobalChat } from "./components/FloatingHub/GlobalChat";
+import { GlobalChat } from "@/components/Features/FloatingHub/GlobalChat";
 import { ErrorBoundary } from "react-error-boundary";
 import { GlobalErrorFallback } from "@/components/ui/GlobalErrorFallback";
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { toast } from 'sonner';
 
 // Lazy Load Pages & Components
-const Index = lazy(() => import("./pages/Index"));
+const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Schedule = lazy(() => import("./pages/Schedule"));
-const Finance = lazy(() => import("./pages/Finance"));
-const IPKSimulator = lazy(() => import("./pages/IPKSimulator"));
-const Repository = lazy(() => import("./pages/Repository"));
-const ScanQR = lazy(() => import("./pages/ScanQR"));
-const QRGenerator = lazy(() => import("./pages/QRGenerator"));
-const AttendanceHistory = lazy(() => import("./pages/AttendanceHistory"));
-const Payment = lazy(() => import("./pages/Payment"));
-const Announcements = lazy(() => import("./pages/Announcements"));
-const Competitions = lazy(() => import("./pages/Competitions"));
-const Leaderboard = lazy(() => import("./pages/Leaderboard"));
-const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
-const Profile = lazy(() => import("./pages/Profile"));
-const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const Dashboard = lazy(() => import("./pages/Platform/Dashboard"));
+const Schedule = lazy(() => import("./pages/Platform/Akademik/Schedule"));
+const Finance = lazy(() => import("./pages/Platform/Keuangan/Finance"));
+const IPKSimulator = lazy(() => import("./pages/Platform/Akademik/IPKSimulator"));
+const Repository = lazy(() => import("./pages/Platform/Akademik/Repository"));
+const ScanQR = lazy(() => import("./pages/Platform/Absensi/ScanQR"));
+const QRGenerator = lazy(() => import("./pages/Platform/Absensi/QRGenerator"));
+const AttendanceHistory = lazy(() => import("./pages/Platform/Absensi/AttendanceHistory"));
+const Payment = lazy(() => import("./pages/Platform/Keuangan/Payment"));
+const Announcements = lazy(() => import("./pages/Platform/Informasi/Announcements"));
+const Competitions = lazy(() => import("./pages/Platform/Informasi/Competitions"));
+const Leaderboard = lazy(() => import("./pages/Platform/Informasi/Leaderboard"));
+const UserManagement = lazy(() => import("./pages/Platform/Admin/AdminManagement"));
+const Profile = lazy(() => import("./pages/Platform/Settings/Profile"));
+const ChangePassword = lazy(() => import("./pages/Platform/Settings/ChangePassword"));
+const AbsensiHub = lazy(() => import("./pages/Platform/Absensi/AbsensiHub"));
+const KeuanganHub = lazy(() => import("./pages/Platform/Keuangan/KeuanganHub"));
+const ProfileHub = lazy(() => import("./pages/Platform/Settings/ProfileHub"));
 const Features = lazy(() => import("./pages/Features"));
 const About = lazy(() => import("./pages/About"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Lazy load named export DashboardLayout
 // Lazy load named export DashboardLayout
-const DashboardLayout = lazy(() => import("./components/dashboard/DashboardLayout"));
+const DashboardLayout = lazy(() => import("@/components/Features/Dashboard/DashboardLayout"));
 
 const queryClient = new QueryClient();
 
@@ -205,7 +208,12 @@ const App = () => {
         <Sonner />
 
         <ThemeProvider>
-          <BrowserRouter>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <AuthProvider>
               <TooltipProvider>
                 <AnimatePresence mode="wait">
@@ -226,7 +234,7 @@ const App = () => {
                     <ProtectedGlobalChat />
                     <Suspense fallback={<LoadingSpinner />}>
                       <Routes>
-                        <Route path="/" element={<Index />} />
+                        <Route path="/" element={<Landing />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/dashboard" element={<DashboardLayout />}>
                           <Route index element={<Dashboard />} />
@@ -244,6 +252,9 @@ const App = () => {
                           <Route path="users" element={<UserManagement />} />
                           <Route path="profile" element={<Profile />} />
                           <Route path="change-password" element={<ChangePassword />} />
+                          <Route path="absensi-hub" element={<AbsensiHub />} />
+                          <Route path="keuangan-hub" element={<KeuanganHub />} />
+                          <Route path="profile-hub" element={<ProfileHub />} />
                         </Route>
                         <Route path="/features" element={<Features />} />
                         <Route path="/about" element={<About />} />

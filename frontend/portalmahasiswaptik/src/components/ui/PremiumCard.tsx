@@ -52,10 +52,10 @@ export const PremiumCard = React.memo(function PremiumCard({
                 isBold && "p-8 shadow-lg hover:scale-[1.02] hover:shadow-2xl",
                 isBold && `bg-gradient-to-br ${gradient}`,
                 // Subtle mode: glass effect
-                !isBold && !isPastel && "glass-card p-6 hover:scale-[1.02] hover:shadow-glow",
+                !isBold && !isPastel && "glass-card p-4 sm:p-5 lg:p-6 hover:scale-[1.02] hover:shadow-glow",
                 !isBold && !isPastel && `bg-gradient-to-br ${gradient}`,
                 // Pastel padding
-                isPastel && "p-6",
+                isPastel && "p-4 sm:p-5 lg:p-6",
                 className
             )}
         >
@@ -68,9 +68,9 @@ export const PremiumCard = React.memo(function PremiumCard({
                     centered ? "flex-col items-center" : "flex-row items-center"
                 )}>
                     {/* CIRCLE ICON CONTAINER for pastel mode */}
-                    <div className={cn(
-                        "rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-all",
-                        isPastel ? "w-12 h-12 rounded-full" : (centered ? "w-16 h-16 shadow-md" : "w-14 h-14 shadow-sm"),
+                        <div className={cn(
+                            "rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-all",
+                            isPastel ? "w-10 h-10 sm:w-12 sm:h-12 rounded-full" : (centered ? "w-16 h-16 shadow-md" : "w-12 h-12 sm:w-14 sm:h-14 shadow-sm"),
                         isBold ? "bg-white/20 backdrop-blur-xl" : "bg-card/80 backdrop-blur",
                         iconClassName
                     )}>
@@ -85,8 +85,8 @@ export const PremiumCard = React.memo(function PremiumCard({
                     )}>
                         {/* PURE BLACK TEXT for pastel mode */}
                         <h3 className={cn(
-                            "font-bold leading-tight truncate", // Added truncate here
-                            isBold ? "text-xl text-white" : isPastel ? "text-lg text-slate-900 dark:text-slate-100" : (centered ? "text-xl" : "text-lg text-foreground"),
+                            "font-bold leading-tight line-clamp-2", 
+                            isBold ? "text-xl text-white" : isPastel ? "text-base sm:text-lg text-slate-900 dark:text-slate-100" : (centered ? "text-xl" : "text-lg text-foreground"),
                             titleClassName
                         )}>{title}</h3>
                         {value !== undefined && <div className={cn(

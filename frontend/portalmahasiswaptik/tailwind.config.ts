@@ -111,6 +111,10 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        "bounce-slow": {
+          "0%, 100%": { transform: "translateY(-5%)", animationTimingFunction: "cubic-bezier(0.8, 0, 1, 1)" },
+          "50%": { transform: "translateY(0)", animationTimingFunction: "cubic-bezier(0, 0, 0.2, 1)" },
+        },
         confetti: {
           "0%": { transform: "translateY(0) rotate(0deg)", opacity: "1" },
           "100%": { transform: "translateY(-100px) rotate(720deg)", opacity: "0" },
@@ -136,8 +140,10 @@ export default {
         confetti: "confetti 1s ease-out forwards",
         "mesh-move": "mesh-move 8s ease-in-out infinite",
         "pulse-slow": "pulse-slow 4s ease-in-out infinite",
+        "bounce-slow": "bounce-slow 3s infinite",
       },
     },
   },
+  // @ts-ignore
   plugins: [require("tailwindcss-animate")],
 } satisfies Config;

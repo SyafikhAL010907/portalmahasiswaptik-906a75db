@@ -1,0 +1,63 @@
+{/* STATS GRID - STANDARDIZED PREMIUM CARDS */}
+      <motion.div variants={staggerBottom} layout={false} key={`${selectedClassId}-${localMonth}-${selectedYear}-${isLifetime ? 'life' : 'monthly'}`} className="animate-in fade-in duration-200">
+
+        {/* âœ… WIDGET BARU: Aggregate Balance Angkatan (Hanya di Lifetime) */}
+        {isLifetime && (
+          <div className="mb-6">
+            <PremiumCard
+              centered={true}
+              icon={TrendingUp}
+              title="Total Saldo Bersih Angkatan (Aggregated)"
+              titleClassName="whitespace-normal break-words max-w-[280px] sm:max-w-full mx-auto text-center text-sm md:text-base font-bold"
+              subtitle="Validasi: Total Iuran (4 Kelas) + Total Hibah - Pengeluaran Angkatan"
+              subtitleClassName="whitespace-normal break-words line-clamp-2 sm:line-clamp-none max-w-[260px] sm:max-w-[600px] mx-auto text-center text-xs md:text-sm mt-1"
+              value={isLoadingStats ? <Skeleton className="h-9 w-48 bg-emerald-500/10" /> : formatIDR(batchNetBalance)}
+              gradient="from-emerald-500/20 to-emerald-500/5"
+              iconClassName="bg-emerald-500/10 text-emerald-600"
+              className="w-full"
+            />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4 mb-6">
+          <PremiumCard
+            icon={Users}
+            title={`Saldo Kas ${selectedClassName}`}
+            subtitle={isLifetime ? `Total iuran terbayar (Jan - Des)` : `Total iuran terbayar bulan ini`}
+            value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-purple-500/10" /> : formatIDR(classDuesTotal)}
+            gradient="from-purple-500/20 to-purple-500/5"
+            iconClassName="bg-purple-500/10 text-purple-600"
+          />
+          <PremiumCard
+            icon={Wallet}
+            title="Total Kas Angkatan"
+            subtitle={isLifetime ? "Total iuran terbayar dari seluruh kelas (A, B, C, D)" : "Total iuran terbayar seluruh kelas bulan ini"}
+            value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-blue-500/10" /> : formatIDR(totalKasAngkatan)}
+            gradient="from-blue-500/20 to-blue-500/5"
+            iconClassName="bg-blue-500/10 text-blue-600"
+          />
+          <PremiumCard
+            icon={Gift}
+            title={isLifetime ? "Total Pemasukan Lain" : `Hibah/Pemasukan ${selectedClassName}`}
+            subtitle={isLifetime ? "Pemasukan Angkatan di luar iuran" : "Hibah/Donasi masuk bulan ini"}
+            value={isLoadingStats ? <Skeleton className="h-9 w-24 bg-orange-500/10" /> : formatIDR(classSpecificTotalIncome)}
+            gradient="from-orange-500/20 to-orange-500/5"
+            iconClassName="bg-orange-500/10 text-orange-600"
+          />
+          <PremiumCard
+            icon={Wallet}
+            title={isLifetime ? `Saldo Bersih ${selectedClassName} (Lifetime)` : `Saldo Bersih ${selectedClassName}`}
+            subtitle={isLifetime ? `Total Iuran + Hibah - Pengeluaran (12 Bulan)` : `Total Iuran + Hibah - Pengeluaran (Bulan ini)`}
+            value={isLoadingStats ? <Skeleton className="h-9 w-32 bg-indigo-500/10" /> : formatIDR(saldoBersih)}
+            gradient="from-indigo-500/20 to-indigo-500/5"
+            iconClassName="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+            titleClassName={saldoBersih < 0 ? "text-rose-500" : ""}
+          />
+        </div>
+
+        {isLifetime && currentUser && currentUser.role !== 'admin_dosen' && (
+          <div className="animate-in fade-in duration-200 mb-6">
+            <FinancialChart transactions={transactions} selectedClassId={selectedClassId} selectedClassName={selectedClassName} currentSaldo={saldoBersih} className="w-full" />
+          </div>
+        )}
+

@@ -1,0 +1,356 @@
+package auth
+
+import (
+	"bytes"
+	"net/http"
+	"os"
+	"sync"
+	"time"
+
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+type WebAuthnHandler struct {
+	DB       *gorm.DB
+	WebAuthn *webauthn.WebAuthn
+	// In-memory session storage (In production, use Redis or DB with TTL)
+	sessions      map[string]*webauthn.SessionData
+	sessionsMutex sync.RWMutex
+}
+
+func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
+	// RPID should be the domain (e.g., localhost or your-domain.com)
+	// We read this from env to support ngrok and production easily
+	rpID := os.Getenv("WEBAUTHN_RPID")
+	if rpID == "" {
+		rpID = "localhost"
+	}
+
+	origin := os.Getenv("WEBAUTHN_ORIGIN")
+	if origin == "" {
+		origin = "http://localhost:5173"
+	}
+
+	w, err := webauthn.New(&webauthn.Config{
+		RPID:          rpID,
+		RPDisplayName: "Portal Mahasiswa PTIK",
+		RPOrigins: []string{
+			origin,
+			"https://localhost:5173",
+			"http://localhost:5173",
+		},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &WebAuthnHandler{
+		DB:       db,
+		WebAuthn: w,
+		sessions: make(map[string]*webauthn.SessionData),
+	}, nil
+}
+
+// BeginRegistration starts the biometric registration process
+// GET /api/auth/webauthn/register/begin
+func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
+	userCtx := c.Locals("user").(middleware.UserContext)
+
+	// Fetch profile to get metadata
+	var profile models.Profile
+	if err := h.DB.Where("user_id = ?", userCtx.UserID).First(&profile).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found"})
+	}
+
+	// Fetch existing credentials
+	var credentials []models.WebAuthnCredential
+	h.DB.Where("user_id = ?", userCtx.UserID).Find(&credentials)
+
+	// LOCKDOWN: Only allow 1 device per user
+	if len(credentials) > 0 {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error": "Kamu sudah mendaftarkan perangkat biometrik. Satu akun hanya boleh 1 perangkat!",
+		})
+	}
+
+	waUser := models.WebAuthnUser{
+		Profile:     profile,
+		Credentials: credentials,
+	}
+
+	options, sessionData, err := h.WebAuthn.BeginRegistration(waUser)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Store session data
+	h.sessionsMutex.Lock()
+	h.sessions[userCtx.UserID.String()] = sessionData
+	h.sessionsMutex.Unlock()
+
+	return c.JSON(options)
+}
+
+// FinishRegistration completes the biometric registration process
+// POST /api/auth/webauthn/register/finish
+func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
+	userCtx := c.Locals("user").(middleware.UserContext)
+
+	// Retrieve session data
+	h.sessionsMutex.RLock()
+	sessionData, ok := h.sessions[userCtx.UserID.String()]
+	h.sessionsMutex.RUnlock()
+
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Session not found or expired"})
+	}
+
+	// Fetch profile
+	var profile models.Profile
+	if err := h.DB.Where("user_id = ?", userCtx.UserID).First(&profile).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found"})
+	}
+
+	waUser := models.WebAuthnUser{Profile: profile}
+
+	// Convert Fiber request to *http.Request for the library
+	req, _ := http.NewRequest(c.Method(), c.Path(), bytes.NewReader(c.Body()))
+	req.Header.Set("Content-Type", c.Get("Content-Type"))
+
+	// Parse response from client
+	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Save to Database
+	aaguid, _ := uuid.FromBytes(credential.Authenticator.AAGUID)
+	newCred := models.WebAuthnCredential{
+		UserID:          userCtx.UserID,
+		CredentialID:    credential.ID,
+		PublicKey:       credential.PublicKey,
+		AttestationType: credential.AttestationType,
+		AAGUID:          aaguid,
+		SignCount:       credential.Authenticator.SignCount,
+	}
+
+	if err := h.DB.Create(&newCred).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save credential"})
+	}
+
+	// Cleanup session
+	h.sessionsMutex.Lock()
+	delete(h.sessions, userCtx.UserID.String())
+	h.sessionsMutex.Unlock()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Biometrics successfully registered!",
+	})
+}
+
+// BeginLogin starts the biometric authentication process
+// POST /api/auth/webauthn/login/begin
+func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
+	var userID uuid.UUID
+	var nim string
+
+	// 1. Try to get user from context (2FA flow)
+	if u, ok := c.Locals("user").(middleware.UserContext); ok {
+		userID = u.UserID
+	} else {
+		// 2. Try to get NIM from request body (Login flow)
+		var body struct {
+			NIM string `json:"nim"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.NIM == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "NIM is required for biometric login"})
+		}
+		nim = body.NIM
+	}
+
+	// Fetch profile
+	var profile models.Profile
+	query := h.DB
+	if userID != uuid.Nil {
+		query = query.Where("user_id = ?", userID)
+	} else {
+		query = query.Where("nim = ?", nim)
+	}
+
+	if err := query.First(&profile).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found or not enrolled"})
+	}
+
+	// Fetch existing credentials
+	var credentials []models.WebAuthnCredential
+	h.DB.Where("user_id = ?", profile.UserID).Find(&credentials)
+
+	if len(credentials) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No biometric credentials registered for this user"})
+	}
+
+	waUser := models.WebAuthnUser{
+		Profile:     profile,
+		Credentials: credentials,
+	}
+
+	options, sessionData, err := h.WebAuthn.BeginLogin(waUser)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Store session data using the profile's UserID (works for both flows)
+	h.sessionsMutex.Lock()
+	h.sessions[profile.UserID.String()] = sessionData
+	h.sessionsMutex.Unlock()
+
+	return c.JSON(options)
+}
+
+// FinishLogin completes the biometric authentication process
+// POST /api/auth/webauthn/login/finish
+func (h *WebAuthnHandler) FinishLogin(c *fiber.Ctx) error {
+	// Parse body to get user identity or session reference
+	var loginBody struct {
+		NIM string `json:"nim"`
+	}
+	c.BodyParser(&loginBody)
+
+	var userID uuid.UUID
+	var userEmail string
+	if u, ok := c.Locals("user").(middleware.UserContext); ok {
+		userID = u.UserID
+		userEmail = u.Email
+	}
+
+	// If unauthenticated, we need to find the user via NIM to recover the session
+	if userID == uuid.Nil {
+		var profile models.Profile
+		if err := h.DB.Where("nim = ?", loginBody.NIM).First(&profile).Error; err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User not found"})
+		}
+		userID = profile.UserID
+		// Email will be fetched again below if needed for JWT
+	}
+
+	// Retrieve session data
+	h.sessionsMutex.RLock()
+	sessionData, ok := h.sessions[userID.String()]
+	h.sessionsMutex.RUnlock()
+
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Session not found or expired"})
+	}
+
+	// Fetch profile for user metadata
+	var profile models.Profile
+	if err := h.DB.Where("user_id = ?", userID).First(&profile).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found"})
+	}
+	if userEmail == "" {
+		userEmail = profile.NIM + "@student.ptik.unj.ac.id"
+	}
+
+	// Fetch all user credentials to check against
+	var credentials []models.WebAuthnCredential
+	h.DB.Where("user_id = ?", userID).Find(&credentials)
+
+	waUser := models.WebAuthnUser{
+		Profile:     profile,
+		Credentials: credentials,
+	}
+
+	// Convert Fiber request to *http.Request
+	req, _ := http.NewRequest(c.Method(), c.Path(), bytes.NewReader(c.Body()))
+	req.Header.Set("Content-Type", c.Get("Content-Type"))
+
+	credential, err := h.WebAuthn.FinishLogin(waUser, *sessionData, req)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Update sign count in DB
+	h.DB.Model(&models.WebAuthnCredential{}).
+		Where("credential_id = ?", credential.ID).
+		Update("sign_count", credential.Authenticator.SignCount)
+
+	// CLEANUP SESSION
+	h.sessionsMutex.Lock()
+	delete(h.sessions, userID.String())
+	h.sessionsMutex.Unlock()
+
+	// GENERATE SUPABASE COMPATIBLE JWT FOR PASSWORDLESS LOGIN
+	secret := os.Getenv("SUPABASE_JWT_SECRET")
+	if secret == "" {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "SUPABASE_JWT_SECRET not set"})
+	}
+
+	// Sign token with standard Supabase claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   userID.String(),
+		"email": userEmail,
+		"role":  "authenticated", // Crucial for Supabase RLS
+		"aud":   "authenticated",
+		"iat":   jwt.NewNumericDate(time.Now()),
+		"exp":   jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)), // 1 week session
+		"app_metadata": map[string]interface{}{
+			"provider": "webauthn",
+			"providers": []string{"webauthn"},
+		},
+		"user_metadata": map[string]interface{}{
+			"full_name": profile.FullName,
+		},
+	})
+
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to sign token"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Biometric authentication successful!",
+		"token":   tokenString,
+		"user":    profile,
+	})
+}
+
+// GetStatus checks if the user has any registered biometric credentials
+// GET /api/auth/webauthn/status
+func (h *WebAuthnHandler) GetStatus(c *fiber.Ctx) error {
+	userCtx := c.Locals("user").(middleware.UserContext)
+
+	var count int64
+	h.DB.Model(&models.WebAuthnCredential{}).Where("user_id = ?", userCtx.UserID).Count(&count)
+
+	return c.JSON(fiber.Map{
+		"is_registered": count > 0,
+	})
+}
+
+// DeleteCredential removes the user's biometric registration
+// DELETE /api/auth/webauthn/delete
+func (h *WebAuthnHandler) DeleteCredential(c *fiber.Ctx) error {
+	userCtx := c.Locals("user").(middleware.UserContext)
+
+	// Delete all credentials associated with the user_id (One Device Only logic)
+	result := h.DB.Where("user_id = ?", userCtx.UserID).Delete(&models.WebAuthnCredential{})
+	if result.Error != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Gagal menghapus data biometrik: " + result.Error.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Biometrik berhasil dihapus!",
+	})
+}
