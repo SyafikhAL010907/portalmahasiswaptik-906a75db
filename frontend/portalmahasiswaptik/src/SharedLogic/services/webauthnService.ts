@@ -5,6 +5,22 @@
 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { API_BASE_URL } from "@/lib/constants";
+
+// Helper to validate and parse JSON response
+async function handleResponse(response: Response) {
+  if (!response.ok) {
+    const text = await response.text();
+    console.error(`API Error (${response.status}):`, text);
+    try {
+      const errorJson = JSON.parse(text);
+      throw new Error(errorJson.error || `Server returned ${response.status}`);
+    } catch (e) {
+      throw new Error(`Server returned ${response.status} (Non-JSON response)`);
+    }
+  }
+  return response.json();
+}
 
 // Helper to convert Base64 URL to ArrayBuffer
 function base64ToBuffer(base64: string): ArrayBuffer {
@@ -52,10 +68,10 @@ export const webauthnService = {
       if (!session) throw new Error("Lo belum login bro! Token tidak ditemukan.");
 
       // 1. Get creation options from backend
-      const response = await fetch("/api/auth/webauthn/register/begin", {
+      const response = await fetch(`${API_BASE_URL}/auth/webauthn/register/begin`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const options = await response.json();
+      const options = await handleResponse(response);
 
       if (options.error) throw new Error(options.error);
 
@@ -91,7 +107,7 @@ export const webauthnService = {
       };
 
       // 5. Submit to backend
-      const finishResponse = await fetch("/api/auth/webauthn/register/finish", {
+      const finishResponse = await fetch(`${API_BASE_URL}/auth/webauthn/register/finish`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -100,7 +116,7 @@ export const webauthnService = {
         body: JSON.stringify(body),
       });
 
-      const result = await finishResponse.json();
+      const result = await handleResponse(finishResponse);
       if (result.success) {
         toast.success("Biometrik Berhasil Didaftarkan! 🦾");
         return true;
@@ -126,7 +142,7 @@ export const webauthnService = {
       // 1. Get request options from backend
       // If NIM is provided, we hit the public endpoint via POST.
       // Otherwise, we hit the protected endpoint via GET.
-      const beginUrl = "/api/auth/webauthn/login/begin";
+      const beginUrl = `${API_BASE_URL}/auth/webauthn/login/begin`;
       
       const headers: any = { "Content-Type": "application/json" };
       if (!nim && session) {
@@ -144,7 +160,7 @@ export const webauthnService = {
           };
 
       const response = await fetch(beginUrl, beginOptions);
-      const options = await response.json();
+      const options = await handleResponse(response);
 
       if (options.error) throw new Error(options.error);
 
@@ -187,13 +203,13 @@ export const webauthnService = {
         headers.Authorization = `Bearer ${session.access_token}`;
       }
 
-      const finishResponse = await fetch("/api/auth/webauthn/login/finish", {
+      const finishResponse = await fetch(`${API_BASE_URL}/auth/webauthn/login/finish`, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
       });
 
-      const result = await finishResponse.json();
+      const result = await handleResponse(finishResponse);
       if (result.success) {
         return { 
           success: true, 

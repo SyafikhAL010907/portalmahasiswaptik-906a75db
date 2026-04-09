@@ -4,20 +4,25 @@
  */
 
 const getApiBaseUrl = () => {
-    // 1. Try environment variable first (Vite/Koyeb env)
+    // 1. Prioritas Utama: Environment Variable (Vite/Koyeb/Produksi)
     const envUrl = import.meta.env.VITE_API_URL;
-    if (envUrl) return envUrl;
+    if (envUrl) return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   
-    // 2. Fallback Logic: Detect if running on a production-like domain
-    if (typeof window !== 'undefined' && 
-        !window.location.hostname.includes('localhost') && 
-        !window.location.hostname.includes('127.0.0.1')) {
-      // If we are on production but VITE_API_URL is missing, use current origin + /api
-      // This prevents "Failed to Fetch" (localhost:9000) errors in production
-      return `${window.location.origin}/api`;
+    // 2. Deteksi Lingkungan Browser / APK
+    if (typeof window !== 'undefined') {
+        const host = window.location.hostname;
+        const origin = window.location.origin;
+
+        // Jika di hosting (bukan localhost)
+        if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+            return `${origin}/api`;
+        }
+
+        // Jika di APK (biasanya localhost tapi tanpa port 5173 atau via Capacitor)
+        // Kita tetap butuh VITE_API_URL di sini, tapi kita kasih fallback ke produksi jika ada
     }
   
-    // 3. Local Development Fallback
+    // 3. Local Development (PC)
     return "http://localhost:9000/api";
 };
 

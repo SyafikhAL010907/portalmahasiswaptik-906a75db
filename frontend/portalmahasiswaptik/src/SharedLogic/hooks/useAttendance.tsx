@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { API_BASE_URL } from '@/lib/constants';
 
 // --- INTERFACES ---
 export interface Student {
@@ -743,8 +744,7 @@ export function useAttendance() {
         return;
       }
       toast.info("Sedang menyiapkan laporan presensi...");
-      const baseUrl = import.meta.env.VITE_API_URL;
-      const exportUrl = `${baseUrl}/export/attendance/excel?session_id=${sessionId}&token=${session.access_token}&action=download`;
+      const exportUrl = `${API_BASE_URL}/export/attendance/excel?session_id=${sessionId}&token=${session.access_token}&action=download`;
       const response = await fetch(exportUrl, { method: 'GET', headers: { 'Authorization': `Bearer ${session.access_token}` } });
       if (!response.ok) {
         const errorText = await response.text();
@@ -799,7 +799,7 @@ export function useAttendance() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error("Sesi tidak ditemukan"); return; }
       const baseUrl = import.meta.env.VITE_API_URL;
-      const exportUrl = `${baseUrl}/export/attendance/excel?session_id=${sessionId}&token=${session.access_token}`;
+      const exportUrl = `${API_BASE_URL}/export/attendance/excel?session_id=${sessionId}&token=${session.access_token}`;
       toast.info("Menyiapkan pratinjau...", { description: "Sedang memproses file untuk Google Sheets..." });
       const response = await fetch(exportUrl);
       if (!response.ok) throw new Error("Gagal mengambil data dari server");
@@ -829,8 +829,7 @@ export function useAttendance() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error("Sesi tidak ditemukan"); return; }
-      const baseUrl = import.meta.env.VITE_API_URL;
-      const exportUrl = `${baseUrl}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${classId}&token=${session.access_token}&action=download`;
+      const exportUrl = `${API_BASE_URL}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${classId}&token=${session.access_token}&action=download`;
       toast.info("Menyiapkan pratinjau Master...", { description: "Sedang memproses file Master untuk Google Sheets..." });
       const response = await fetch(exportUrl);
       if (!response.ok) throw new Error("Gagal mengambil data Master");
@@ -862,8 +861,7 @@ export function useAttendance() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error("Sesi tidak ditemukan"); return; }
       toast.info("Sedang generate Master Excel...");
-      const baseUrl = import.meta.env.VITE_API_URL;
-      const exportUrl = `${baseUrl}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${classId}&token=${session.access_token}&action=download`;
+      const exportUrl = `${API_BASE_URL}/export/attendance/master-excel?subject_id=${activeId.course}&class_id=${classId}&token=${session.access_token}&action=download`;
       const response = await fetch(exportUrl, { method: 'GET', headers: { 'Authorization': `Bearer ${session.access_token}` } });
       if (!response.ok) {
         const errorText = await response.text();

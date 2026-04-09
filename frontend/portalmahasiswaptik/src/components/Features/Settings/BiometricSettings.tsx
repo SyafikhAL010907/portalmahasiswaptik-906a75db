@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Fingerprint, ShieldCheck, Loader2, CheckCircle, Smartphone, Trash2 } from "lucide-react";
 import { webauthnService } from "@/SharedLogic/services/webauthnService";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_BASE_URL } from "@/lib/constants";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,9 +29,10 @@ export function BiometricSettings() {
       if (!session) return;
 
       try {
-        const res = await fetch("/api/auth/webauthn/status", {
+        const res = await fetch(`${API_BASE_URL}/auth/webauthn/status`, {
           headers: { Authorization: `Bearer ${session.access_token}` }
         });
+        if (!res.ok) throw new Error(`Status ${res.status}`);
         const data = await res.json();
         setIsRegistered(!!data.is_registered);
       } catch (err) {
