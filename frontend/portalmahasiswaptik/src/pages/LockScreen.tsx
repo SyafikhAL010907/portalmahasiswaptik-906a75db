@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useResponsive } from '@/hooks/useResponsive';
 import { Fingerprint, LogOut, Loader2, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,8 +10,20 @@ import { cn } from '@/lib/utils';
 
 export default function LockScreen() {
   const { user, profile, unlock, signOut, isBiometricRegistered, isLoading } = useAuth();
+  const { deviceType } = useResponsive();
   const [isVerifying, setIsVerifying] = useState(false);
+  const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
   const navigate = useNavigate();
+
+  const isPhone = deviceType === 'phone';
+
+  // Automatic trigger for mobile devices (Smooth experience for HP)
+  useEffect(() => {
+    if (isPhone && !isLoading && user && isBiometricRegistered && !hasAutoTriggered) {
+      setHasAutoTriggered(true);
+      handleUnlock();
+    }
+  }, [isPhone, isLoading, user, isBiometricRegistered, hasAutoTriggered]);
 
   const handleUnlock = async () => {
     setIsVerifying(true);
@@ -158,14 +171,16 @@ export default function LockScreen() {
             </motion.div>
           </div>
 
-          <Button 
-            variant="ghost" 
-            className="mt-6 text-primary font-bold hover:bg-primary/5 transition-all active:scale-95"
-            onClick={handleUnlock}
-            disabled={isVerifying}
-          >
-            Tekan untuk verifikasi
-          </Button>
+          {!isPhone && (
+            <Button 
+              variant="ghost" 
+              className="mt-6 text-primary font-bold hover:bg-primary/5 transition-all active:scale-95"
+              onClick={handleUnlock}
+              disabled={isVerifying}
+            >
+              Tekan untuk verifikasi
+            </Button>
+          )}
         </div>
 
         {/* Footer Actions */}
