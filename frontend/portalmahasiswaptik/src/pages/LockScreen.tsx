@@ -15,6 +15,7 @@ export default function LockScreen() {
   const navigate = useNavigate();
 
   const handleUnlock = async () => {
+    if (isVerifying) return;
     setIsVerifying(true);
     const success = await unlock();
     setIsVerifying(false);
