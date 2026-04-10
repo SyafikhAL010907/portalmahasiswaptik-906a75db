@@ -224,8 +224,16 @@ export const webauthnService = {
       }
     } catch (err: any) {
       console.error("WebAuthn Auth Error:", err);
+      
+      let errorMessage = err.message || "Gagal login biometrik.";
+      
+      // Specifically handle Domain Mismatch / Security Block
+      if (err.name === 'NotAllowedError') {
+        errorMessage = "Akses ditolak (Domain Mismatch). Jika lu baru pindah dari localhost ke Vercel, silakan Hapus & Daftar Ulang biometrik di Profile dulu bro! 🛡️";
+      }
+
       // Don't show toast for 2FA as the hook handles its own UI
-      if (nim) toast.error(err.message || "Gagal login biometrik.");
+      if (nim) toast.error(errorMessage, { duration: 6000 });
       return { success: false };
     }
   },

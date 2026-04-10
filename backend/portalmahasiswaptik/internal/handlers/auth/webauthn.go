@@ -31,7 +31,8 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 	// We read this from env to support ngrok and production easily
 	rpID := os.Getenv("WEBAUTHN_RPID")
 	if rpID == "" {
-		rpID = "localhost"
+		// FALLBACK PRODUKSI: Biar user gak usah ribet setting di Koyeb
+		rpID = "portal-mahasiswa-ptik.vercel.app"
 	}
 	// Sanitize RPID: Remove protocols and trailing slashes
 	for _, p := range []string{"https://", "http://"} {
