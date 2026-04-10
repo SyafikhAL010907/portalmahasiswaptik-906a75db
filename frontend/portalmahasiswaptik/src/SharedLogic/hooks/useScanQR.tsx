@@ -78,15 +78,7 @@ export function useScanQR() {
         const facingMode = useBackCamera ? 'environment' : 'user';
         await html5QrCode.start(
           { facingMode: facingMode },
-          { 
-            fps: 10, 
-            qrbox: { width: 250, height: 250 }, 
-            aspectRatio: 1.0,
-            videoConstraints: {
-              width: { min: 640, ideal: 1280, max: 1920 },
-              height: { min: 480, ideal: 720, max: 1080 }
-            }
-          },
+          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
           (decodedText) => onScanSuccess(decodedText),
           (errorMessage) => { }
         );

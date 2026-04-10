@@ -54,25 +54,13 @@ export default defineConfig(({ mode }) => ({
             src: '/pwa-icon.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/pwa-icon.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable'
+            purpose: 'any maskable'
           },
           {
             src: '/pwa-icon.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/pwa-icon.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable'
+            purpose: 'any maskable'
           }
         ]
       },

@@ -168,21 +168,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isDesktop()) {
             setIsBiometricRegistered(false);
             setIsUnlocked(true);
-            return;
-          }
-
-          webauthnService.getStatus().then(status => {
-            setIsBiometricRegistered(status.is_registered);
-            if (!status.is_registered) {
+          } else {
+            webauthnService.getStatus().then(status => {
+              setIsBiometricRegistered(status.is_registered);
+              if (!status.is_registered) {
+                setIsUnlocked(true);
+              } else {
+                const isRefresh = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
+                setIsUnlocked(isRefresh);
+              }
+            }).catch(() => {
+              setIsBiometricRegistered(false);
               setIsUnlocked(true);
-            } else {
-              const isRefresh = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
-              setIsUnlocked(isRefresh);
-            }
-          }).catch(() => {
-            setIsBiometricRegistered(false);
-            setIsUnlocked(true);
-          });
+            });
+          }
         }
 
         // Sync token to cookie whenever auth state changes (login or refresh)
@@ -293,9 +292,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionStorage.setItem('portal_auth_session_active', 'true');
       setIsUnlocked(true);
 
-      // If sign in is successful, the onAuthStateChange listener will handle the cookie
+      // MANUAL SYNC: Fetch profile and roles before returning success
+      // This ensures that Dashboard components find data immediately upon navigation
+      if (data.user) {
+        // Sync token immediately for backend
+        if (data.session?.access_token) {
+          setAuthCookie(data.session.access_token);
+        }
+
+        const [profileData, rolesData] = await Promise.all([
+          fetchProfile(data.user.id),
+          fetchRoles(data.user.id)
+        ]);
+        
+        setProfile(profileData);
+        setRoles(rolesData);
+      }
+
       return { error: null };
     } catch (err) {
+      console.error("SignIn catch error:", err);
       return { error: 'Terjadi kesalahan saat login' };
     }
   };
