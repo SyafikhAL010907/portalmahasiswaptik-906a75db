@@ -288,6 +288,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message };
       }
 
+      // Success: Mark as unlocked and active session since user just proved identity with password
+      sessionStorage.setItem('portal_biometric_unlocked', 'true');
+      sessionStorage.setItem('portal_auth_session_active', 'true');
+      setIsUnlocked(true);
+
       // If sign in is successful, the onAuthStateChange listener will handle the cookie
       return { error: null };
     } catch (err) {

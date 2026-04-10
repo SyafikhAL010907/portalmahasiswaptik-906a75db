@@ -58,6 +58,7 @@ export function useQRGenerator() {
   const [selectedLearningMethod, setSelectedLearningMethod] = useState<string>('Luring');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [tokenResetMinutes, setTokenResetMinutes] = useState(1);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [isExpired, setIsExpired] = useState(false);
@@ -291,6 +292,15 @@ export function useQRGenerator() {
     }
     setIsLoading(true);
     try {
+      // --- 🛠️ SETTING MANUAL / KALIBRASI TITIK NOL (Ubah di sini bro) ---
+      const USE_MANUAL_COORDINATES = false; // Set 'true' kalo mau pake koordinat fix di bawah
+      const MANUAL_LAT = -6.200000;         // Isi Latitude manual
+      const MANUAL_LNG = 106.800000;        // Isi Longitude manual
+
+      const LAT_OFFSET = 0.000000;          // Tambah/kurang nilai Latitude (Kalibrasi geser)
+      const LNG_OFFSET = 0.000000;          // Tambah/kurang nilai Longitude (Kalibrasi geser)
+      // ---------------------------------------------------------------
+
       // 1. CAPTURE LECTURER GEOLOCATION FIRST (PRE-FLIGHT)
       let lecturerCoords: { lat: number; lng: number } | null = null;
       if (navigator.geolocation) {
@@ -303,11 +313,23 @@ export function useQRGenerator() {
             });
           });
           lecturerCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
-          console.log("📍 Pre-flight Lecturer Coords:", lecturerCoords);
+          
+          // TERAPIN KALIBRASI GESER (OFFSET)
+          if (lecturerCoords) {
+            lecturerCoords.lat += LAT_OFFSET;
+            lecturerCoords.lng += LNG_OFFSET;
+          }
+
+          console.log("📍 Pre-flight Lecturer Coords (After Offset):", lecturerCoords);
         } catch (geoErr) {
           console.warn("Failed to get lecturer coords before session creation:", geoErr);
-          // We still continue, but geofencing might fallback to manual or fail
         }
+      }
+
+      // TERAPIN MANUAL OVERRIDE KALO DIAKTIFIN
+      if (USE_MANUAL_COORDINATES) {
+        lecturerCoords = { lat: MANUAL_LAT, lng: MANUAL_LNG };
+        console.log("⚠️ MENGGUNAKAN KOORDINAT MANUAL:", lecturerCoords);
       }
 
       // 2. Cleanup old sessions
@@ -318,9 +340,9 @@ export function useQRGenerator() {
         .eq('class_id', selectedClass)
         .eq('meeting_id', selectedMeeting);
 
-      // 3. Create Session
+      // 3. Create Session (Expires in 2 hours by default)
       const token = Math.random().toString(36).substring(7);
-      const expiresAt = new Date(Date.now() + 100 * 60 * 1000).toISOString();
+      const expiresAt = new Date(Date.now() + 120 * 60 * 1000).toISOString();
 
       const { data, error } = await supabase
         .from('attendance_sessions')
@@ -368,7 +390,7 @@ export function useQRGenerator() {
       }
 
       setIsExpired(false);
-      setTimeLeft(60);
+      setTimeLeft(tokenResetMinutes * 60);
       toast.success('Sesi Absensi Dimulai!');
       if (lecturerCoords) toast.info("📍 Lokasi Titik Nol Berhasil Dikunci!", { icon: "📍" });
     } catch (error: any) {
@@ -383,8 +405,17 @@ export function useQRGenerator() {
     if (!activeSession) return;
     setIsLoading(true);
     try {
+      // --- 🛠️ SETTING MANUAL / KALIBRASI TITIK NOL (Ubah di sini juga bro) ---
+      const USE_MANUAL_COORDINATES = false; 
+      const MANUAL_LAT = -6.200000;         
+      const MANUAL_LNG = 106.800000;        
+
+      const LAT_OFFSET = 0.000000;          
+      const LNG_OFFSET = 0.000000;          
+      // ---------------------------------------------------------------------
+
       setIsExpired(false);
-      setTimeLeft(60);
+      setTimeLeft(tokenResetMinutes * 60);
       const newCode = Math.random().toString(36).substring(7);
       const currentPayload = JSON.parse(activeSession.qr_code);
       const payload = JSON.stringify({ ...currentPayload, t: newCode });
@@ -398,7 +429,14 @@ export function useQRGenerator() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
-            const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+            let coords = { 
+              lat: position.coords.latitude + LAT_OFFSET, 
+              lng: position.coords.longitude + LNG_OFFSET 
+            };
+
+            if (USE_MANUAL_COORDINATES) {
+              coords = { lat: MANUAL_LAT, lng: MANUAL_LNG };
+            }
             
             // PERSIST TO SUPABASE
             await (supabase.from('attendance_sessions') as any).update({ 
@@ -433,10 +471,10 @@ export function useQRGenerator() {
 
   return {
     state: {
-      subjects, meetings, classes, selectedSemester, selectedSubject, selectedMeeting, selectedClass, selectedLearningMethod, isLoading, activeSession, timeLeft, isExpired, scannedStudents, totalClassStudents, isAdminDosen, isAdminDev
+      subjects, meetings, classes, selectedSemester, selectedSubject, selectedMeeting, selectedClass, selectedLearningMethod, tokenResetMinutes, isLoading, activeSession, timeLeft, isExpired, scannedStudents, totalClassStudents, isAdminDosen, isAdminDev
     },
     actions: {
-      setSelectedSemester, setSelectedSubject, setSelectedMeeting, setSelectedClass, setSelectedLearningMethod, handleGenerateQR, handleRefreshQR, refreshData, formatTime
+      setSelectedSemester, setSelectedSubject, setSelectedMeeting, setSelectedClass, setSelectedLearningMethod, setTokenResetMinutes, handleGenerateQR, handleRefreshQR, refreshData, formatTime
     }
   };
 }

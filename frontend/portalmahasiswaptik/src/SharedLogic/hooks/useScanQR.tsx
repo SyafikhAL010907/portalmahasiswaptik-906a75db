@@ -284,16 +284,16 @@ export function useScanQR() {
   };
 
   return {
-    state: { 
-      isScanning, 
-      scanResult, 
-      location, 
-      isProcessing, 
-      isBackCamera, 
-      MAX_DISTANCE_METERS: MAX_DISTANCE, 
-      user, 
-      isMahasiswa, 
-      isAdminDev, 
+    state: {
+      isScanning,
+      scanResult,
+      location,
+      isProcessing,
+      isBackCamera,
+      MAX_DISTANCE_METERS: MAX_DISTANCE,
+      user,
+      isMahasiswa,
+      isAdminDev,
       showScannerUI,
       isVerifyingBiometric
     },
