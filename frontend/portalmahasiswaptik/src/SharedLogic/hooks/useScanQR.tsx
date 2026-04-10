@@ -76,9 +76,25 @@ export function useScanQR() {
         const html5QrCode = new Html5Qrcode("qr-reader");
         scannerRef.current = html5QrCode;
         const facingMode = useBackCamera ? 'environment' : 'user';
+        
+        // Optimasi Sensitivitas Scanner bro
+        const config = {
+          fps: 30, // Naikin dari 10 ke 30 biar makin gercep (smooth)
+          qrbox: { width: 280, height: 280 }, // Gedein dikit biar gampang pas-nya
+          aspectRatio: 1.0,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // Pake API bawaan browser/OS kalo ada (ngebut banget ini)
+          },
+          videoConstraints: {
+            facingMode: facingMode,
+            focusMode: 'continuous', // Usahain autofokus terus
+            advanced: [{ zoom: 1.0 }] // Reset zoom biar gak kaget
+          }
+        };
+
         await html5QrCode.start(
           { facingMode: facingMode },
-          { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+          config as any,
           (decodedText) => onScanSuccess(decodedText),
           (errorMessage) => { }
         );

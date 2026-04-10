@@ -94,7 +94,7 @@ export function ScanQRScanner({ scan }: ScanQRScannerProps) {
 
             {/* Guide Frame */}
             <div className="absolute inset-0 border-[40px] border-black/60 pointer-events-none flex items-center justify-center">
-               <div className="w-64 h-64 border-2 border-primary rounded-3xl relative">
+               <div className="w-72 h-72 border-2 border-primary rounded-3xl relative">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl -translate-x-1 -translate-y-1"></div>
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl translate-x-1 -translate-y-1"></div>
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl -translate-x-1 translate-y-1"></div>
