@@ -38,14 +38,16 @@ export default function Profile() {
             initial="hidden"
             animate="visible"
             layout={false}
-            className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-200 pt-6"
+            className="max-w-7xl mx-auto space-y-12 animate-in fade-in duration-200 pt-8 px-6 lg:px-8"
         >
             <ProfileHeader hook={hook} />
 
-            <motion.div variants={staggerBottom as any} layout={false} className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12 pb-12">
+            <motion.div variants={staggerBottom as any} layout={false} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 pt-16 pb-24">
                 <IdentityDetails hook={hook} />
                 <BiometricSettings />
-                <ContactForm hook={hook} />
+                <div className="md:col-span-2 lg:col-span-1">
+                    <ContactForm hook={hook} />
+                </div>
             </motion.div>
         </motion.div>
     );

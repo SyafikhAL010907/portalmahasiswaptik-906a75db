@@ -67,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       document.cookie = "sb-auth-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
       console.log("🍪 Clearing auth cookie...");
       sessionStorage.removeItem('portal_auth_session_active');
+      sessionStorage.removeItem('portal_biometric_unlocked');
     }
   };
 
@@ -214,9 +215,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsBiometricRegistered(status.is_registered);
 
           if (status.is_registered) {
-            // User has biometrics -> Go to LockScreen
-            console.log("🔒 Biometric Enforcement: LockScreen Required");
-            setIsUnlocked(false);
+            // User has biometrics
+            // Check if they already unlocked in this session (Refresh detection)
+            const isAlreadyUnlocked = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
+            
+            if (isAlreadyUnlocked) {
+              console.log("✅ Biometric Session active. Skipping LockScreen.");
+              setIsUnlocked(true);
+            } else {
+              console.log("🔒 Biometric Enforcement: LockScreen Required");
+              setIsUnlocked(false);
+            }
           } else {
             // User does NOT have biometrics
             // Check if this is a fresh session or refresh
@@ -313,6 +322,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await webauthnService.authenticate(profile?.nim || undefined);
       if (result.success) {
         setIsUnlocked(true);
+        // Persist unlock for the current tab session (Refresh protection)
+        sessionStorage.setItem('portal_biometric_unlocked', 'true');
         console.log("🔓 Unlock successful!");
         return true;
       }
