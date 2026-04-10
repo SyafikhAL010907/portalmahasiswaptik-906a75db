@@ -88,9 +88,9 @@ export function BiometricSettings() {
 
   return (
     <Card className="group md:col-span-1 border-primary/20 bg-primary/5 backdrop-blur-xl shadow-2xl overflow-hidden relative transition-all hover:border-primary/40 hover:shadow-primary/5">
-      {/* Premium background gradient and icon */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 group-hover:opacity-80 transition-opacity" />
-      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-all group-hover:scale-110">
+      {/* Premium background gradient and icon - Added pointer-events-none to fix click interception */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 group-hover:opacity-80 transition-opacity pointer-events-none" />
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-all group-hover:scale-110 pointer-events-none">
         <Fingerprint className="w-24 h-24 text-primary" />
       </div>
 
