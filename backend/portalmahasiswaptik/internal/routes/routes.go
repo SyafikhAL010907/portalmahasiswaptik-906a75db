@@ -2,8 +2,8 @@ package routes
 
 import (
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/handlers"
-	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/handlers/repository"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/handlers/auth"
+	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/handlers/repository"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/storage"
@@ -206,11 +206,15 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// ========================================
 	// WEBAUTHN ROUTES (Biometrics)
 	// ========================================
-	wa := protected.Group("/auth/webauthn")
-	wa.Get("/register/begin", webauthnHandler.BeginRegistration)
-	wa.Post("/register/finish", webauthnHandler.FinishRegistration)
-	wa.Get("/login/begin", webauthnHandler.BeginLogin)
-	wa.Post("/login/finish", webauthnHandler.FinishLogin)
-	wa.Get("/status", webauthnHandler.GetStatus)
-	wa.Delete("/delete", webauthnHandler.DeleteCredential)
+	// Public Login Routes (No token needed)
+	waPublic := api.Group("/auth/webauthn")
+	waPublic.Post("/login/begin", webauthnHandler.BeginLogin)
+	waPublic.Post("/login/finish", webauthnHandler.FinishLogin)
+
+	// Protected Registration & Management (Token required)
+	waProtected := protected.Group("/auth/webauthn")
+	waProtected.Get("/register/begin", webauthnHandler.BeginRegistration)
+	waProtected.Post("/register/finish", webauthnHandler.FinishRegistration)
+	waProtected.Get("/status", webauthnHandler.GetStatus)
+	waProtected.Delete("/delete", webauthnHandler.DeleteCredential)
 }
