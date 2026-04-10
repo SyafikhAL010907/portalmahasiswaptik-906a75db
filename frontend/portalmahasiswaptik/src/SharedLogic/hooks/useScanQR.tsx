@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Html5Qrcode } from 'html5-qrcode';
 import { webauthnService } from '../services/webauthnService';
 
-const MAX_DISTANCE = 100; // Jarak maksimum absensi (100 Meter)
+const MAX_DISTANCE = 15; // Jarak maksimum absensi (100 Meter)
 
 interface ScanResult {
   success: boolean;
@@ -169,6 +169,13 @@ export function useScanQR() {
         const lLng = payload.lng || (session as any).longitude;
         if (lLat && lLng) {
           studentDistance = calculateDistance(freshLocation.lat, freshLocation.lng, lLat, lLng);
+          
+          // --- 🛠️ LOGIKA DISKON JARAK (KALIBRASI) ---
+          if (payload.df) {
+            studentDistance = Math.max(0, studentDistance - payload.df);
+            console.log(`📏 Jarak awal dikurangi diskon ${payload.df}m. Jarak final: ${studentDistance}m`);
+          }
+
           isMisslock = studentDistance > MAX_DISTANCE;
         }
       }

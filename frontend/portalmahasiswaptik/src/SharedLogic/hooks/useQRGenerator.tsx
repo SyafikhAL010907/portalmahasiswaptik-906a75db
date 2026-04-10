@@ -292,14 +292,15 @@ export function useQRGenerator() {
     }
     setIsLoading(true);
     try {
-      // --- 🛠️ SETTING MANUAL / KALIBRASI TITIK NOL (Ubah di sini bro) ---
-      const USE_MANUAL_COORDINATES = false; // Set 'true' kalo mau pake koordinat fix di bawah
-      const MANUAL_LAT = -6.200000;         // Isi Latitude manual
-      const MANUAL_LNG = 106.800000;        // Isi Longitude manual
+      // --- 🛠️ KALIBRASI JARAK (Ubah di sini bro) ---
+      // Kalo GPS ngaco (misal jarak deket tapi kedetect 58m), isi angka 58 di bawah:
+      const DISTANCE_FIX_METERS = 50; 
 
-      const LAT_OFFSET = 0.000000;          // Tambah/kurang nilai Latitude (Kalibrasi geser)
-      const LNG_OFFSET = 0.000000;          // Tambah/kurang nilai Longitude (Kalibrasi geser)
-      // ---------------------------------------------------------------
+      // (Optional) Kalo mau lock koordinat manual (Google Maps), set ke true:
+      const USE_MANUAL_COORDINATES = false; 
+      const MANUAL_LAT = -6.200000;         
+      const MANUAL_LNG = 106.800000;        
+      // --------------------------------------------
 
       // 1. CAPTURE LECTURER GEOLOCATION FIRST (PRE-FLIGHT)
       let lecturerCoords: { lat: number; lng: number } | null = null;
@@ -313,14 +314,7 @@ export function useQRGenerator() {
             });
           });
           lecturerCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
-          
-          // TERAPIN KALIBRASI GESER (OFFSET)
-          if (lecturerCoords) {
-            lecturerCoords.lat += LAT_OFFSET;
-            lecturerCoords.lng += LNG_OFFSET;
-          }
-
-          console.log("📍 Pre-flight Lecturer Coords (After Offset):", lecturerCoords);
+          console.log("📍 Pre-flight Lecturer Coords:", lecturerCoords);
         } catch (geoErr) {
           console.warn("Failed to get lecturer coords before session creation:", geoErr);
         }
@@ -329,7 +323,6 @@ export function useQRGenerator() {
       // TERAPIN MANUAL OVERRIDE KALO DIAKTIFIN
       if (USE_MANUAL_COORDINATES) {
         lecturerCoords = { lat: MANUAL_LAT, lng: MANUAL_LNG };
-        console.log("⚠️ MENGGUNAKAN KOORDINAT MANUAL:", lecturerCoords);
       }
 
       // 2. Cleanup old sessions
@@ -367,7 +360,8 @@ export function useQRGenerator() {
         c: selectedClass, 
         t: token,
         lat: lecturerCoords?.lat,
-        lng: lecturerCoords?.lng
+        lng: lecturerCoords?.lng,
+        df: DISTANCE_FIX_METERS // 'df' = Distance Fix
       };
       const payloadStr = JSON.stringify(payloadObj);
       
@@ -405,20 +399,22 @@ export function useQRGenerator() {
     if (!activeSession) return;
     setIsLoading(true);
     try {
-      // --- 🛠️ SETTING MANUAL / KALIBRASI TITIK NOL (Ubah di sini juga bro) ---
+      // --- 🛠️ KALIBRASI JARAK (Ubah di sini juga bro) ---
+      const DISTANCE_FIX_METERS = 0; 
       const USE_MANUAL_COORDINATES = false; 
       const MANUAL_LAT = -6.200000;         
       const MANUAL_LNG = 106.800000;        
-
-      const LAT_OFFSET = 0.000000;          
-      const LNG_OFFSET = 0.000000;          
-      // ---------------------------------------------------------------------
+      // --------------------------------------------------
 
       setIsExpired(false);
       setTimeLeft(tokenResetMinutes * 60);
       const newCode = Math.random().toString(36).substring(7);
       const currentPayload = JSON.parse(activeSession.qr_code);
-      const payload = JSON.stringify({ ...currentPayload, t: newCode });
+      const payload = JSON.stringify({ 
+        ...currentPayload, 
+        t: newCode,
+        df: DISTANCE_FIX_METERS 
+      });
 
       const { error } = await supabase.from('attendance_sessions').update({ qr_code: payload }).eq('id', activeSession.id);
       if (error) throw error;
@@ -429,10 +425,7 @@ export function useQRGenerator() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
-            let coords = { 
-              lat: position.coords.latitude + LAT_OFFSET, 
-              lng: position.coords.longitude + LNG_OFFSET 
-            };
+            let coords = { lat: position.coords.latitude, lng: position.coords.longitude };
 
             if (USE_MANUAL_COORDINATES) {
               coords = { lat: MANUAL_LAT, lng: MANUAL_LNG };
