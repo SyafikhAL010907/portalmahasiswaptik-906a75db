@@ -269,8 +269,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    // Clear cookie
+    try {
+      // Attempt to sign out globally from Supabase
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn("🛡️ AuthContext: SignOut API call failed or was forbidden, proceeding with local cleanup.", err);
+    }
+
+    // Force local cleanup regardless of API status
     setAuthCookie(null);
     
     // Reset Lock States
