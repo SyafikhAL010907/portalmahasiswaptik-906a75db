@@ -65,6 +65,58 @@ const LoadingSpinner = () => (
   </div>
 );
 
+const AppContent = () => {
+  const { session, isUnlocked, isBiometricRegistered, isLoading: authLoading } = useAuth();
+  
+  if (authLoading) return <LoadingSpinner />;
+
+  // SEAMLESS LOCKSCREEN: If we have a session AND biometrics, but are locked
+  // we render LockScreen at the root level to prevent any flash of dashboard.
+  if (session && isBiometricRegistered && !isUnlocked) {
+    return (
+       <Suspense fallback={<LoadingSpinner />}>
+          <LockScreen />
+       </Suspense>
+    );
+  }
+
+  return (
+    <div className="min-h-screen will-change-opacity">
+      <ProtectedGlobalChat />
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="schedule" element={<Schedule />} />
+            <Route path="finance" element={<Finance />} />
+            <Route path="ipk-simulator" element={<IPKSimulator />} />
+            <Route path="repository" element={<Repository />} />
+            <Route path="scan-qr" element={<ScanQR />} />
+            <Route path="qr-generator" element={<QRGenerator />} />
+            <Route path="attendance-history" element={<AttendanceHistory />} />
+            <Route path="payment" element={<Payment />} />
+            <Route path="announcements" element={<Announcements />} />
+            <Route path="competitions" element={<Competitions />} />
+            <Route path="leaderboard" element={<Leaderboard />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="change-password" element={<ChangePassword />} />
+            <Route path="absensi-hub" element={<AbsensiHub />} />
+            <Route path="keuangan-hub" element={<KeuanganHub />} />
+            <Route path="profile-hub" element={<ProfileHub />} />
+          </Route>
+          <Route path="/features" element={<Features />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/lock-screen" element={<LockScreen />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+    </div>
+  );
+};
+
 const App = () => {
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
@@ -230,39 +282,9 @@ const App = () => {
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5, ease: "easeInOut" }}
                     // Fixed ambiguous Tailwind class warning by using specific duration utility or escaping
-                    className="min-h-screen will-change-opacity"
+                    className="min-h-screen"
                   >
-                    <ProtectedGlobalChat />
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Routes>
-                        <Route path="/" element={<Landing />} />
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/dashboard" element={<DashboardLayout />}>
-                          <Route index element={<Dashboard />} />
-                          <Route path="schedule" element={<Schedule />} />
-                          <Route path="finance" element={<Finance />} />
-                          <Route path="ipk-simulator" element={<IPKSimulator />} />
-                          <Route path="repository" element={<Repository />} />
-                          <Route path="scan-qr" element={<ScanQR />} />
-                          <Route path="qr-generator" element={<QRGenerator />} />
-                          <Route path="attendance-history" element={<AttendanceHistory />} />
-                          <Route path="payment" element={<Payment />} />
-                          <Route path="announcements" element={<Announcements />} />
-                          <Route path="competitions" element={<Competitions />} />
-                          <Route path="leaderboard" element={<Leaderboard />} />
-                          <Route path="users" element={<UserManagement />} />
-                          <Route path="profile" element={<Profile />} />
-                          <Route path="change-password" element={<ChangePassword />} />
-                          <Route path="absensi-hub" element={<AbsensiHub />} />
-                          <Route path="keuangan-hub" element={<KeuanganHub />} />
-                          <Route path="profile-hub" element={<ProfileHub />} />
-                        </Route>
-                        <Route path="/features" element={<Features />} />
-                        <Route path="/about" element={<About />} />
-                        <Route path="/lock-screen" element={<LockScreen />} />
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Suspense>
+                    <AppContent />
                   </motion.div>
                 )}
               </TooltipProvider>

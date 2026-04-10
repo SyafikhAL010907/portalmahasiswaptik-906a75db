@@ -33,6 +33,16 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 	if rpID == "" {
 		rpID = "localhost"
 	}
+	// Sanitize RPID: Remove protocols and trailing slashes
+	for _, p := range []string{"https://", "http://"} {
+		if idx := len(p); len(rpID) > idx && rpID[:idx] == p {
+			rpID = rpID[idx:]
+		}
+	}
+	if len(rpID) > 0 && rpID[len(rpID)-1] == '/' {
+		rpID = rpID[:len(rpID)-1]
+	}
+	fmt.Printf("🛡️ WebAuthn Config: RPID='%s'\n", rpID)
 
 	origin := os.Getenv("WEBAUTHN_ORIGIN")
 	if origin == "" {
@@ -49,7 +59,6 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 			"https://portal-mahasiswa-ptik.vercel.app",
 		},
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			AuthenticatorAttachment: protocol.Platform,
 			ResidentKey:            protocol.ResidentKeyRequirementPreferred,
 			UserVerification:       protocol.VerificationPreferred,
 		},

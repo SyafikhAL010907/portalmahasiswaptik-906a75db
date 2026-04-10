@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isUnlocked, setIsUnlocked] = useState(true); // Default to true for fresh sessions
   const [isBiometricRegistered, setIsBiometricRegistered] = useState<boolean | null>(null);
+  const isAuthenticating = React.useRef(false);
 
   // Helper to set persistent cookie for backend middleware
   const setAuthCookie = (token: string | null, days: number = 30) => {
@@ -294,7 +295,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const unlock = async () => {
+    if (isAuthenticating.current) {
+      console.log("🛡️ AuthContext: Auth already in progress, ignoring duplicate call.");
+      return false;
+    }
+    
     try {
+      isAuthenticating.current = true;
       console.log("🔓 Attempting biometric unlock for NIM:", profile?.nim);
       const result = await webauthnService.authenticate(profile?.nim || undefined);
       if (result.success) {
@@ -306,6 +313,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Unlock failed:", err);
       return false;
+    } finally {
+      isAuthenticating.current = false;
     }
   };
 

@@ -181,10 +181,10 @@ export default function LockScreen() {
         <div className="pt-6 border-t border-border/50">
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-2 mx-auto text-sm md:text-base text-muted-foreground hover:text-error transition-colors group"
+            className="flex items-center gap-2 mx-auto py-2 px-4 rounded-xl text-sm md:text-base text-muted-foreground hover:text-error hover:bg-error/5 transition-all group"
           >
             <LogOut className="w-4 h-4 md:w-5 md:h-5 transition-transform group-hover:-translate-x-1" />
-            <span>Berahlik ke akun lain</span>
+            <span className="font-bold">Keluar / Ganti Akun</span>
           </button>
         </div>
       </motion.div>
