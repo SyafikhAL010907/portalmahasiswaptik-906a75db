@@ -200,7 +200,6 @@ export const webauthnService = {
         headers.Authorization = `Bearer ${session.access_token}`;
       }
 
-      const pathPrefix = session ? 'verify' : 'login';
       const finishResponse = await fetch(`${API_BASE_URL}/auth/webauthn/${pathPrefix}/finish`, {
         method: "POST",
         headers,
