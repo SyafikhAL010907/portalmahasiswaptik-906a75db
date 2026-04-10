@@ -126,20 +126,24 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 	origin := c.Get("Origin")
 	dynamicRPID := h.WebAuthn.Config.RPID
 	if origin != "" {
-		// Remove protocol to get the domain
-		for _, p := range []string{"https://", "http://"} {
-			if len(origin) > len(p) && origin[:len(p)] == p {
-				dynamicRPID = origin[len(p):]
-				break
+		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+			dynamicRPID = "localhost"
+		} else {
+			// Remove protocol to get the domain
+			for _, p := range []string{"https://", "http://"} {
+				if len(origin) > len(p) && origin[:len(p)] == p {
+					dynamicRPID = origin[len(p):]
+					break
+				}
 			}
-		}
-		// Remove port if exists
-		if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
-			dynamicRPID = dynamicRPID[:idx]
-		}
-		// Remove trailing slash
-		if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
-			dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+			// Remove port if exists
+			if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
+				dynamicRPID = dynamicRPID[:idx]
+			}
+			// Remove trailing slash
+			if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
+				dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+			}
 		}
 	}
 
@@ -354,19 +358,23 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 
 	// DYNAMIC RPID OVERRIDE FOR LOGIN
 	origin := c.Get("Origin")
+	dynamicRPID := h.WebAuthn.Config.RPID
 	if origin != "" {
-		dynamicRPID := ""
-		for _, p := range []string{"https://", "http://"} {
-			if len(origin) > len(p) && origin[:len(p)] == p {
-				dynamicRPID = origin[len(p):]
-				break
+		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+			dynamicRPID = "localhost"
+		} else {
+			for _, p := range []string{"https://", "http://"} {
+				if len(origin) > len(p) && origin[:len(p)] == p {
+					dynamicRPID = origin[len(p):]
+					break
+				}
 			}
-		}
-		if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
-			dynamicRPID = dynamicRPID[:idx]
-		}
-		if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
-			dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+			if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
+				dynamicRPID = dynamicRPID[:idx]
+			}
+			if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
+				dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+			}
 		}
 		if dynamicRPID != "" {
 			options.Response.RelyingPartyID = dynamicRPID

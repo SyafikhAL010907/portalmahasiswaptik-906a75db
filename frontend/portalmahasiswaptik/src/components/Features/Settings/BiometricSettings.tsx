@@ -15,33 +15,39 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export function BiometricSettings() {
   const { user } = useAuth();
-  const [isSupported, setIsSupported] = useState<boolean | null>(null);
+  const [isSupported, setIsSupported] = useState<boolean>(true); // Default to true to keep button clickable
   const [isRegistered, setIsRegistered] = useState<boolean>(false);
   const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
-    // Check if browser and hardware support WebAuthn biometrics
-    webauthnService.isSupported().then(setIsSupported);
+    // Background check for hardware support
+    webauthnService.isSupported().then(supported => {
+      setIsSupported(supported);
+      console.log("🛡️ BIOMETRIC DIAGNOSTIC | Support:", supported);
+    });
     
-    // Fetch current registration status from backend
+    // Fetch current registration status from DB
     const checkStatus = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
         const res = await fetch(`${API_BASE_URL}/auth/webauthn/status`, {
           headers: { Authorization: `Bearer ${session.access_token}` }
         });
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        const data = await res.json();
-        setIsRegistered(!!data.is_registered);
+        
+        if (res.ok) {
+          const data = await res.json();
+          setIsRegistered(!!data.is_registered);
+          console.log("🛡️ BIOMETRIC DIAGNOSTIC | DB Status:", !!data.is_registered);
+        }
       } catch (err) {
-        console.error("Error fetching biometric status:", err);
+        console.error("🔍 Status Check Error:", err);
       }
     };
 
     checkStatus();
-  }, []);
+  }, [user]); // Re-run when user session becomes available
 
   const handleRegister = async () => {
     if (!user) return;
@@ -124,7 +130,7 @@ export function BiometricSettings() {
 
         <Button
           onClick={handleRegister}
-          disabled={isRegistering || isSupported === null || isRegistered}
+          disabled={isRegistering || isRegistered}
           className={`w-full h-12 rounded-xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 group ${
             isRegistered 
             ? "bg-emerald-500 hover:bg-emerald-500 cursor-not-allowed opacity-80" 
