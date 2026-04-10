@@ -176,7 +176,7 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	// Parse response from client
 	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
 	if err != nil {
-		fmt.Printf("❌ WebAuthn Library Error: %v\n", err)
+		fmt.Printf("❌ WebAuthn Registration Verify Error: %v | User: %s | Host: %s\n", err, profile.NIM, req.Host)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"error":   "Verifikasi biometrik gagal: " + err.Error(),
@@ -379,7 +379,7 @@ func (h *WebAuthnHandler) FinishLogin(c *fiber.Ctx) error {
 
 	credential, err := h.WebAuthn.FinishLogin(waUser, *sessionData, req)
 	if err != nil {
-		fmt.Printf("❌ WebAuthn Library FinishLogin Error: %v\n", err)
+		fmt.Printf("❌ WebAuthn Login Verify Error: %v | User: %s | Host: %s\n", err, profile.NIM, req.Host)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"error":   "Verifikasi biometrik gagal: " + err.Error(),

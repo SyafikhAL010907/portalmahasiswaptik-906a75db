@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useResponsive } from '@/hooks/useResponsive';
-import { Fingerprint, LogOut, Loader2, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Fingerprint, LogOut, Loader2, ShieldCheck, User as UserIcon, ScanFace } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -12,18 +12,7 @@ export default function LockScreen() {
   const { user, profile, unlock, signOut, isBiometricRegistered, isLoading } = useAuth();
   const { deviceType } = useResponsive();
   const [isVerifying, setIsVerifying] = useState(false);
-  const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
   const navigate = useNavigate();
-
-  const isPhone = deviceType === 'phone';
-
-  // Automatic trigger for mobile devices (Smooth experience for HP)
-  useEffect(() => {
-    if (isPhone && !isLoading && user && isBiometricRegistered && !hasAutoTriggered) {
-      setHasAutoTriggered(true);
-      handleUnlock();
-    }
-  }, [isPhone, isLoading, user, isBiometricRegistered, hasAutoTriggered]);
 
   const handleUnlock = async () => {
     setIsVerifying(true);
@@ -114,72 +103,76 @@ export default function LockScreen() {
           </p>
         </div>
 
-        {/* Fingerprint Interaction Section */}
+        {/* Biometric Interaction Section - Dual Icon Mode */}
         <div className="flex flex-col items-center justify-center mb-10">
-          <div className="relative group cursor-pointer" onClick={handleUnlock}>
-            {/* Fingerprint Animation Layers */}
-            <AnimatePresence>
-              {isVerifying ? (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0"
-                >
-                  <motion.div 
-                    animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-                    transition={{ duration: 1, repeat: Infinity }}
-                    className="absolute inset-0 bg-primary rounded-full"
-                  />
-                  <motion.div 
-                    animate={{ scale: [1, 2], opacity: [0.3, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="absolute inset-0 bg-primary/50 rounded-full"
-                  />
-                </motion.div>
-              ) : (
-                <motion.div 
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute inset-0 bg-primary/5 rounded-full blur-md"
-                />
-              )}
-            </AnimatePresence>
+          <div className="flex gap-8 items-center justify-center">
+            {/* Fingerprint Button */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative group cursor-pointer" onClick={handleUnlock}>
+                <AnimatePresence>
+                  {isVerifying ? (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                      <motion.div animate={{ scale: [1, 1.3], opacity: [0.5, 0] }} transition={{ duration: 1, repeat: Infinity }} className="absolute inset-0 bg-primary/20 rounded-2xl" />
+                    </motion.div>
+                  ) : (
+                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }} className="absolute inset-0 bg-primary/5 rounded-2xl blur-md" />
+                  )}
+                </AnimatePresence>
 
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={cn(
-                "relative w-20 h-20 md:w-28 md:h-28 rounded-full flex items-center justify-center transition-all duration-500",
-                isVerifying ? "bg-primary text-white shadow-primary/50" : "bg-primary/10 text-primary hover:bg-primary/20"
-              )}
-            >
-              {isVerifying ? (
-                <Loader2 className="w-10 h-10 md:w-14 md:h-14 animate-spin" />
-              ) : (
-                <Fingerprint className="w-10 h-10 md:w-14 md:h-14" />
-              )}
-              
-              {/* Scan Line Animation */}
-              {!isVerifying && (
                 <motion.div 
-                  animate={{ top: ['0%', '100%', '0%'] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  className="absolute left-0 right-0 h-0.5 bg-primary/40 shadow-[0_0_8px_rgba(var(--primary),0.5)] z-20 pointer-events-none"
-                />
-              )}
-            </motion.div>
+                  whileHover={{ scale: 1.05, y: -5 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={cn(
+                    "relative w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center transition-all duration-500 border-2",
+                    isVerifying ? "bg-primary text-white border-primary shadow-primary/30" : "bg-primary/5 text-primary border-primary/20 hover:border-primary/50"
+                  )}
+                >
+                  <Fingerprint className="w-8 h-8 md:w-10 md:h-10" />
+                </motion.div>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">Fingerprint</span>
+            </div>
+
+            {/* Separator */}
+            <div className="h-12 w-[1px] bg-border/50 rotate-12" />
+
+            {/* FaceID Button */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative group cursor-pointer" onClick={handleUnlock}>
+                <AnimatePresence>
+                  {isVerifying ? (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
+                      <motion.div animate={{ scale: [1, 1.3], opacity: [0.5, 0] }} transition={{ duration: 1, repeat: Infinity }} className="absolute inset-0 bg-primary/20 rounded-2xl" />
+                    </motion.div>
+                  ) : (
+                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }} className="absolute inset-0 bg-primary/5 rounded-2xl blur-md" />
+                  )}
+                </AnimatePresence>
+
+                <motion.div 
+                  whileHover={{ scale: 1.05, y: -5 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={cn(
+                    "relative w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center transition-all duration-500 border-2",
+                    isVerifying ? "bg-primary text-white border-primary shadow-primary/30" : "bg-primary/5 text-primary border-primary/20 hover:border-primary/50"
+                  )}
+                >
+                  <ScanFace className="w-8 h-8 md:w-10 md:h-10" />
+                </motion.div>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">Face ID</span>
+            </div>
           </div>
 
-          {!isPhone && (
-            <Button 
-              variant="ghost" 
-              className="mt-6 text-primary font-bold hover:bg-primary/5 transition-all active:scale-95"
-              onClick={handleUnlock}
-              disabled={isVerifying}
+          {isVerifying && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 flex items-center gap-2 text-primary font-bold animate-pulse text-sm"
             >
-              Tekan untuk verifikasi
-            </Button>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Menunggu Verifikasi...
+            </motion.div>
           )}
         </div>
 
