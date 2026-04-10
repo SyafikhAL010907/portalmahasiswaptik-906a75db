@@ -224,6 +224,9 @@ export const webauthnService = {
     } catch (err: any) {
       console.error("🔍 BIOMETRIC AUTH ERROR | Detail:", err);
       
+      // NUCLEAR DEBUG ALERT (Biar lu bisa liat erornya di layar laptop!)
+      alert("⚠️ DEBUG BIOMETRIK:\nEror: " + (err.name || "Error") + "\nPesan: " + (err.message || "Unknown error"));
+      
       // Use backend error message if available, otherwise fallback to smart diagnostics
       let errorMessage = err.message || "Gagal login biometrik. Pastikan sensor tersedia atau pilih 'Scan QR'.";
       

@@ -63,8 +63,9 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 			"https://portal-mahasiswa-ptik.vercel.app/",
 		},
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			// Omit requirements to allow OS to offer all available methods (PIN, Phone Link, QR, etc)
+			UserVerification: protocol.VerificationPreferred,
 		},
+		AttestationPreference: protocol.PreferNoAttestation,
 	})
 
 	if err != nil {
@@ -158,6 +159,8 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 	if origin != "" {
 		waConfig.RPOrigins = []string{origin}
 	}
+	waConfig.AttestationPreference = protocol.PreferNoAttestation
+	waConfig.AuthenticatorSelection.UserVerification = protocol.VerificationPreferred
 	
 	tempWebAuthn, err := webauthn.New(&waConfig)
 	if err != nil {
@@ -395,6 +398,7 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 	if origin != "" {
 		waConfig.RPOrigins = []string{origin}
 	}
+	waConfig.AuthenticatorSelection.UserVerification = protocol.VerificationPreferred
 	
 	tempWebAuthn, err := webauthn.New(&waConfig)
 	if err != nil {
