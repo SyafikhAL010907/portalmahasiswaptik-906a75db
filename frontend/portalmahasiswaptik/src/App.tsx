@@ -37,6 +37,7 @@ const KeuanganHub = lazy(() => import("./pages/Platform/Keuangan/KeuanganHub"));
 const ProfileHub = lazy(() => import("./pages/Platform/Settings/ProfileHub"));
 const Features = lazy(() => import("./pages/Features"));
 const About = lazy(() => import("./pages/About"));
+const LockScreen = lazy(() => import("./pages/LockScreen"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Lazy load named export DashboardLayout
@@ -258,6 +259,7 @@ const App = () => {
                         </Route>
                         <Route path="/features" element={<Features />} />
                         <Route path="/about" element={<About />} />
+                        <Route path="/lock-screen" element={<LockScreen />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </Suspense>

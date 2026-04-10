@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, roles, isLoading } = useAuth();
+  const { user, roles, isLoading, isUnlocked, isBiometricRegistered } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -21,6 +21,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // If user is authenticated but session is locked, send to Lock Screen
+  if (isBiometricRegistered && !isUnlocked) {
+    return <Navigate to="/lock-screen" state={{ from: location }} replace />;
   }
 
   // If roles are specified, check if user has at least one of them

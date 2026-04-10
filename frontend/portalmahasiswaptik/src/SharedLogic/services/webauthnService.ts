@@ -158,6 +158,7 @@ export const webauthnService = {
             body: JSON.stringify({ nim })
           }
         : { 
+            method: "POST",
             headers 
           };
 
@@ -226,6 +227,24 @@ export const webauthnService = {
       // Don't show toast for 2FA as the hook handles its own UI
       if (nim) toast.error(err.message || "Gagal login biometrik.");
       return { success: false };
+    }
+  },
+
+  /**
+   * Check if the currently logged-on user has registered any biometric credentials
+   */
+  async getStatus(): Promise<{ is_registered: boolean }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return { is_registered: false };
+
+      const response = await fetch(`${API_BASE_URL}/auth/webauthn/status`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      return await handleResponse(response);
+    } catch (err) {
+      console.error("WebAuthn Status Check Error:", err);
+      return { is_registered: false };
     }
   },
 };

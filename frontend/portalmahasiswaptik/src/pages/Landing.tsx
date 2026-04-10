@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAttendanceStats } from '@/hooks/useAttendanceStats';
+import { useNavigate } from 'react-router-dom';
 
 export interface LandingStats {
   total_students: number;
@@ -19,8 +20,22 @@ export interface LandingStats {
 export default function Landing() {
   const [stats, setStats] = useState<LandingStats | null>(null);
   const [aggregatedBalance, setAggregatedBalance] = useState<number>(0);
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, isLoading, isUnlocked, isBiometricRegistered } = useAuth();
   const { percentage, isLoading: isLoadingAttendance, semesterName } = useAttendanceStats(user?.id);
+
+  // Auto-redirect logic
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (isBiometricRegistered && !isUnlocked) {
+        console.log('🔒 [REDIRECT] Session locked, routing to LockScreen...');
+        navigate('/lock-screen');
+      } else {
+        console.log('🚀 [REDIRECT] Persistent session active, routing to dashboard...');
+        navigate('/dashboard');
+      }
+    }
+  }, [user, isLoading, isUnlocked, isBiometricRegistered, navigate]);
 
   useEffect(() => {
     // 🥷 NINJA CONFIG: Bypass RLS untuk Public Landing Page

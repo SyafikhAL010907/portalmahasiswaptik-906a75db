@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { webauthnService } from '../SharedLogic/services/webauthnService';
 
 export type AppRole = 'admin_dev' | 'admin_kelas' | 'admin_dosen' | 'mahasiswa';
 
@@ -24,8 +25,11 @@ interface AuthContextType {
   profile: Profile | null;
   roles: AppRole[];
   isLoading: boolean;
+  isUnlocked: boolean;
+  isBiometricRegistered: boolean | null;
   signIn: (nim: string, password: string, rememberMe?: boolean) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  unlock: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   isAdmin: () => boolean;
@@ -43,6 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUnlocked, setIsUnlocked] = useState(true); // Default to true for fresh sessions
+  const [isBiometricRegistered, setIsBiometricRegistered] = useState<boolean | null>(null);
 
   // Helper to set persistent cookie for backend middleware
   const setAuthCookie = (token: string | null, days: number = 30) => {
@@ -53,9 +59,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Using SameSite=Lax and Secure for better compatibility and security
       document.cookie = `sb-auth-token=${token}${expires}; path=/; SameSite=Lax; Secure`;
       console.log("🍪 Syncing persistent auth cookie...");
+      
+      // Mark session as active in memory (survives refreshes only)
+      sessionStorage.setItem('portal_auth_session_active', 'true');
     } else {
       document.cookie = "sb-auth-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
       console.log("🍪 Clearing auth cookie...");
+      sessionStorage.removeItem('portal_auth_session_active');
     }
   };
 
@@ -141,6 +151,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
+        // Reset lock state on sign out
+        if (event === 'SIGNED_OUT') {
+          setIsUnlocked(false);
+          setIsBiometricRegistered(null);
+        }
+
+        // When a user JUST signs in with password, we unlock them automatically
+        // because they just verified their identity.
+        if (event === 'SIGNED_IN') {
+          setIsUnlocked(true);
+          // Check biometric status in background
+          webauthnService.getStatus().then(status => {
+            setIsBiometricRegistered(status.is_registered);
+          }).catch(() => {
+            setIsBiometricRegistered(false);
+          });
+        }
+
         // Sync token to cookie whenever auth state changes (login or refresh)
         if (currentSession?.access_token) {
           setAuthCookie(currentSession.access_token);
@@ -167,19 +195,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // THEN check initial session
+    // THEN check initial session (RE-ENTRY LOGIC)
     supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
       setSession(initialSession);
-      setUser(initialSession?.user ?? null);
+      const currentUser = initialSession?.user ?? null;
+      setUser(currentUser);
 
       if (initialSession?.access_token) {
         setAuthCookie(initialSession.access_token);
       }
 
-      if (initialSession?.user) {
+      if (currentUser) {
+        // ENFORCEMENT POLICY: Re-entry check for biometrics
+        console.log("🔐 Checking biometric status for persistent session...");
+        const status = await webauthnService.getStatus();
+        setIsBiometricRegistered(status.is_registered);
+
+        if (status.is_registered) {
+          // User has biometrics -> Go to LockScreen (Always on re-entry/refresh)
+          console.log("🔒 Biometric Enforcement: LockScreen Required");
+          setIsUnlocked(false);
+        } else {
+          // User does NOT have biometrics
+          // We only force logout if this is a NEW session (App/Tab reopen)
+          // sessionStorage survives Refresh, but dies on Tab Close.
+          const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
+          
+          if (!isFromRefresh) {
+            console.warn("🛡️ Security Policy: Persistence requires Biometrics. Session expired on tab close. Logging out...");
+            signOut(); 
+            setIsLoading(false);
+            return; // Exit early
+          }
+          
+          console.log("✅ User has no biometrics, but this is a Refresh. Allowing session.");
+          setIsUnlocked(true);
+        }
+
         const [profileData, rolesData] = await Promise.all([
-          fetchProfile(initialSession.user.id),
-          fetchRoles(initialSession.user.id)
+          fetchProfile(currentUser.id),
+          fetchRoles(currentUser.id)
         ]);
         setProfile(profileData);
         setRoles(rolesData);
@@ -218,6 +273,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear cookie
     setAuthCookie(null);
     
+    // Reset Lock States
+    setIsUnlocked(false);
+    setIsBiometricRegistered(null);
+
     // Clear all storage to prevent session leaking and stale data
     localStorage.clear();
     sessionStorage.clear();
@@ -226,6 +285,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setProfile(null);
     setRoles([]);
+  };
+
+  const unlock = async () => {
+    try {
+      console.log("🔓 Attempting biometric unlock for NIM:", profile?.nim);
+      const result = await webauthnService.authenticate(profile?.nim || undefined);
+      if (result.success) {
+        setIsUnlocked(true);
+        console.log("🔓 Unlock successful!");
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Unlock failed:", err);
+      return false;
+    }
   };
 
   const hasRole = (role: AppRole) => roles.includes(role);
@@ -244,8 +319,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         roles,
         isLoading,
+        isUnlocked,
+        isBiometricRegistered,
         signIn,
         signOut,
+        unlock,
         refreshProfile,
         hasRole,
         isAdmin,
