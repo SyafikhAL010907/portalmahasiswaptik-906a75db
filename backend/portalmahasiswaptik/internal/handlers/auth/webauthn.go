@@ -162,7 +162,9 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	req, _ := http.NewRequest(c.Method(), c.Path(), bytes.NewReader(c.Body()))
 	req.Header.Set("Content-Type", c.Get("Content-Type"))
 	req.Header.Set("Origin", c.Get("Origin"))
-	req.Host = c.Hostname()
+	
+	// CRITICAL: Host MUST match RPID for validation to succeed
+	req.Host = h.WebAuthn.Config.RPID
 
 	// Parse response from client
 	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
@@ -364,7 +366,9 @@ func (h *WebAuthnHandler) FinishLogin(c *fiber.Ctx) error {
 	req, _ := http.NewRequest(c.Method(), c.Path(), bytes.NewReader(c.Body()))
 	req.Header.Set("Content-Type", c.Get("Content-Type"))
 	req.Header.Set("Origin", c.Get("Origin"))
-	req.Host = c.Hostname()
+	
+	// CRITICAL: Host MUST match RPID for validation to succeed
+	req.Host = h.WebAuthn.Config.RPID
 
 	credential, err := h.WebAuthn.FinishLogin(waUser, *sessionData, req)
 	if err != nil {
