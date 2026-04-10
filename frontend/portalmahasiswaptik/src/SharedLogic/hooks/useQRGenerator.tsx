@@ -294,7 +294,7 @@ export function useQRGenerator() {
     try {
       // --- 🛠️ KALIBRASI JARAK (Ubah di sini bro) ---
       // Kalo GPS ngaco (misal jarak deket tapi kedetect 58m), isi angka 58 di bawah:
-      const DISTANCE_FIX_METERS = 50; 
+      const DISTANCE_FIX_METERS = 53.2; 
 
       // (Optional) Kalo mau lock koordinat manual (Google Maps), set ke true:
       const USE_MANUAL_COORDINATES = false; 
