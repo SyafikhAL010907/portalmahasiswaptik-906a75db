@@ -14,9 +14,11 @@ async function handleResponse(response: Response) {
     console.error(`API Error (${response.status}):`, text);
     try {
       const errorJson = JSON.parse(text);
-      throw new Error(errorJson.error || `Server returned ${response.status}`);
+      throw new Error(errorJson.error || errorJson.message || `Server returned ${response.status}`);
     } catch (e) {
-      throw new Error(`Server returned ${response.status} (Non-JSON response)`);
+      // If it's not JSON, return the raw text if it's short, otherwise a generic error
+      const snippet = text.length > 100 ? text.substring(0, 100) + "..." : text;
+      throw new Error(`Server Error (${response.status}): ${snippet || "Unknown Error"}`);
     }
   }
   return response.json();
