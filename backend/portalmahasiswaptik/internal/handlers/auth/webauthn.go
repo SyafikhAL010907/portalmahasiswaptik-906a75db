@@ -155,7 +155,9 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 	// This is critical for Vercel subdomains and Localhost
 	waConfig := *h.WebAuthn.Config
 	waConfig.RPID = dynamicRPID
-	waConfig.RPOrigin = origin
+	if origin != "" {
+		waConfig.RPOrigins = []string{origin}
+	}
 	
 	tempWebAuthn, err := webauthn.New(&waConfig)
 	if err != nil {
@@ -365,22 +367,6 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 		Credentials: credentials,
 	}
 
-	// RE-INITIALIZE WebAuthn with dynamic RPID for Login
-	waConfig := *h.WebAuthn.Config
-	waConfig.RPID = dynamicRPID
-	waConfig.RPOrigin = origin
-	
-	tempWebAuthn, err := webauthn.New(&waConfig)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi WebAuthn: " + err.Error()})
-	}
-
-	options, sessionData, err := tempWebAuthn.BeginLogin(waUser)
-	if err != nil {
-		fmt.Printf("❌ WebAuthn BeginLogin Error: %v\n", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi login biometrik: " + err.Error()})
-	}
-
 	// DYNAMIC RPID OVERRIDE FOR LOGIN
 	origin := c.Get("Origin")
 	dynamicRPID := h.WebAuthn.Config.RPID
@@ -401,12 +387,31 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 				dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
 			}
 		}
-		if dynamicRPID != "" {
-			options.Response.RelyingPartyID = dynamicRPID
-			fmt.Printf("🔍 DIAGNOSTIC: Login Begin | Origin: %s | Dynamic RPID: %s\n", origin, dynamicRPID)
-		} else {
-			fmt.Printf("⚠️ DIAGNOSTIC: Login Begin | Origin EMPTY | Using Default RPID: %s\n", h.WebAuthn.Config.RPID)
-		}
+	}
+
+	// RE-INITIALIZE WebAuthn with dynamic RPID for Login
+	waConfig := *h.WebAuthn.Config
+	waConfig.RPID = dynamicRPID
+	if origin != "" {
+		waConfig.RPOrigins = []string{origin}
+	}
+	
+	tempWebAuthn, err := webauthn.New(&waConfig)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi WebAuthn: " + err.Error()})
+	}
+
+	options, sessionData, err := tempWebAuthn.BeginLogin(waUser)
+	if err != nil {
+		fmt.Printf("❌ WebAuthn BeginLogin Error: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi login biometrik: " + err.Error()})
+	}
+
+	if dynamicRPID != "" {
+		options.Response.RelyingPartyID = dynamicRPID
+		fmt.Printf("🔍 DIAGNOSTIC: Login Begin | Origin: %s | Dynamic RPID: %s\n", origin, dynamicRPID)
+	} else {
+		fmt.Printf("⚠️ DIAGNOSTIC: Login Begin | Origin EMPTY | Using Default RPID: %s\n", h.WebAuthn.Config.RPID)
 	}
 
 	// Store session data using the profile's UserID (works for both flows)
