@@ -104,65 +104,68 @@ export default function LockScreen() {
           </p>
         </div>
 
-        {/* Biometric Interaction Section - Dual Icon Mode */}
+        {/* Biometric Interaction Section - Hybrid Single Button */}
         <div className="flex flex-col items-center justify-center mb-10">
-          <div className="flex gap-8 items-center justify-center">
-            {/* Fingerprint Button */}
-            <div className="flex flex-col items-center gap-3">
-              <div className="relative group cursor-pointer" onClick={handleUnlock}>
-                <AnimatePresence>
-                  {isVerifying ? (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-                      <motion.div animate={{ scale: [1, 1.3], opacity: [0.5, 0] }} transition={{ duration: 1, repeat: Infinity }} className="absolute inset-0 bg-primary/20 rounded-2xl" />
-                    </motion.div>
-                  ) : (
-                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }} className="absolute inset-0 bg-primary/5 rounded-2xl blur-md" />
-                  )}
-                </AnimatePresence>
-
+          <div className="relative group cursor-pointer" onClick={handleUnlock}>
+            {/* Pulsing Aura */}
+            <AnimatePresence>
+              {isVerifying ? (
                 <motion.div 
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={cn(
-                    "relative w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center transition-all duration-500 border-2",
-                    isVerifying ? "bg-primary text-white border-primary shadow-primary/30" : "bg-primary/5 text-primary border-primary/20 hover:border-primary/50"
-                  )}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0"
                 >
-                  <Fingerprint className="w-8 h-8 md:w-10 md:h-10" />
+                  <motion.div 
+                    animate={{ scale: [1, 1.4], opacity: [0.5, 0] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                    className="absolute -inset-4 bg-primary/20 rounded-full blur-xl"
+                  />
+                  <motion.div 
+                    animate={{ scale: [1, 1.8], opacity: [0.3, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="absolute -inset-8 bg-primary/10 rounded-full blur-2xl"
+                  />
                 </motion.div>
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">Fingerprint</span>
-            </div>
-
-            {/* Separator */}
-            <div className="h-12 w-[1px] bg-border/50 rotate-12" />
-
-            {/* FaceID Button */}
-            <div className="flex flex-col items-center gap-3">
-              <div className="relative group cursor-pointer" onClick={handleUnlock}>
-                <AnimatePresence>
-                  {isVerifying ? (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-                      <motion.div animate={{ scale: [1, 1.3], opacity: [0.5, 0] }} transition={{ duration: 1, repeat: Infinity }} className="absolute inset-0 bg-primary/20 rounded-2xl" />
-                    </motion.div>
-                  ) : (
-                    <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }} className="absolute inset-0 bg-primary/5 rounded-2xl blur-md" />
-                  )}
-                </AnimatePresence>
-
+              ) : (
                 <motion.div 
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={cn(
-                    "relative w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center transition-all duration-500 border-2",
-                    isVerifying ? "bg-primary text-white border-primary shadow-primary/30" : "bg-primary/5 text-primary border-primary/20 hover:border-primary/50"
-                  )}
-                >
-                  <ScanFace className="w-8 h-8 md:w-10 md:h-10" />
-                </motion.div>
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">Face ID</span>
-            </div>
+                  animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="absolute -inset-4 bg-primary/5 rounded-full blur-xl"
+                />
+              )}
+            </AnimatePresence>
+
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={cn(
+                "relative w-32 h-32 md:w-40 md:h-40 rounded-full flex flex-col items-center justify-center transition-all duration-500 border-2 overflow-hidden bg-background/50 backdrop-blur-md shadow-2xl",
+                isVerifying ? "border-primary text-primary shadow-primary/30" : "border-white/10 text-muted-foreground hover:border-primary/50 hover:text-primary"
+              )}
+            >
+              {isVerifying ? (
+                <Loader2 className="w-12 h-12 md:w-16 md:h-16 animate-spin" />
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Fingerprint className="w-8 h-8 md:w-10 md:h-10" />
+                    <div className="w-[1px] h-6 bg-current opacity-20 rotate-12" />
+                    <ScanFace className="w-8 h-8 md:w-10 md:h-10" />
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Touch / Face ID</span>
+                </div>
+              )}
+              
+              {/* Scan Line Animation */}
+              {!isVerifying && (
+                <motion.div 
+                  animate={{ top: ['-10%', '110%'] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                  className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent shadow-[0_0_15px_rgba(var(--primary),0.8)] z-20 pointer-events-none"
+                />
+              )}
+            </motion.div>
           </div>
 
           {isVerifying && (
@@ -171,8 +174,8 @@ export default function LockScreen() {
               animate={{ opacity: 1, y: 0 }}
               className="mt-6 flex items-center gap-2 text-primary font-bold animate-pulse text-sm"
             >
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Menunggu Verifikasi...
+              <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+              Menunggu Verifikasi Biometrik...
             </motion.div>
           )}
         </div>

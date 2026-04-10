@@ -57,6 +57,7 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 			"https://localhost:5173",
 			"http://localhost:5173",
 			"https://portal-mahasiswa-ptik.vercel.app",
+			"https://portal-mahasiswa-ptik.vercel.app/",
 		},
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			ResidentKey:            protocol.ResidentKeyRequirementPreferred,
@@ -179,8 +180,10 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	req.Header.Set("Content-Type", c.Get("Content-Type"))
 	req.Header.Set("Origin", c.Get("Origin"))
 	
-	// CRITICAL: Host MUST match RPID for validation to succeed
+	// CRITICAL: Host MUST match RPID set in Config (Vercel domain).
+	// We use the configured RPID to ensure we match the browser's expectation for the production domain.
 	req.Host = h.WebAuthn.Config.RPID
+	fmt.Printf("🛡️ WebAuthn Verify | Host: %s | RPID: %s\n", req.Host, h.WebAuthn.Config.RPID)
 
 	// Parse response from client
 	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
@@ -383,8 +386,10 @@ func (h *WebAuthnHandler) FinishLogin(c *fiber.Ctx) error {
 	req.Header.Set("Content-Type", c.Get("Content-Type"))
 	req.Header.Set("Origin", c.Get("Origin"))
 	
-	// CRITICAL: Host MUST match RPID for validation to succeed
+	// CRITICAL: Host MUST match RPID set in Config (Vercel domain).
+	// We use the configured RPID to ensure we match the browser's expectation for the production domain.
 	req.Host = h.WebAuthn.Config.RPID
+	fmt.Printf("🛡️ WebAuthn Verify | Host: %s | RPID: %s\n", req.Host, h.WebAuthn.Config.RPID)
 
 	credential, err := h.WebAuthn.FinishLogin(waUser, *sessionData, req)
 	if err != nil {

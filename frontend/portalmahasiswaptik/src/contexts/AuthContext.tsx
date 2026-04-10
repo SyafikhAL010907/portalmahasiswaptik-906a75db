@@ -271,10 +271,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      // Attempt to sign out globally from Supabase
-      await supabase.auth.signOut();
+      // Attempt to sign out locally to avoid 403 Forbidden errors if token is expired
+      // We already do a thorough manual cleanup below for maximum security.
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (err) {
-      console.warn("🛡️ AuthContext: SignOut API call failed or was forbidden, proceeding with local cleanup.", err);
+      console.warn("🛡️ AuthContext: SignOut failed, proceeding with local cleanup.", err);
     }
 
     // Force local cleanup regardless of API status
