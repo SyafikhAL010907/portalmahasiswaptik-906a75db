@@ -94,6 +94,7 @@ func autoMigrate(db *gorm.DB) error {
 		&models.WeeklyDue{},
 		&models.Announcement{},
 		&models.Material{},
+		&models.WebAuthnCredential{},
 	)
 
 	if err != nil {

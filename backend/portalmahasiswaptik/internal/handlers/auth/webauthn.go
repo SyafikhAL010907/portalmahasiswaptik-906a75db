@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -102,6 +103,7 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 // POST /api/auth/webauthn/register/finish
 func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	userCtx := c.Locals("user").(middleware.UserContext)
+	fmt.Printf("🏁 Finishing Registration for User: %s\n", userCtx.UserID)
 
 	// Retrieve session data
 	h.sessionsMutex.RLock()
@@ -109,12 +111,14 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	h.sessionsMutex.RUnlock()
 
 	if !ok {
+		fmt.Printf("❌ Session not found for user %s\n", userCtx.UserID)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Session not found or expired"})
 	}
 
 	// Fetch profile
 	var profile models.Profile
 	if err := h.DB.Where("user_id = ?", userCtx.UserID).First(&profile).Error; err != nil {
+		fmt.Printf("❌ Profile not found for user %s\n", userCtx.UserID)
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Profile not found"})
 	}
 
@@ -127,11 +131,17 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	// Parse response from client
 	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
 	if err != nil {
+		fmt.Printf("❌ WebAuthn FinishRegistration error: %v\n", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// Save to Database
-	aaguid, _ := uuid.FromBytes(credential.Authenticator.AAGUID)
+	// Safety check for AAGUID length (must be 16 bytes for UUID)
+	var aaguid uuid.UUID
+	if len(credential.Authenticator.AAGUID) == 16 {
+		aaguid, _ = uuid.FromBytes(credential.Authenticator.AAGUID)
+	}
+
 	newCred := models.WebAuthnCredential{
 		UserID:          userCtx.UserID,
 		CredentialID:    credential.ID,
@@ -142,7 +152,8 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	}
 
 	if err := h.DB.Create(&newCred).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save credential"})
+		fmt.Printf("❌ DB Save Credential Error: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save credential to database: " + err.Error()})
 	}
 
 	// Cleanup session
@@ -150,6 +161,7 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	delete(h.sessions, userCtx.UserID.String())
 	h.sessionsMutex.Unlock()
 
+	fmt.Printf("✅ Biometrics registered successfully for %s\n", profile.NIM)
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Biometrics successfully registered!",

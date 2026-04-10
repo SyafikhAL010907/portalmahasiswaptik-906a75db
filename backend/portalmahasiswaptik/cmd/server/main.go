@@ -160,19 +160,22 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 	// Log detail di server (internal)
 	log.Printf("🔥 [SERVER ERROR] %s | Path: %s | Method: %s", err.Error(), c.Path(), c.Method())
 
+	// Default status code
 	code := fiber.StatusInternalServerError
 	message := "Internal Server Error"
 
+	// Check if it's a Fiber error
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
 		message = e.Message
 	}
 
-	// Di produksi, jangan return error mentah/stack trace
+	// Production safety: Don't leak technical details on 500s
 	if os.Getenv("APP_ENV") == "production" && code == fiber.StatusInternalServerError {
 		message = "Terjadi kesalahan pada sistem. Silakan coba lagi nanti."
 	}
 
+	// ALWAYS return JSON to prevent frontend breakdown (avoid Non-JSON response error)
 	return c.Status(code).JSON(fiber.Map{
 		"success": false,
 		"error":   message,
