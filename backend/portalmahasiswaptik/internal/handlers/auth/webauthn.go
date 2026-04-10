@@ -16,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type WebAuthnHandler struct {
@@ -31,8 +32,9 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 	// We read this from env to support ngrok and production easily
 	rpID := os.Getenv("WEBAUTHN_RPID")
 	if rpID == "" {
-		// FALLBACK PRODUKSI: Biar user gak usah ribet setting di Koyeb
-		rpID = "portal-mahasiswa-ptik.vercel.app"
+		// SMART DEFAULT: Jika di laptop (local), pake localhost. 
+		// Nanti di Koyeb lu WAJIB isi WEBAUTHN_RPID dengan portal-mahasiswa-ptik.vercel.app
+		rpID = "localhost"
 	}
 	// Sanitize RPID: Remove protocols and trailing slashes
 	for _, p := range []string{"https://", "http://"} {
@@ -121,10 +123,37 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 		Credentials: credentials,
 	}
 
+	// DYNAMIC RPID DETECTION: Use Origin header to match browser domain
+	origin := c.Get("Origin")
+	dynamicRPID := h.WebAuthn.Config.RPID
+	if origin != "" {
+		// Remove protocol to get the domain
+		for _, p := range []string{"https://", "http://"} {
+			if len(origin) > len(p) && origin[:len(p)] == p {
+				dynamicRPID = origin[len(p):]
+				break
+			}
+		}
+		// Remove port if exists
+		if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
+			dynamicRPID = dynamicRPID[:idx]
+		}
+		// Remove trailing slash
+		if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
+			dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+		}
+	}
+
 	options, sessionData, err := h.WebAuthn.BeginRegistration(waUser)
 	if err != nil {
 		fmt.Printf("❌ WebAuthn BeginRegistration Error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// OVERRIDE: Force RPID to match the current browser domain
+	if dynamicRPID != "" {
+		options.Response.RelyingParty.ID = dynamicRPID
+		fmt.Printf("🛡️ WebAuthn Register Begin | Dynamic RPID: %s\n", dynamicRPID)
 	}
 
 	// Store session data
@@ -179,12 +208,27 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 	// Convert Fiber request to *http.Request for the library (Proper Emulation)
 	req, _ := http.NewRequest(c.Method(), c.Path(), bytes.NewReader(c.Body()))
 	req.Header.Set("Content-Type", c.Get("Content-Type"))
-	req.Header.Set("Origin", c.Get("Origin"))
+	origin := c.Get("Origin")
+	req.Header.Set("Origin", origin)
 	
-	// CRITICAL: Host MUST match RPID set in Config (Vercel domain).
-	// We use the configured RPID to ensure we match the browser's expectation for the production domain.
-	req.Host = h.WebAuthn.Config.RPID
-	fmt.Printf("🛡️ WebAuthn Verify | Host: %s | RPID: %s\n", req.Host, h.WebAuthn.Config.RPID)
+	// DYNAMIC HOST MATCHING: Must match the Origin for validation
+	dynamicRPID := h.WebAuthn.Config.RPID
+	if origin != "" {
+		for _, p := range []string{"https://", "http://"} {
+			if len(origin) > len(p) && origin[:len(p)] == p {
+				dynamicRPID = origin[len(p):]
+				break
+			}
+		}
+		if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
+			dynamicRPID = dynamicRPID[:idx]
+		}
+		if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
+			dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+		}
+	}
+	req.Host = dynamicRPID
+	fmt.Printf("🛡️ WebAuthn Register Finish | Dynamic Host: %s | RPID: %s\n", req.Host, h.WebAuthn.Config.RPID)
 
 	// Parse response from client
 	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
@@ -307,6 +351,28 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi login biometrik: " + err.Error()})
 	}
 
+	// DYNAMIC RPID OVERRIDE FOR LOGIN
+	origin := c.Get("Origin")
+	if origin != "" {
+		dynamicRPID := ""
+		for _, p := range []string{"https://", "http://"} {
+			if len(origin) > len(p) && origin[:len(p)] == p {
+				dynamicRPID = origin[len(p):]
+				break
+			}
+		}
+		if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
+			dynamicRPID = dynamicRPID[:idx]
+		}
+		if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
+			dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+		}
+		if dynamicRPID != "" {
+			options.Response.RelyingPartyID = dynamicRPID
+			fmt.Printf("🛡️ WebAuthn Login Begin | Dynamic RPID: %s\n", dynamicRPID)
+		}
+	}
+
 	// Store session data using the profile's UserID (works for both flows)
 	h.sessionsMutex.Lock()
 	h.sessions[profile.UserID.String()] = sessionData
@@ -385,12 +451,27 @@ func (h *WebAuthnHandler) FinishLogin(c *fiber.Ctx) error {
 	// Convert Fiber request to *http.Request (Proper Emulation)
 	req, _ := http.NewRequest(c.Method(), c.Path(), bytes.NewReader(c.Body()))
 	req.Header.Set("Content-Type", c.Get("Content-Type"))
-	req.Header.Set("Origin", c.Get("Origin"))
+	origin := c.Get("Origin")
+	req.Header.Set("Origin", origin)
 	
-	// CRITICAL: Host MUST match RPID set in Config (Vercel domain).
-	// We use the configured RPID to ensure we match the browser's expectation for the production domain.
-	req.Host = h.WebAuthn.Config.RPID
-	fmt.Printf("🛡️ WebAuthn Verify | Host: %s | RPID: %s\n", req.Host, h.WebAuthn.Config.RPID)
+	// DYNAMIC HOST MATCHING FOR LOGIN
+	dynamicRPID := h.WebAuthn.Config.RPID
+	if origin != "" {
+		for _, p := range []string{"https://", "http://"} {
+			if len(origin) > len(p) && origin[:len(p)] == p {
+				dynamicRPID = origin[len(p):]
+				break
+			}
+		}
+		if idx := strings.Index(dynamicRPID, ":"); idx != -1 {
+			dynamicRPID = dynamicRPID[:idx]
+		}
+		if len(dynamicRPID) > 0 && dynamicRPID[len(dynamicRPID)-1] == '/' {
+			dynamicRPID = dynamicRPID[:len(dynamicRPID)-1]
+		}
+	}
+	req.Host = dynamicRPID
+	fmt.Printf("🛡️ WebAuthn Login Finish | Dynamic Host: %s\n", req.Host)
 
 	credential, err := h.WebAuthn.FinishLogin(waUser, *sessionData, req)
 	if err != nil {
