@@ -10,6 +10,7 @@ import (
 
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/middleware"
 	"github.com/SyafikhAL010907/portalmahasiswaptik/backend/internal/models"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -47,9 +48,9 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 			"http://localhost:5173",
 			"https://portal-mahasiswa-ptik.vercel.app",
 		},
-		AuthenticatorSelection: webauthn.AuthenticatorSelection{
-			ResidentKey:      webauthn.ResidentKeyRequirementPreferred,
-			UserVerification: webauthn.UserVerificationPreferred,
+		AuthenticatorSelection: protocol.AuthenticatorSelection{
+			ResidentKey:      protocol.ResidentKeyRequirementPreferred,
+			UserVerification: protocol.VerificationPreferred,
 		},
 	})
 
