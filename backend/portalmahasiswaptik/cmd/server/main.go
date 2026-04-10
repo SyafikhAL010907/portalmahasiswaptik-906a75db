@@ -60,8 +60,46 @@ func main() {
 		return c.Status(200).SendString("Backend PTIK is Running!")
 	})
 
-	// Middleware
+	// 1. Recover Middleware (Crucial for stability)
 	app.Use(recover.New())
+
+	// 2. CORS Middleware (Must be early to handle OPTIONS correctly)
+	// ✅ Advanced CORS: Allow dynamic origins from environment
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	webauthnOrigin := os.Getenv("WEBAUTHN_ORIGIN")
+
+	var origins []string
+	if allowedOrigins != "" {
+		origins = append(origins, strings.Split(allowedOrigins, ",")...)
+	}
+	if webauthnOrigin != "" {
+		origins = append(origins, webauthnOrigin)
+	}
+
+	// Default origins if none provided
+	if len(origins) == 0 {
+		origins = []string{"http://localhost:5173", "https://portal-mahasiswa-ptik.vercel.app"}
+	}
+
+	// Clean up and unique origins
+	originMap := make(map[string]bool)
+	var finalOrigins []string
+	for _, o := range origins {
+		trimmed := strings.TrimSpace(o)
+		if trimmed != "" && !originMap[trimmed] {
+			originMap[trimmed] = true
+			finalOrigins = append(finalOrigins, trimmed)
+		}
+	}
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     strings.Join(finalOrigins, ","),
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With,X-Download-Remaining",
+		AllowCredentials: true,
+		ExposeHeaders:    "Content-Length,Content-Disposition,X-Download-Remaining",
+		MaxAge:           86400,
+	}))
 
 	// Enhanced Security Headers
 	app.Use(helmet.New(helmet.Config{
@@ -94,23 +132,6 @@ func main() {
 		},
 	}))
 
-	// ✅ Advanced CORS: Allow dynamic origins from environment (as requested: using split)
-	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	origins := strings.Split(allowedOrigins, ",")
-	for i := range origins {
-		origins[i] = strings.TrimSpace(origins[i])
-	}
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: strings.Join(origins, ","),
-		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		// Tambahkan 'X-Download-Remaining' di AllowHeaders
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Client-Info,apikey,X-Requested-With,X-Download-Remaining",
-		AllowCredentials: true,
-		// PENTING: Tambahkan baris ExposeHeaders ini agar browser bisa melihat info file & sisa jatah
-		ExposeHeaders: "Content-Length,Content-Disposition,X-Download-Remaining",
-		MaxAge:        86400,
-	}))
 
 	// Initialize validator
 	validate := validator.New()
