@@ -3,6 +3,7 @@ import { useProfile } from '@/SharedLogic/hooks/useProfile';
 import { ProfileHeader } from '@/components/Features/Settings/ProfileHeader';
 import { IdentityDetails } from '@/components/Features/Settings/IdentityDetails';
 import { ContactForm } from '@/components/Features/Settings/ContactForm';
+import { BiometricSettings } from '@/components/Features/Settings/BiometricSettings';
 import { Skeleton } from "@/components/ui/skeleton";
 
 const staggerContainer = {
@@ -41,8 +42,9 @@ export default function Profile() {
         >
             <ProfileHeader hook={hook} />
 
-            <motion.div variants={staggerBottom as any} layout={false} className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12">
+            <motion.div variants={staggerBottom as any} layout={false} className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12 pb-12">
                 <IdentityDetails hook={hook} />
+                <BiometricSettings />
                 <ContactForm hook={hook} />
             </motion.div>
         </motion.div>

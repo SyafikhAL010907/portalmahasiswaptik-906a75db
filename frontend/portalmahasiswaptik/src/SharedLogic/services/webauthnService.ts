@@ -55,10 +55,7 @@ export const webauthnService = {
    * Check if the device supports WebAuthn and platform biometrics
    */
   async isSupported(): Promise<boolean> {
-    return (
-      window.PublicKeyCredential &&
-      (await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())
-    );
+    return !!window.PublicKeyCredential;
   },
 
   /**
@@ -229,13 +226,16 @@ export const webauthnService = {
       
       let errorMessage = err.message || "Gagal login biometrik.";
       
-      // Check if running on localhost with a production RPID
+      // Smart Error Diagnostics
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        errorMessage = "⚠️ Browser nolak biometrik di LOCALHOST. Kalau lu pake server Koyeb, wajib buka webnya lewat alamat VERCEL bro! (Keamanan WebAuthn)";
-      }
-      // Specifically handle Domain Mismatch / Security Block
+        errorMessage = "⚠️ Browser nolak biometrik di LOCALHOST. Wajib buka webnya lewat alamat VERCEL bro! (Keamanan WebAuthn)";
+      } 
       else if (err.name === 'NotAllowedError') {
-        errorMessage = "Akses ditolak (Domain Mismatch). Pastikan lu pake domain Vercel yang bener. Kalau baru ganti domain, Hapus & Daftar Ulang biometrik di Profile dulu ya! 🛡️";
+        // If it's NotAllowedError but on the correct Vercel domain, it usually means cancellation or missing hardware
+        errorMessage = "Akses Dibatalkan / Hardware Gak Ketemu. Pastiin lu pake FaceID/Fingerprint. Kalau di Laptop gak ada sensor, pilih 'Use Phone / Scan QR' pas muncul popup Windows ya! 🛡️";
+      }
+      else if (err.name === 'SecurityError') {
+        errorMessage = "Eror Keamanan (Domain Mismatch). Pastikan lu pake domain Vercel yang bener. 🛡️";
       }
 
       // Don't show toast for 2FA as the hook handles its own UI
