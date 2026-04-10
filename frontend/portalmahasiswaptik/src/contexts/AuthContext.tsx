@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUnlocked, setIsUnlocked] = useState(true); // Default to true for fresh sessions
+  const [isUnlocked, setIsUnlocked] = useState(false); // Default to false for better security
   const [isBiometricRegistered, setIsBiometricRegistered] = useState<boolean | null>(null);
   const isAuthenticating = React.useRef(false);
 
@@ -209,36 +209,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         // ENFORCEMENT POLICY: Re-entry check for biometrics
         console.log("🔐 Checking biometric status for persistent session...");
-        const status = await webauthnService.getStatus();
-        setIsBiometricRegistered(status.is_registered);
+        try {
+          const status = await webauthnService.getStatus();
+          setIsBiometricRegistered(status.is_registered);
 
-        if (status.is_registered) {
-          // User has biometrics -> Go to LockScreen (Always on re-entry/refresh)
-          console.log("🔒 Biometric Enforcement: LockScreen Required");
-          setIsUnlocked(false);
-        } else {
-          // User does NOT have biometrics
-          // We only force logout if this is a NEW session (App/Tab reopen)
-          // sessionStorage survives Refresh, but dies on Tab Close.
-          const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
-          
-          if (!isFromRefresh) {
-            console.warn("🛡️ Security Policy: Persistence requires Biometrics. Session expired on tab close. Logging out...");
-            signOut(); 
-            setIsLoading(false);
-            return; // Exit early
+          if (status.is_registered) {
+            // User has biometrics -> Go to LockScreen
+            console.log("🔒 Biometric Enforcement: LockScreen Required");
+            setIsUnlocked(false);
+          } else {
+            // User does NOT have biometrics
+            // Check if this is a fresh session or refresh
+            const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
+            
+            if (!isFromRefresh) {
+              console.warn("🛡️ Security Policy: Persistence requires Biometrics.");
+              await signOut(); 
+              return;
+            }
+            
+            console.log("✅ User has no biometrics, but this is a Refresh. Allowing session.");
+            setIsUnlocked(true);
           }
-          
-          console.log("✅ User has no biometrics, but this is a Refresh. Allowing session.");
-          setIsUnlocked(true);
-        }
 
-        const [profileData, rolesData] = await Promise.all([
-          fetchProfile(currentUser.id),
-          fetchRoles(currentUser.id)
-        ]);
-        setProfile(profileData);
-        setRoles(rolesData);
+          const [profileData, rolesData] = await Promise.all([
+            fetchProfile(currentUser.id),
+            fetchRoles(currentUser.id)
+          ]);
+          setProfile(profileData);
+          setRoles(rolesData);
+        } catch (err) {
+          console.error("Critical Re-entry Error:", err);
+          setIsUnlocked(false);
+        }
+      } else {
+        // No user, definitely unlocked (at Login/Landing)
+        setIsUnlocked(true);
       }
       setIsLoading(false);
     });
