@@ -26,192 +26,83 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	// API v1 group
 	api := app.Group("/api")
 
-	// Public routes (no auth required)
+	// ========================================
+	// PUBLIC WEBAUTHN ROUTES (LOGIN)
+	// ========================================
+	// Penting: Definisi ini harus di atas 'protected' group agar tidak kena middleware auth
+	waPublic := api.Group("/auth/webauthn")
+	waPublic.Post("/login/begin", webauthnHandler.BeginLogin)
+	waPublic.Post("/login/finish", webauthnHandler.FinishLogin)
+
+	// Public config route
 	api.Get("/config", userHandler.GetSupabaseConfig)
 
 	// Automation Webhook (Secret/Supabase only)
 	api.Post("/webhooks/automation", automationHandler.HandleSupabaseWebhook)
 
-	// API documentation endpoint
+	// API documentation
 	api.Get("/docs", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"name":    "Portal Mahasiswa PTIK API",
-			"version": "1.0.0",
-			"endpoints": fiber.Map{
-				"auth": fiber.Map{
-					"note": "Authentication is handled by Supabase Auth. Use Supabase JWT tokens.",
-				},
-				"users": fiber.Map{
-					"GET /api/users":        "List users (Admin only)",
-					"GET /api/users/:id":    "Get user by ID",
-					"POST /api/users":       "Create user (AdminDev only)",
-					"PUT /api/users/:id":    "Update user",
-					"DELETE /api/users/:id": "Delete user (AdminDev only)",
-					"GET /api/profile":      "Get current user profile",
-					"GET /api/classes":      "List all classes",
-				},
-				"finance": fiber.Map{
-					"GET /api/finance/summary":      "Get financial summary with chart data",
-					"GET /api/finance/transactions": "List transactions with filters",
-					"POST /api/finance/transaction": "Create transaction (Admin only)",
-					"GET /api/finance/dues/summary": "Get dues collection summary",
-				},
-				"attendance": fiber.Map{
-					"POST /api/attendance/session":                "Create QR session (Dosen only)",
-					"POST /api/attendance/scan":                   "Scan QR code (Mahasiswa only)",
-					"GET /api/attendance/sessions":                "List active sessions",
-					"GET /api/attendance/records":                 "List attendance records",
-					"GET /api/attendance/subjects":                "List subjects by semester",
-					"GET /api/attendance/meetings/:subjectId":     "List meetings for subject",
-					"POST /api/attendance/session/:id/refresh":    "Refresh QR code",
-					"POST /api/attendance/session/:id/deactivate": "Deactivate session",
-				},
-			},
-		})
+		return c.JSON(fiber.Map{"name": "Portal Mahasiswa PTIK API", "version": "1.0.0"})
 	})
 
-	// Protected routes (require authentication)
+	// ========================================
+	// PROTECTED ROUTES
+	// ========================================
 	protected := api.Group("", middleware.AuthMiddleware(db))
-
-	// ========================================
-	// USER ROUTES
-	// ========================================
-	users := protected.Group("/users")
 
 	// Get current user's profile
 	protected.Get("/profile", userHandler.GetProfile)
-
-	// List all classes (any authenticated user)
 	protected.Get("/classes", userHandler.GetClasses)
 
-	// List users (Admin only)
+	// User Management
+	users := protected.Group("/users")
 	users.Get("", middleware.RequireAdmin(), userHandler.GetUsers)
-
-	// Get single user
 	users.Get("/:id", userHandler.GetUserByID)
-
-	// Create user (AdminDev only)
 	users.Post("", middleware.RequireAdminDev(), userHandler.CreateUser)
-
-	// Update user
 	users.Put("/:id", userHandler.UpdateUser)
-
-	// Delete user (AdminDev only)
 	users.Delete("/:id", middleware.RequireAdminDev(), userHandler.DeleteUser)
 
-	// ========================================
-	// FINANCE ROUTES
-	// ========================================
+	// Finance
 	finance := protected.Group("/finance")
-
-	// Get financial summary with chart data
 	finance.Get("/summary", financeHandler.GetFinanceSummary)
-
-	// List transactions
 	finance.Get("/transactions", financeHandler.GetTransactions)
-
-	// Get transaction statistics
 	finance.Get("/transactions/stats", financeHandler.GetTransactionStats)
-
-	// Create transaction (Admin only)
-	finance.Post("/transaction",
-		middleware.RequireAdmin(),
-		middleware.ClassScopeMiddleware(),
-		financeHandler.CreateTransaction,
-	)
-
-	// Get dues summary
+	finance.Post("/transaction", middleware.RequireAdmin(), middleware.ClassScopeMiddleware(), financeHandler.CreateTransaction)
 	finance.Get("/dues/summary", financeHandler.GetWeeklyDuesSummary)
-
-	// Bulk update dues (AdminDev only)
-	finance.Post("/dues/bulk",
-		middleware.RequireAdminDev(),
-		financeHandler.BulkUpdateDues,
-	)
-
-	// Get dues matrix (Student payment records)
+	finance.Post("/dues/bulk", middleware.RequireAdminDev(), financeHandler.BulkUpdateDues)
 	finance.Get("/dues/matrix", financeHandler.GetDuesMatrix)
-
-	// Export Finance Data (Excel) - Added for V8.2
 	finance.Get("/export", financeHandler.ExportFinanceExcel)
 
-	// ========================================
-	// ATTENDANCE ROUTES
-	// ========================================
+	// Attendance
 	attendance := protected.Group("/attendance")
-
-	// Get subjects (any authenticated user)
 	attendance.Get("/subjects", attendanceHandler.GetSubjects)
-
-	// Get meetings for subject
 	attendance.Get("/meetings/:subjectId", attendanceHandler.GetMeetings)
-
-	// Create session (Lecturer only)
-	attendance.Post("/session",
-		middleware.RequireLecturer(),
-		attendanceHandler.CreateSession,
-	)
-
-	// Get active sessions
+	attendance.Post("/session", middleware.RequireLecturer(), attendanceHandler.CreateSession)
 	attendance.Get("/sessions", attendanceHandler.GetActiveSessions)
-
-	attendance.Post("/scan",
-		middleware.RequireRole(models.RoleAdminDev, models.RoleMahasiswa, models.RoleAdminKelas),
-		attendanceHandler.ScanQR,
-	)
-
-	// Get attendance records
+	attendance.Post("/scan", middleware.RequireRole(models.RoleAdminDev, models.RoleMahasiswa, models.RoleAdminKelas), attendanceHandler.ScanQR)
 	attendance.Get("/records", attendanceHandler.GetAttendanceRecords)
+	attendance.Post("/session/:id/refresh", middleware.RequireLecturer(), attendanceHandler.RefreshSession)
+	attendance.Post("/session/:id/deactivate", middleware.RequireLecturer(), attendanceHandler.DeactivateSession)
 
-	// Refresh session QR
-	attendance.Post("/session/:id/refresh",
-		middleware.RequireLecturer(),
-		attendanceHandler.RefreshSession,
-	)
-
-	// Deactivate session
-	attendance.Post("/session/:id/deactivate",
-		middleware.RequireLecturer(),
-		attendanceHandler.DeactivateSession,
-	)
-
-	// ========================================
-	// REPOSITORY ROUTES
-	// ========================================
+	// Repository
 	repo := protected.Group("/repository")
 	repo.Get("/semesters", repoHandler.GetSemesters)
 	repo.Get("/files", repoHandler.GetFiles)
 	repo.Post("/upload-drive", repoHandler.UploadToDrive)
 	repo.Get("/download/:id", repoHandler.DownloadMaterial)
 
-	// ========================================
-	// EXPORT ROUTES
-	// ========================================
+	// Export
 	export := protected.Group("/export")
 	export.Get("/finance/excel", financeHandler.ExportFinanceExcel)
 	export.Get("/attendance/excel", attendanceHandler.ExportAttendanceExcel)
 	export.Get("/attendance/master-excel", attendanceHandler.ExportMasterAttendanceExcel)
 
-	// ========================================
-	// CONFIG ROUTES (V9.0 Global Configs)
-	// ========================================
+	// Global Config
 	configGrp := protected.Group("/config")
-
-	// Get billing range (Authenticated users: Admin, Dosen, Mahasiswa)
 	configGrp.Get("/billing-range", configHandler.GetBillingRange)
-
-	// Save billing range (Admin & AdminDev)
 	configGrp.Post("/save-range", middleware.RequireAdmin(), configHandler.SaveBillingRange)
 
-	// ========================================
-	// WEBAUTHN ROUTES (Biometrics)
-	// ========================================
-	// Public Login Routes (No token needed)
-	waPublic := api.Group("/auth/webauthn")
-	waPublic.Post("/login/begin", webauthnHandler.BeginLogin)
-	waPublic.Post("/login/finish", webauthnHandler.FinishLogin)
-
-	// Protected Registration & Management (Token required)
+	// PROTECTED WEBAUTHN ROUTES (REGISTER & MANAGE)
 	waProtected := protected.Group("/auth/webauthn")
 	waProtected.Get("/register/begin", webauthnHandler.BeginRegistration)
 	waProtected.Post("/register/finish", webauthnHandler.FinishRegistration)
