@@ -106,6 +106,8 @@ func SetupRoutes(app *fiber.App, db *gorm.DB, storageSrv *storage.SupabaseStorag
 	waProtected := protected.Group("/auth/webauthn")
 	waProtected.Get("/register/begin", webauthnHandler.BeginRegistration)
 	waProtected.Post("/register/finish", webauthnHandler.FinishRegistration)
+	waProtected.Post("/verify/begin", webauthnHandler.BeginLogin)   // Support for re-auth (Satpam)
+	waProtected.Post("/verify/finish", webauthnHandler.FinishLogin) // Support for re-auth (Satpam)
 	waProtected.Get("/status", webauthnHandler.GetStatus)
 	waProtected.Delete("/delete", webauthnHandler.DeleteCredential)
 }

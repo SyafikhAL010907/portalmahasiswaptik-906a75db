@@ -140,25 +140,21 @@ export const webauthnService = {
       const { data: { session } } = await supabase.auth.getSession();
 
       // 1. Get request options from backend
-      // If NIM is provided, we hit the public endpoint via POST.
-      // Otherwise, we hit the protected endpoint via GET.
-      const beginUrl = `${API_BASE_URL}/auth/webauthn/login/begin`;
+      // If we have a session, use the 'verify' endpoints (Satpam VIP path)
+      // Otherwise use the public 'login' endpoints (Fresh login)
+      const pathPrefix = session ? 'verify' : 'login';
+      const beginUrl = `${API_BASE_URL}/auth/webauthn/${pathPrefix}/begin`;
       
       const headers: any = { "Content-Type": "application/json" };
-      if (!nim && session) {
+      if (session) {
         headers.Authorization = `Bearer ${session.access_token}`;
       }
 
-      const beginOptions: RequestInit = nim 
-        ? { 
-            method: "POST", 
-            headers,
-            body: JSON.stringify({ nim })
-          }
-        : { 
-            method: "POST",
-            headers 
-          };
+      const beginOptions: RequestInit = { 
+        method: "POST", 
+        headers,
+        body: JSON.stringify({ nim: nim || undefined })
+      };
 
       const response = await fetch(beginUrl, beginOptions);
       const options = await handleResponse(response);
@@ -200,12 +196,12 @@ export const webauthnService = {
       if (nim) body.nim = nim;
 
       // 5. Submit to backend
-      headers["Content-Type"] = "application/json";
-      if (!nim && session) {
+      if (session) {
         headers.Authorization = `Bearer ${session.access_token}`;
       }
 
-      const finishResponse = await fetch(`${API_BASE_URL}/auth/webauthn/login/finish`, {
+      const pathPrefix = session ? 'verify' : 'login';
+      const finishResponse = await fetch(`${API_BASE_URL}/auth/webauthn/${pathPrefix}/finish`, {
         method: "POST",
         headers,
         body: JSON.stringify(body),

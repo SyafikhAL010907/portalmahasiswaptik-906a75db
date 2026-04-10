@@ -22,6 +22,7 @@ export function useScanQR() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isBackCamera, setIsBackCamera] = useState(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const isProcessingRef = useRef(false);
   const [showScannerUI, setShowScannerUI] = useState(false);
   const [isVerifyingBiometric, setIsVerifyingBiometric] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<{
@@ -196,7 +197,16 @@ export function useScanQR() {
       await finalizeAttendance(payload, session, freshLocation, studentDistance, isMisslock);
 
     } catch (error: any) {
-
+      console.error("Scan Error:", error);
+      setScanResult({ success: false, message: error.message || "Gagal memproses QR Code." });
+      toast.error(error.message);
+    } finally {
+      // Small delay to ensure state updates don't conflict with scanner pause
+      setTimeout(() => {
+        setIsProcessing(false);
+        isProcessingRef.current = false;
+      }, 500);
+    }
   }, [location, user]);
 
   const finalizeAttendance = async (
@@ -253,6 +263,7 @@ export function useScanQR() {
       toast.error(error.message);
     } finally {
       setIsProcessing(false);
+      setIsVerifyingBiometric(false); // DISMISS THE SATPAM
       setPendingPayload(null);
       isProcessingRef.current = false;
       if (scannerRef.current && scannerRef.current.isScanning) scannerRef.current.stop().catch(() => { });

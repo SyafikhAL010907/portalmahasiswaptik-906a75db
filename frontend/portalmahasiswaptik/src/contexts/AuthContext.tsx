@@ -163,17 +163,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // When a user JUST signs in with password, we unlock them automatically
-        // because they just verified their identity.
         if (event === 'SIGNED_IN') {
-          // DO NOT auto-unlock here if biometrics are registered
-          // We will handle unlocking in the initialization/refresh logic below
+          // If they are on Desktop, always unlock immediately
+          if (isDesktop()) {
+            setIsBiometricRegistered(false);
+            setIsUnlocked(true);
+            return;
+          }
+
           webauthnService.getStatus().then(status => {
             setIsBiometricRegistered(status.is_registered);
-            // If they DON'T have biometrics, it's safe to unlock them now
-            if (!status.is_registered || isDesktop()) {
+            if (!status.is_registered) {
               setIsUnlocked(true);
             } else {
-              // They have biometrics, but we ONLY auto-unlock if this is a refresh
               const isRefresh = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
               setIsUnlocked(isRefresh);
             }
@@ -222,60 +224,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         // ENFORCEMENT POLICY: Re-entry check for biometrics & Desktop persistence
         console.log("🔐 Checking session persistence policy...");
-        try {
-          const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
-          const desktop = isDesktop();
+        
+        const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
+        const desktop = isDesktop();
 
-          // New Window/Tab on Desktop must Login Again
-          if (desktop && !isFromRefresh) {
-            console.log("🛡️ Desktop Security: New window detected. Forcing Re-login.");
-            await signOut();
-            setIsLoading(false);
-            return;
-          }
+        // New Window/Tab on Desktop must Login Again
+        if (desktop && !isFromRefresh) {
+          console.log("🛡️ Desktop Security: New window detected. Forcing Re-login.");
+          await signOut();
+          setIsLoading(false);
+          return;
+        }
 
-          const status = await webauthnService.getStatus();
-          setIsBiometricRegistered(status.is_registered);
+        // Fetch profile & roles in parallel while checking biometric status
+        const [profileData, rolesData, bioStatus] = await Promise.all([
+          fetchProfile(currentUser.id),
+          fetchRoles(currentUser.id),
+          // Only fetch status if not already determined by onAuthStateChange
+          isBiometricRegistered === null ? webauthnService.getStatus() : Promise.resolve({ is_registered: isBiometricRegistered })
+        ]);
 
-          if (status.is_registered) {
-            // User has biometrics
-            // Check if they already unlocked in this session (Refresh detection)
-            const isAlreadyUnlocked = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
-            
-            if (isAlreadyUnlocked || isDesktop()) {
-              console.log("✅ Biometric Session bypass (Refresh/Desktop). Skipping LockScreen.");
-              setIsUnlocked(true);
-            } else {
-              console.log("🔒 Biometric Enforcement: LockScreen Required");
-              setIsUnlocked(false);
-            }
-          } else {
-            // User does NOT have biometrics
-            // Check if this is a fresh session or refresh
-            const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
-            
-            if (!isFromRefresh) {
-              console.warn("🛡️ Security Policy: Persistence requires Biometrics.");
-              await signOut(); 
-              return;
-            }
-            
-            console.log("✅ User has no biometrics, but this is a Refresh. Allowing session.");
-            setIsUnlocked(true);
-          }
+        setProfile(profileData);
+        setRoles(rolesData);
+        setIsBiometricRegistered(bioStatus.is_registered);
 
-          const [profileData, rolesData] = await Promise.all([
-            fetchProfile(currentUser.id),
-            fetchRoles(currentUser.id)
-          ]);
-          setProfile(profileData);
-          setRoles(rolesData);
-        } catch (err) {
-          console.error("Critical Re-entry Error:", err);
-          setIsUnlocked(false);
+        if (desktop) {
+           setIsUnlocked(true);
+        } else if (bioStatus.is_registered) {
+           const isAlreadyUnlocked = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
+           setIsUnlocked(isAlreadyUnlocked);
+           console.log(isAlreadyUnlocked ? "✅ Biometric Session Active." : "🔒 Biometric Lock Required.");
+        } else {
+           // Mobile/Tab without biometrics
+           if (!isFromRefresh) {
+             console.warn("🛡️ Security Policy: Persistence requires Biometrics.");
+             await signOut();
+             return;
+           }
+           setIsUnlocked(true);
         }
       } else {
-        // No user, definitely unlocked (at Login/Landing)
         setIsUnlocked(true);
       }
       setIsLoading(false);
