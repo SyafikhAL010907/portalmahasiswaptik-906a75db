@@ -45,6 +45,11 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 			origin,
 			"https://localhost:5173",
 			"http://localhost:5173",
+			"https://portal-mahasiswa-ptik.vercel.app",
+		},
+		AuthenticatorSelection: webauthn.AuthenticatorSelection{
+			ResidentKey:      webauthn.ResidentKeyRequirementPreferred,
+			UserVerification: webauthn.UserVerificationPreferred,
 		},
 	})
 

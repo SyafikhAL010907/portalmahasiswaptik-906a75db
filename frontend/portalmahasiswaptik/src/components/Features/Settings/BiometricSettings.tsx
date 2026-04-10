@@ -61,7 +61,7 @@ export function BiometricSettings() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Lo belum login bro!");
 
-      const res = await fetch("/api/auth/webauthn/delete", {
+      const res = await fetch(`${API_BASE_URL}/auth/webauthn/delete`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
