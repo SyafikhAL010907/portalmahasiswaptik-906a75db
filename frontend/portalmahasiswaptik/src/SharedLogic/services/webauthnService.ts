@@ -229,9 +229,13 @@ export const webauthnService = {
       
       let errorMessage = err.message || "Gagal login biometrik.";
       
+      // Check if running on localhost with a production RPID
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        errorMessage = "⚠️ Browser nolak biometrik di LOCALHOST. Kalau lu pake server Koyeb, wajib buka webnya lewat alamat VERCEL bro! (Keamanan WebAuthn)";
+      }
       // Specifically handle Domain Mismatch / Security Block
-      if (err.name === 'NotAllowedError') {
-        errorMessage = "Akses ditolak (Domain Mismatch). Jika lu baru pindah dari localhost ke Vercel, silakan Hapus & Daftar Ulang biometrik di Profile dulu bro! 🛡️";
+      else if (err.name === 'NotAllowedError') {
+        errorMessage = "Akses ditolak (Domain Mismatch). Pastikan lu pake domain Vercel yang bener. Kalau baru ganti domain, Hapus & Daftar Ulang biometrik di Profile dulu ya! 🛡️";
       }
 
       // Don't show toast for 2FA as the hook handles its own UI
