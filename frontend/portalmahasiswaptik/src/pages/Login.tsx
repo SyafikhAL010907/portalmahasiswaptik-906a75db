@@ -15,6 +15,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [nim, setNim] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { signIn } = useAuth();
@@ -70,8 +71,7 @@ export default function Login() {
     }
 
     setIsLoading(true);
-
-    const { error } = await signIn(nim, password);
+    const { error } = await signIn(nim, password, rememberMe);
 
     if (error) {
       toast.error(error);
@@ -161,9 +161,14 @@ export default function Login() {
           </div>
 
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" className="rounded border-border text-primary focus:ring-primary" />
-              <span className="text-sm text-muted-foreground">Ingat saya</span>
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input 
+                type="checkbox" 
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary bg-background/50 cursor-pointer transition-all group-hover:border-primary" 
+              />
+              <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">Ingat saya</span>
             </label>
           </div>
 

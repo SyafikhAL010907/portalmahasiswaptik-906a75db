@@ -24,7 +24,7 @@ interface AuthContextType {
   profile: Profile | null;
   roles: AppRole[];
   isLoading: boolean;
-  signIn: (nim: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (nim: string, password: string, rememberMe?: boolean) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
@@ -43,6 +43,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Helper to set persistent cookie for backend middleware
+  const setAuthCookie = (token: string | null, days: number = 30) => {
+    if (token) {
+      const date = new Date();
+      date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+      const expires = "; expires=" + date.toUTCString();
+      // Using SameSite=Lax and Secure for better compatibility and security
+      document.cookie = `sb-auth-token=${token}${expires}; path=/; SameSite=Lax; Secure`;
+      console.log("🍪 Syncing persistent auth cookie...");
+    } else {
+      document.cookie = "sb-auth-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      console.log("🍪 Clearing auth cookie...");
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -126,6 +141,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
+        // Sync token to cookie whenever auth state changes (login or refresh)
+        if (currentSession?.access_token) {
+          setAuthCookie(currentSession.access_token);
+        } else if (event === 'SIGNED_OUT') {
+          setAuthCookie(null);
+        }
+
         if (currentSession?.user) {
           // Defer fetching to avoid blocking
           setTimeout(async () => {
@@ -150,6 +172,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
 
+      if (initialSession?.access_token) {
+        setAuthCookie(initialSession.access_token);
+      }
+
       if (initialSession?.user) {
         const [profileData, rolesData] = await Promise.all([
           fetchProfile(initialSession.user.id),
@@ -166,7 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signIn = async (nim: string, password: string): Promise<{ error: string | null }> => {
+  const signIn = async (nim: string, password: string, rememberMe: boolean = true): Promise<{ error: string | null }> => {
     try {
       // NIM is used as email format: nim@ptik.local
       const email = `${nim}@ptik.local`;
@@ -180,6 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message };
       }
 
+      // If sign in is successful, the onAuthStateChange listener will handle the cookie
       return { error: null };
     } catch (err) {
       return { error: 'Terjadi kesalahan saat login' };
@@ -188,6 +215,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Clear cookie
+    setAuthCookie(null);
+    
     // Clear all storage to prevent session leaking and stale data
     localStorage.clear();
     sessionStorage.clear();
