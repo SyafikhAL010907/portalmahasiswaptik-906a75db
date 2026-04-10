@@ -110,11 +110,15 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 	var credentials []models.WebAuthnCredential
 	h.DB.Where("user_id = ?", userCtx.UserID).Find(&credentials)
 
-	// LOCKDOWN: Only allow 1 device per user (handled in DB transaction later too)
+	// AUTO-CLEANUP: If user is registering a new device, clear the old one.
+	// This fulfills the "Phone-to-Laptop" migration request automatically.
 	if len(credentials) > 0 {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error": "Kamu sudah mendaftarkan perangkat biometrik. Satu akun hanya boleh 1 perangkat!",
-		})
+		fmt.Printf("🧹 Cleaning up %d old credentials for User: %s\n", len(credentials), userCtx.UserID)
+		if err := h.DB.Where("user_id = ?", userCtx.UserID).Delete(&models.WebAuthnCredential{}).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal membersihkan biometrik lama: " + err.Error()})
+		}
+		// Reset slice for the waUser object
+		credentials = []models.WebAuthnCredential{}
 	}
 
 	waUser := models.WebAuthnUser{
@@ -147,7 +151,18 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 		}
 	}
 
-	options, sessionData, err := h.WebAuthn.BeginRegistration(waUser)
+	// RE-INITIALIZE WebAuthn with dynamic RPID to ensure signature matches exactly
+	// This is critical for Vercel subdomains and Localhost
+	waConfig := *h.WebAuthn.Config
+	waConfig.RPID = dynamicRPID
+	waConfig.RPOrigin = origin
+	
+	tempWebAuthn, err := webauthn.New(&waConfig)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi WebAuthn: " + err.Error()})
+	}
+
+	options, sessionData, err := tempWebAuthn.BeginRegistration(waUser)
 	if err != nil {
 		fmt.Printf("❌ WebAuthn BeginRegistration Error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -350,7 +365,17 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 		Credentials: credentials,
 	}
 
-	options, sessionData, err := h.WebAuthn.BeginLogin(waUser)
+	// RE-INITIALIZE WebAuthn with dynamic RPID for Login
+	waConfig := *h.WebAuthn.Config
+	waConfig.RPID = dynamicRPID
+	waConfig.RPOrigin = origin
+	
+	tempWebAuthn, err := webauthn.New(&waConfig)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi WebAuthn: " + err.Error()})
+	}
+
+	options, sessionData, err := tempWebAuthn.BeginLogin(waUser)
 	if err != nil {
 		fmt.Printf("❌ WebAuthn BeginLogin Error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal inisialisasi login biometrik: " + err.Error()})

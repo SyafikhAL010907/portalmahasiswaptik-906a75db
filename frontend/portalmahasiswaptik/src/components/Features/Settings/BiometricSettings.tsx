@@ -54,7 +54,11 @@ export function BiometricSettings() {
     setIsRegistering(true);
     try {
       const success = await webauthnService.register(user.id);
-      if (success) setIsRegistered(true);
+      if (success) {
+        setIsRegistered(true);
+        // Also mark as unlocked for the current session so refresh doesn't lock them out immediately
+        sessionStorage.setItem('portal_biometric_unlocked', 'true');
+      }
     } finally {
       setIsRegistering(false);
     }
@@ -125,7 +129,7 @@ export function BiometricSettings() {
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed italic">
-          Gunakan **Wajah** atau **Sidik Jari** untuk login dan absensi QR secara instan. Lebih cepat, aman, dan gak bisa dititip bro!
+          Gunakan Wajah atau Sidik Jari untuk login dan absensi QR secara instan. Lebih cepat, aman, dan gak bisa dititip bro!
         </p>
 
         <Button

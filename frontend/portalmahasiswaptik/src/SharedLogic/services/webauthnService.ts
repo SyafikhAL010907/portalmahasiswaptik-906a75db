@@ -222,20 +222,18 @@ export const webauthnService = {
         throw new Error(result.error || "Verifikasi biometrik gagal.");
       }
     } catch (err: any) {
-      console.error("WebAuthn Auth Error:", err);
+      console.error("🔍 BIOMETRIC AUTH ERROR | Detail:", err);
       
-      let errorMessage = err.message || "Gagal login biometrik.";
+      // Use backend error message if available, otherwise fallback to smart diagnostics
+      let errorMessage = err.message || "Gagal login biometrik. Pastikan sensor tersedia atau pilih 'Scan QR'.";
       
-      // Smart Error Diagnostics
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        errorMessage = "⚠️ Browser nolak biometrik di LOCALHOST. Wajib buka webnya lewat alamat VERCEL bro! (Keamanan WebAuthn)";
-      } 
-      else if (err.name === 'NotAllowedError') {
-        // If it's NotAllowedError but on the correct Vercel domain, it usually means cancellation or missing hardware
+      // Smart Error Diagnostics (Universal)
+      if (err.name === 'NotAllowedError') {
         errorMessage = "Akses Dibatalkan / Hardware Gak Ketemu. Pastiin lu pake FaceID/Fingerprint. Kalau di Laptop gak ada sensor, pilih 'Use Phone / Scan QR' pas muncul popup Windows ya! 🛡️";
-      }
-      else if (err.name === 'SecurityError') {
-        errorMessage = "Eror Keamanan (Domain Mismatch). Pastikan lu pake domain Vercel yang bener. 🛡️";
+      } else if (err.name === 'SecurityError') {
+        errorMessage = "Eror Keamanan (Domain Mismatch). Pastikan pake domain yang sama dengan saat daftar. (Gunakan Vercel untuk sinkronisasi antar perangkat). 🛡️";
+      } else if (err.name === 'InvalidStateError') {
+        errorMessage = "Data Biometrik tidak dikenali atau belum terdaftar di perangkat ini. 🛡️";
       }
 
       // Don't show toast for 2FA as the hook handles its own UI

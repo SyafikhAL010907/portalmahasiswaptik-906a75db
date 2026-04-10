@@ -162,12 +162,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // When a user JUST signs in with password, we unlock them automatically
         // because they just verified their identity.
         if (event === 'SIGNED_IN') {
-          setIsUnlocked(true);
-          // Check biometric status in background
+          // DO NOT auto-unlock here if biometrics are registered
+          // We will handle unlocking in the initialization/refresh logic below
           webauthnService.getStatus().then(status => {
             setIsBiometricRegistered(status.is_registered);
+            // If they DON'T have biometrics, it's safe to unlock them now
+            if (!status.is_registered) {
+              setIsUnlocked(true);
+            } else {
+              // They have biometrics, but we ONLY auto-unlock if this is a refresh
+              const isRefresh = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
+              setIsUnlocked(isRefresh);
+            }
           }).catch(() => {
             setIsBiometricRegistered(false);
+            setIsUnlocked(true);
           });
         }
 
