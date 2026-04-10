@@ -90,6 +90,7 @@ export const webauthnService = {
       }
 
       // 3. Trigger Biometric Prompt
+      console.log("🛡️ WebAuthn Register Options:", options.publicKey);
       const credential = (await navigator.credentials.create({
         publicKey: options.publicKey,
       })) as PublicKeyCredential;
@@ -177,6 +178,7 @@ export const webauthnService = {
       }
 
       // 3. Trigger Biometric Prompt (Fallbacks to PIN automatically by OS)
+      console.log("🛡️ WebAuthn Auth Options:", options.publicKey);
       const assertion = (await navigator.credentials.get({
         publicKey: options.publicKey,
       })) as PublicKeyCredential;
