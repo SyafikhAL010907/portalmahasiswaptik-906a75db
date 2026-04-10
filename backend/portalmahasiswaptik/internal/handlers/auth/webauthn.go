@@ -61,9 +61,8 @@ func NewWebAuthnHandler(db *gorm.DB) (*WebAuthnHandler, error) {
 			"https://portal-mahasiswa-ptik.vercel.app/",
 		},
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			AuthenticatorAttachment: protocol.Platform,
-			ResidentKey:             protocol.ResidentKeyRequirementPreferred,
-			UserVerification:        protocol.VerificationRequired,
+			ResidentKey:      protocol.ResidentKeyRequirementDiscouraged,
+			UserVerification: protocol.VerificationDiscouraged,
 		},
 	})
 
