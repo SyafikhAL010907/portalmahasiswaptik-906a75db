@@ -146,6 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Helper to detect if device is desktop (> 1024px)
+  const isDesktop = () => window.innerWidth >= 1024;
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -167,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           webauthnService.getStatus().then(status => {
             setIsBiometricRegistered(status.is_registered);
             // If they DON'T have biometrics, it's safe to unlock them now
-            if (!status.is_registered) {
+            if (!status.is_registered || isDesktop()) {
               setIsUnlocked(true);
             } else {
               // They have biometrics, but we ONLY auto-unlock if this is a refresh
@@ -217,9 +220,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (currentUser) {
-        // ENFORCEMENT POLICY: Re-entry check for biometrics
-        console.log("🔐 Checking biometric status for persistent session...");
+        // ENFORCEMENT POLICY: Re-entry check for biometrics & Desktop persistence
+        console.log("🔐 Checking session persistence policy...");
         try {
+          const isFromRefresh = sessionStorage.getItem('portal_auth_session_active') === 'true';
+          const desktop = isDesktop();
+
+          // New Window/Tab on Desktop must Login Again
+          if (desktop && !isFromRefresh) {
+            console.log("🛡️ Desktop Security: New window detected. Forcing Re-login.");
+            await signOut();
+            setIsLoading(false);
+            return;
+          }
+
           const status = await webauthnService.getStatus();
           setIsBiometricRegistered(status.is_registered);
 
@@ -228,8 +242,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Check if they already unlocked in this session (Refresh detection)
             const isAlreadyUnlocked = sessionStorage.getItem('portal_biometric_unlocked') === 'true';
             
-            if (isAlreadyUnlocked) {
-              console.log("✅ Biometric Session active. Skipping LockScreen.");
+            if (isAlreadyUnlocked || isDesktop()) {
+              console.log("✅ Biometric Session bypass (Refresh/Desktop). Skipping LockScreen.");
               setIsUnlocked(true);
             } else {
               console.log("🔒 Biometric Enforcement: LockScreen Required");

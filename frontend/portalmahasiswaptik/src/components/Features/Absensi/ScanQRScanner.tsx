@@ -4,14 +4,42 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useScanQR } from '@/SharedLogic/hooks/useScanQR';
+import LockScreen from '@/pages/LockScreen';
+import { AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MonitorOff, Smartphone } from 'lucide-react';
 
 interface ScanQRScannerProps {
   scan: ReturnType<typeof useScanQR>;
 }
 
 export function ScanQRScanner({ scan }: ScanQRScannerProps) {
-  const { isScanning, scanResult, isProcessing, isBackCamera, showScannerUI } = scan.state;
-  const { startScanner, stopScanner, switchCamera, setScanResult } = scan.actions;
+  const { isScanning, scanResult, isProcessing, isBackCamera, showScannerUI, isVerifyingBiometric } = scan.state;
+  const { startScanner, stopScanner, switchCamera, setScanResult, finalizeAttendance, cancelVerification } = scan.actions;
+  const { deviceType } = useResponsive();
+  const isDesktop = deviceType === 'desktop';
+
+  if (isDesktop && !scanResult) {
+    return (
+      <Card className="bg-card/50 border-none shadow-2xl">
+        <CardContent className="p-12 text-center">
+          <div className="w-32 h-32 mx-auto mb-8 rounded-full bg-rose-500/10 flex items-center justify-center relative">
+            <MonitorOff className="w-16 h-16 text-rose-500" />
+            <XCircle className="w-6 h-6 text-rose-600 absolute bottom-2 right-2 bg-white rounded-full p-1" />
+          </div>
+          <h3 className="text-2xl font-black uppercase tracking-tight text-foreground mb-4 italic">Device Tidak Didukung Bro!</h3>
+          <p className="text-muted-foreground font-bold italic mb-8 max-w-xs mx-auto">
+            Absensi portal mahasiwa cuma bisa dilakuin lewat <span className="text-primary">HP atau Tablet</span> biar aman dan gak bisa dititip bro.
+          </p>
+          <div className="flex items-center justify-center gap-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+            <Smartphone className="w-5 h-5 text-primary animate-bounce" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Buka via Browser HP Lo!</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-card/50 border-none shadow-2xl">
@@ -165,6 +193,29 @@ export function ScanQRScanner({ scan }: ScanQRScannerProps) {
             <p className="text-sm font-black uppercase tracking-widest text-emerald-600 italic">Silakan kembali ke tempat duduk bro!</p>
           </motion.div>
         )}
+
+        {/* Biometric Satpam Overlay */}
+        <AnimatePresence>
+          {isVerifyingBiometric && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100]"
+            >
+              <LockScreen 
+                isOverlay={true}
+                onSuccess={() => {
+                  finalizeAttendance();
+                }}
+                onCancel={() => {
+                  cancelVerification();
+                }}
+                description="Verifikasi wajah atau sidik jari buat konfirmasi kehadiran lo bro!"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardContent>
     </Card>
   );

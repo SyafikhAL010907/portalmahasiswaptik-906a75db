@@ -8,7 +8,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-export default function LockScreen() {
+interface LockScreenProps {
+  isOverlay?: boolean;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  title?: string;
+  description?: string;
+}
+
+export default function LockScreen({ 
+  isOverlay = false, 
+  onSuccess, 
+  onCancel,
+  title = "Layar Terkunci",
+  description = "Gunakan biometrik buat lanjut."
+}: LockScreenProps) {
   const { user, profile, unlock, signOut, isBiometricRegistered, isLoading } = useAuth();
   const { deviceType } = useResponsive();
   const [isVerifying, setIsVerifying] = useState(false);
@@ -22,7 +36,11 @@ export default function LockScreen() {
     
     if (success) {
       toast.success('Akses Diterima! 🔓');
-      navigate('/dashboard');
+      if (isOverlay && onSuccess) {
+        onSuccess();
+      } else {
+        navigate('/dashboard');
+      }
     } else {
       // Don't toast here as the service might have already handled it
       // or the user just cancelled the dialog.
@@ -38,7 +56,10 @@ export default function LockScreen() {
   if (isLoading) return null;
 
   return (
-    <div className="min-h-screen hero-gradient flex items-center justify-center p-4 relative overflow-hidden">
+    <div className={cn(
+      "hero-gradient flex items-center justify-center p-4 relative overflow-hidden",
+      isOverlay ? "fixed inset-0 z-[100] min-h-full" : "min-h-screen"
+    )}>
       {/* Dynamic Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
@@ -97,10 +118,10 @@ export default function LockScreen() {
           </motion.div>
 
           <h2 className="text-2xl md:text-3xl font-black text-foreground mb-2">
-            Halo, {profile?.full_name?.split(' ')[0] || 'Bro'}!
+            {isOverlay ? "Verifikasi Identitas" : `Halo, ${profile?.full_name?.split(' ')[0] || 'Bro'}!`}
           </h2>
           <p className="text-muted-foreground text-sm md:text-base font-medium">
-            Layar terkunci. Gunakan biometrik buat lanjut.
+            {description}
           </p>
         </div>
 
@@ -182,13 +203,23 @@ export default function LockScreen() {
 
         {/* Footer Actions */}
         <div className="pt-6 border-t border-border/50">
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-2 mx-auto py-2 px-4 rounded-xl text-sm md:text-base text-muted-foreground hover:text-error hover:bg-error/5 transition-all group"
-          >
-            <LogOut className="w-4 h-4 md:w-5 md:h-5 transition-transform group-hover:-translate-x-1" />
-            <span className="font-bold">Keluar / Ganti Akun</span>
-          </button>
+          {isOverlay ? (
+            <button 
+              onClick={onCancel}
+              className="flex items-center gap-2 mx-auto py-2 px-4 rounded-xl text-sm md:text-base text-muted-foreground hover:text-error hover:bg-error/5 transition-all group"
+            >
+              <ShieldCheck className="w-4 h-4 md:w-5 md:h-5 transition-transform group-hover:scale-110" />
+              <span className="font-bold">Batalkan Validasi</span>
+            </button>
+          ) : (
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 mx-auto py-2 px-4 rounded-xl text-sm md:text-base text-muted-foreground hover:text-error hover:bg-error/5 transition-all group"
+            >
+              <LogOut className="w-4 h-4 md:w-5 md:h-5 transition-transform group-hover:-translate-x-1" />
+              <span className="font-bold">Keluar / Ganti Akun</span>
+            </button>
+          )}
         </div>
       </motion.div>
 

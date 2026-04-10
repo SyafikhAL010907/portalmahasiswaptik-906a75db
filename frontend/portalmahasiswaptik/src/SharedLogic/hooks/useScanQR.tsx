@@ -22,8 +22,15 @@ export function useScanQR() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isBackCamera, setIsBackCamera] = useState(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const isProcessingRef = useRef(false);
   const [showScannerUI, setShowScannerUI] = useState(false);
+  const [isVerifyingBiometric, setIsVerifyingBiometric] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<{
+    payload: any;
+    session: any;
+    location: { lat: number, lng: number } | null;
+    distance: number;
+    isMisslock: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
@@ -169,16 +176,41 @@ export function useScanQR() {
       const isClassValid = await validateClass(payload.c);
       if (!isClassValid) throw new Error("QR Code ini bukan untuk kelas Anda.");
 
-      // 5. BIOMETRIC VALIDATION (Layer 2 Security) - FaceID / Fingerprint
+      // 5. BIOMETRIC VALIDATION PAUSE
+      // Kita tahan dulu prosesnya dan minta UI tampilkan LockScreen (Satpam)
       const isBiometricSupported = await webauthnService.isSupported();
       if (isBiometricSupported) {
-        toast.info("Verifikasi Biometrik Diperlukan...", { duration: 2000 });
-        const { success } = await webauthnService.authenticate();
-        if (!success) {
-             throw new Error("Gagal Verifikasi Biometrik. Pastikan lo udah daftarin FaceID/Fingerprint di Profile bro!");
-        }
-        console.log("Biometric Verification Passed! 🦾");
+        setPendingPayload({
+          payload,
+          session,
+          location: freshLocation,
+          distance: studentDistance,
+          isMisslock
+        });
+        setIsVerifyingBiometric(true);
+        setIsProcessing(false); // Set false agar loading spinner di scanner ilang pas LockScreen muncul
+        return; // BERHENTI DISINI, SATPAM LOCKSCREEN AMBIL ALIH
       }
+
+      // If biometrics not supported, skip directly to finalization (fallback)
+      await finalizeAttendance(payload, session, freshLocation, studentDistance, isMisslock);
+
+    } catch (error: any) {
+
+  }, [location, user]);
+
+  const finalizeAttendance = async (
+    payload: any = pendingPayload?.payload,
+    session: any = pendingPayload?.session,
+    freshLocation: any = pendingPayload?.location,
+    studentDistance: number = pendingPayload?.distance || 0,
+    isMisslock: boolean = pendingPayload?.isMisslock || false
+  ) => {
+    setIsProcessing(true);
+    setIsVerifyingBiometric(false);
+
+    try {
+      if (!payload || !session) throw new Error("Data absensi hilang bro!");
 
       // 6. Duplicate Check
       const { data: existing } = await supabase.from('attendance_records').select('id').eq('session_id', payload.s).eq('student_id', user?.id).maybeSingle();
@@ -216,20 +248,44 @@ export function useScanQR() {
       toast.success("Absensi Berhasil!");
 
     } catch (error: any) {
-      console.error("Scan Error:", error);
-      setScanResult({ success: false, message: error.message || "Gagal memproses absensi." });
+      console.error("Finalize Error:", error);
+      setScanResult({ success: false, message: error.message || "Gagal mencatat absensi." });
       toast.error(error.message);
     } finally {
-      isProcessingRef.current = false;
       setIsProcessing(false);
-      if (scannerRef.current && scannerRef.current.isScanning) scannerRef.current.stop().catch(() => {});
+      setPendingPayload(null);
+      isProcessingRef.current = false;
+      if (scannerRef.current && scannerRef.current.isScanning) scannerRef.current.stop().catch(() => { });
       setIsScanning(false);
       setShowScannerUI(false);
     }
-  }, [location, user]);
+  };
+
+  const cancelVerification = () => {
+    setIsVerifyingBiometric(false);
+    setPendingPayload(null);
+    setIsProcessing(false);
+    isProcessingRef.current = false;
+    if (scannerRef.current && scannerRef.current.isScanning) scannerRef.current.stop().catch(() => { });
+    setIsScanning(false);
+    setShowScannerUI(false);
+    toast.info("Validasi dibatalkan.");
+  };
 
   return {
-    state: { isScanning, scanResult, location, isProcessing, isBackCamera, MAX_DISTANCE_METERS: MAX_DISTANCE, user, isMahasiswa, isAdminDev, showScannerUI },
-    actions: { startScanner, stopScanner, switchCamera, setScanResult }
+    state: { 
+      isScanning, 
+      scanResult, 
+      location, 
+      isProcessing, 
+      isBackCamera, 
+      MAX_DISTANCE_METERS: MAX_DISTANCE, 
+      user, 
+      isMahasiswa, 
+      isAdminDev, 
+      showScannerUI,
+      isVerifyingBiometric
+    },
+    actions: { startScanner, stopScanner, switchCamera, setScanResult, finalizeAttendance, cancelVerification }
   };
 }
