@@ -7,7 +7,7 @@ Selamat datang di peta arsitektur paling komprehensif untuk **Portal Mahasiswa P
 ## 📂 Exhaustive Project Directory Tree
 
 ### 📂 Root Project Level
-Pusat konfigurasi dan integrasi antar layanan.
+Pusat konfigurasi dan integraasi antar layanan.
 
 ```plaintext
 WebAngkatan2025/
