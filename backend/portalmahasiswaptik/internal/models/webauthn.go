@@ -10,11 +10,11 @@ import (
 // WebAuthnCredential represents a stored biometric credential in the database (FaceID/Fingerprint)
 type WebAuthnCredential struct {
 	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	UserID          uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
-	CredentialID    []byte    `gorm:"type:bytea;not null;uniqueIndex" json:"credential_id"`
-	PublicKey       []byte    `gorm:"type:bytea;not null" json:"public_key"`
+	UserID          uuid.UUID `gorm:"type:uuid;column:user_id;not null;index" json:"user_id"`
+	CredentialID    []byte    `gorm:"type:bytea;column:credential_id;not null;uniqueIndex" json:"credential_id"`
+	PublicKey       []byte    `gorm:"type:bytea;column:public_key;not null" json:"public_key"`
 	AttestationType string    `gorm:"type:text" json:"attestation_type"`
-	AAGUID          uuid.UUID `gorm:"type:uuid" json:"aaguid"`
+	AAGUID          uuid.UUID `gorm:"type:uuid;column:aaguid" json:"aaguid"`
 	SignCount       uint32    `gorm:"default:0" json:"sign_count"`
 	CreatedAt       time.Time `gorm:"default:now()" json:"created_at"`
 }
