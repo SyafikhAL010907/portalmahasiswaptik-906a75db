@@ -153,7 +153,9 @@ func (h *WebAuthnHandler) BeginRegistration(c *fiber.Ctx) error {
 	// OVERRIDE: Force RPID to match the current browser domain
 	if dynamicRPID != "" {
 		options.Response.RelyingParty.ID = dynamicRPID
-		fmt.Printf("🛡️ WebAuthn Register Begin | Dynamic RPID: %s\n", dynamicRPID)
+		fmt.Printf("🔍 DIAGNOSTIC: Register Begin | Origin: %s | Dynamic RPID: %s\n", origin, dynamicRPID)
+	} else {
+		fmt.Printf("⚠️ DIAGNOSTIC: Register Begin | Origin EMPTY | Using Default RPID: %s\n", h.WebAuthn.Config.RPID)
 	}
 
 	// Store session data
@@ -228,7 +230,7 @@ func (h *WebAuthnHandler) FinishRegistration(c *fiber.Ctx) error {
 		}
 	}
 	req.Host = dynamicRPID
-	fmt.Printf("🛡️ WebAuthn Register Finish | Dynamic Host: %s | RPID: %s\n", req.Host, h.WebAuthn.Config.RPID)
+	fmt.Printf("🔍 DIAGNOSTIC: Register Finish | Request Host: %s | Origin: %s | RPID Config: %s\n", req.Host, origin, h.WebAuthn.Config.RPID)
 
 	// Parse response from client
 	credential, err := h.WebAuthn.FinishRegistration(waUser, *sessionData, req)
@@ -369,7 +371,9 @@ func (h *WebAuthnHandler) BeginLogin(c *fiber.Ctx) error {
 		}
 		if dynamicRPID != "" {
 			options.Response.RelyingPartyID = dynamicRPID
-			fmt.Printf("🛡️ WebAuthn Login Begin | Dynamic RPID: %s\n", dynamicRPID)
+			fmt.Printf("🔍 DIAGNOSTIC: Login Begin | Origin: %s | Dynamic RPID: %s\n", origin, dynamicRPID)
+		} else {
+			fmt.Printf("⚠️ DIAGNOSTIC: Login Begin | Origin EMPTY | Using Default RPID: %s\n", h.WebAuthn.Config.RPID)
 		}
 	}
 
@@ -471,7 +475,7 @@ func (h *WebAuthnHandler) FinishLogin(c *fiber.Ctx) error {
 		}
 	}
 	req.Host = dynamicRPID
-	fmt.Printf("🛡️ WebAuthn Login Finish | Dynamic Host: %s\n", req.Host)
+	fmt.Printf("🔍 DIAGNOSTIC: Login Finish | Request Host: %s | Origin: %s | RPID Config: %s\n", req.Host, origin, h.WebAuthn.Config.RPID)
 
 	credential, err := h.WebAuthn.FinishLogin(waUser, *sessionData, req)
 	if err != nil {
