@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Fingerprint, ShieldCheck, Loader2, CheckCircle, Smartphone, Trash2 } from "lucide-react";
+import { Fingerprint, ShieldCheck, Loader2, CheckCircle, Smartphone, Trash2, ScanFace } from "lucide-react";
 import { webauthnService } from "@/SharedLogic/services/webauthnService";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/lib/constants";
@@ -88,24 +88,37 @@ export function BiometricSettings() {
       </div>
 
       <CardHeader>
-        <CardTitle className="text-sm font-black uppercase tracking-wider text-primary flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5" />
-          Keamanan Biometrik
+        <CardTitle className="text-sm font-black uppercase tracking-wider text-primary flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5" />
+            Keamanan Biometrik
+          </div>
+          <div className="flex gap-1.5 opacity-50">
+             <Fingerprint className="w-4 h-4" />
+             <ScanFace className="w-4 h-4" />
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-             <Smartphone className="w-10 h-10 text-muted-foreground/40" />
+             <div className="relative">
+                <Smartphone className="w-10 h-10 text-muted-foreground/30" />
+                <Fingerprint className="w-4 h-4 text-primary absolute -bottom-1 -right-1" />
+             </div>
              <div>
-                <p className="text-sm font-bold italic">FaceID / Fingerprint</p>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">Login & Absensi Instan</p>
+                <p className="text-sm font-bold italic">Biometrik Device</p>
+                <div className="flex items-center gap-1.5">
+                   <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-tight">FaceID</p>
+                   <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                   <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-tight">Fingerprint</p>
+                </div>
              </div>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed italic">
-          Daftarkan perangkat ini untuk melakukan absensi QR menggunakan **FaceID** atau **Sidik Jari**. Lebih cepat, aman, dan gak bisa dititip bro!
+          Gunakan **Wajah** atau **Sidik Jari** untuk login dan absensi QR secara instan. Lebih cepat, aman, dan gak bisa dititip bro!
         </p>
 
         <Button
@@ -122,9 +135,12 @@ export function BiometricSettings() {
           ) : isRegistered ? (
             <CheckCircle className="w-5 h-5 mr-2" />
           ) : (
-            <Fingerprint className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+            <div className="flex items-center gap-1 mr-2">
+               <Fingerprint className="w-5 h-5 group-hover:scale-110 transition-transform" />
+               <ScanFace className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            </div>
           )}
-          {isRegistering ? "PROSES DAFTAR..." : isRegistered ? "PERANGKAT TERDAFTAR" : "DAFTARKAN DEVICE"}
+          {isRegistering ? "PROSES DAFTAR..." : isRegistered ? "PERANGKAT TERDAFTAR" : "AKTIFKAN BIOMETRIK"}
         </Button>
 
         {isRegistered && (
